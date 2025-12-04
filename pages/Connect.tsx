@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Rocket, CheckCircle, AlertTriangle, Info } from 'lucide-react';
@@ -87,7 +88,7 @@ const ConnectPage: React.FC = () => {
               </div>
               <p>{error}</p>
               <div className="mt-2 text-xs text-red-300 opacity-80 pl-6">
-                Tip: In Meta Developers > App Settings > Basic, ensure your Vercel URL is added to "App Domains".
+                Tip: In Meta Developers App Settings Basic, ensure your Vercel URL is added to "App Domains".
               </div>
             </div>
           )}
