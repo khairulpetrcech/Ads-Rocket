@@ -11,7 +11,11 @@ export interface UserSettings {
   businessName: string;
   selectedAiProvider: AiProvider;
   selectedModel: string; // Specific model version
-  apiKey: string; // User provided key
+  apiKey: string; // User provided key for AI
+  // Meta Configuration
+  fbAppId: string;
+  fbAccessToken: string;
+  adAccountId: string;
 }
 
 export interface AdMetrics {
@@ -31,7 +35,7 @@ export interface AdMetrics {
 export interface AdCampaign {
   id: string;
   name: string;
-  status: 'ACTIVE' | 'PAUSED' | 'ARCHIVED';
+  status: 'ACTIVE' | 'PAUSED' | 'ARCHIVED' | 'WITH_ISSUES';
   dailyBudget: number;
   metrics: AdMetrics;
   history: { date: string; roas: number; spend: number }[]; // For charts
@@ -41,4 +45,11 @@ export interface AiAnalysisResult {
   summary: string;
   actionPlan: string[];
   sentiment: 'POSITIVE' | 'NEUTRAL' | 'NEGATIVE';
+}
+
+export interface MetaAdAccount {
+  id: string;
+  name: string;
+  account_id: string;
+  currency: string;
 }

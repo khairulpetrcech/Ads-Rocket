@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { MOCK_CAMPAIGNS } from '../services/mockData';
 import { AdCampaign, AiAnalysisResult } from '../types';
 import { analyzeCampaign } from '../services/aiService';
 import { useSettings } from '../App';
+import { getRealCampaigns, initFacebookSdk } from '../services/metaService';
+import { MOCK_CAMPAIGNS } from '../services/mockData';
 import { 
   TrendingUp, 
   DollarSign, 
@@ -10,7 +11,8 @@ import {
   Eye, 
   BrainCircuit, 
   Loader2,
-  AlertCircle
+  AlertCircle,
+  RefreshCw
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -35,7 +37,7 @@ const MetricCard = ({ title, value, subtext, icon: Icon, trend }: any) => (
     <div className="flex items-center mt-2 gap-2">
        {trend && (
          <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${trend === 'up' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
-            {trend === 'up' ? '+12.5%' : '-4.2%'}
+            {trend === 'up' ? '+' : ''}Trend
          </span>
        )}
        <p className="text-xs text-slate-500">{subtext}</p>
@@ -45,14 +47,47 @@ const MetricCard = ({ title, value, subtext, icon: Icon, trend }: any) => (
 
 const Dashboard: React.FC = () => {
   const { settings } = useSettings();
+  const [campaigns, setCampaigns] = useState<AdCampaign[]>([]);
+  const [loadingCampaigns, setLoadingCampaigns] = useState(false);
   const [selectedCampaign, setSelectedCampaign] = useState<AdCampaign | null>(null);
   const [analysis, setAnalysis] = useState<AiAnalysisResult | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
+  const [fetchError, setFetchError] = useState('');
+
+  // Fetch campaigns on load
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoadingCampaigns(true);
+      setFetchError('');
+      
+      try {
+        if (settings.fbAccessToken && settings.adAccountId && settings.fbAppId) {
+          // Initialize SDK just in case (needed for some internal calls, though mostly REST API now)
+          await initFacebookSdk(settings.fbAppId);
+          const realData = await getRealCampaigns(settings.adAccountId, settings.fbAccessToken);
+          setCampaigns(realData);
+        } else {
+          // Fallback to Mock Data if no token
+          setCampaigns(MOCK_CAMPAIGNS);
+        }
+      } catch (err: any) {
+        console.error("Fetch Error", err);
+        setFetchError(err.message || "Failed to fetch real data. Using Cached/Mock data.");
+        setCampaigns(MOCK_CAMPAIGNS);
+      } finally {
+        setLoadingCampaigns(false);
+      }
+    };
+
+    fetchData();
+  }, [settings.fbAccessToken, settings.adAccountId, settings.fbAppId]);
 
   // Totals for top cards
-  const totalSpend = MOCK_CAMPAIGNS.reduce((acc, c) => acc + c.metrics.spend, 0);
-  const totalRevenue = MOCK_CAMPAIGNS.reduce((acc, c) => acc + c.metrics.revenue, 0);
-  const totalRoas = totalRevenue / totalSpend;
+  const totalSpend = campaigns.reduce((acc, c) => acc + c.metrics.spend, 0);
+  const totalRevenue = campaigns.reduce((acc, c) => acc + c.metrics.revenue, 0);
+  const totalRoas = totalSpend > 0 ? totalRevenue / totalSpend : 0;
+  const avgCtr = campaigns.length > 0 ? campaigns.reduce((acc, c) => acc + c.metrics.ctr, 0) / campaigns.length : 0;
+  const totalLpViews = campaigns.reduce((acc, c) => acc + c.metrics.landingPageViews, 0);
 
   const handleAnalyze = async (campaign: AdCampaign) => {
     setSelectedCampaign(campaign);
@@ -81,10 +116,18 @@ const Dashboard: React.FC = () => {
       <header className="flex justify-between items-center mb-8">
         <div>
             <h1 className="text-2xl font-bold text-white">Dashboard</h1>
-            <p className="text-slate-400">Welcome back, {settings.businessName}</p>
+            <p className="text-slate-400">Account: {settings.businessName}</p>
         </div>
-        <div className="bg-slate-800 px-4 py-2 rounded-lg border border-slate-700 text-sm text-slate-300">
-           Last Updated: Just now
+        <div className="flex items-center gap-3">
+            {fetchError && (
+                <div className="text-xs text-yellow-500 bg-yellow-900/20 px-3 py-1 rounded border border-yellow-800">
+                    {fetchError}
+                </div>
+            )}
+            <div className="bg-slate-800 px-4 py-2 rounded-lg border border-slate-700 text-sm text-slate-300 flex items-center gap-2">
+               {loadingCampaigns ? <RefreshCw size={14} className="animate-spin" /> : <div className="w-2 h-2 bg-green-500 rounded-full"></div>}
+               {loadingCampaigns ? 'Syncing...' : 'Live'}
+            </div>
         </div>
       </header>
 
@@ -92,8 +135,8 @@ const Dashboard: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricCard 
             title="Total Spend" 
-            value={`$${totalSpend.toLocaleString()}`} 
-            subtext="Last 7 Days"
+            value={`$${totalSpend.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`} 
+            subtext="Lifetime (Max)"
             icon={DollarSign}
             trend="up"
         />
@@ -106,15 +149,15 @@ const Dashboard: React.FC = () => {
         />
         <MetricCard 
             title="Avg. CTR" 
-            value="1.8%" 
+            value={`${avgCtr.toFixed(2)}%`} 
             subtext="All Campaigns"
             icon={MousePointer}
-            trend="down"
+            trend={avgCtr > 1 ? 'up' : 'down'}
         />
         <MetricCard 
             title="LP Views" 
-            value="1,420" 
-            subtext="Cost: $1.92"
+            value={totalLpViews.toLocaleString()} 
+            subtext="Total Traffic"
             icon={Eye}
             trend="up"
         />
@@ -124,13 +167,13 @@ const Dashboard: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
         {/* Campaigns Table - Spans 2 cols */}
-        <div className="lg:col-span-2 bg-[#1e293b] rounded-xl border border-slate-700 overflow-hidden">
+        <div className="lg:col-span-2 bg-[#1e293b] rounded-xl border border-slate-700 overflow-hidden flex flex-col h-[600px]">
             <div className="p-6 border-b border-slate-700 flex justify-between items-center">
                 <h3 className="font-semibold text-lg text-white">Active Campaigns</h3>
             </div>
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto flex-1 custom-scrollbar">
                 <table className="w-full text-left border-collapse">
-                    <thead>
+                    <thead className="sticky top-0 z-10 bg-[#1e293b]">
                         <tr className="bg-slate-800/50 text-slate-400 text-sm uppercase">
                             <th className="p-4 font-medium">Campaign Name</th>
                             <th className="p-4 font-medium">Spend</th>
@@ -140,15 +183,22 @@ const Dashboard: React.FC = () => {
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-700">
-                        {MOCK_CAMPAIGNS.map((campaign) => (
+                        {campaigns.length === 0 && !loadingCampaigns && (
+                            <tr>
+                                <td colSpan={5} className="p-8 text-center text-slate-500">
+                                    No campaigns found.
+                                </td>
+                            </tr>
+                        )}
+                        {campaigns.map((campaign) => (
                             <tr key={campaign.id} className="text-sm text-slate-300 hover:bg-slate-800/30 transition-colors">
                                 <td className="p-4 font-medium text-white flex items-center gap-2">
-                                    <span className={`w-2 h-2 rounded-full ${campaign.status === 'ACTIVE' ? 'bg-green-500' : 'bg-yellow-500'}`}></span>
-                                    {campaign.name}
+                                    <span className={`w-2 h-2 rounded-full ${campaign.status === 'ACTIVE' ? 'bg-green-500' : 'bg-slate-500'}`}></span>
+                                    <span className="truncate max-w-[150px]" title={campaign.name}>{campaign.name}</span>
                                 </td>
-                                <td className="p-4">${campaign.metrics.spend}</td>
+                                <td className="p-4">${campaign.metrics.spend.toFixed(2)}</td>
                                 <td className="p-4 font-bold text-white">
-                                    <span className={`${campaign.metrics.roas >= 2 ? 'text-green-400' : 'text-red-400'}`}>
+                                    <span className={`${campaign.metrics.roas >= 2 ? 'text-green-400' : campaign.metrics.roas > 0 ? 'text-red-400' : 'text-slate-500'}`}>
                                         {campaign.metrics.roas.toFixed(2)}x
                                     </span>
                                 </td>
@@ -169,12 +219,12 @@ const Dashboard: React.FC = () => {
         </div>
 
         {/* AI Insight Panel or Chart - Spans 1 col */}
-        <div className="lg:col-span-1 space-y-6">
+        <div className="lg:col-span-1 space-y-6 h-[600px]">
             
             {/* Context Sensitive Panel */}
             {selectedCampaign ? (
-                <div className="bg-[#1e293b] rounded-xl border border-indigo-500/50 shadow-lg shadow-indigo-900/20 overflow-hidden h-full">
-                    <div className="p-4 bg-indigo-900/20 border-b border-indigo-500/30 flex justify-between items-center">
+                <div className="bg-[#1e293b] rounded-xl border border-indigo-500/50 shadow-lg shadow-indigo-900/20 overflow-hidden h-full flex flex-col">
+                    <div className="p-4 bg-indigo-900/20 border-b border-indigo-500/30 flex justify-between items-center flex-shrink-0">
                         <h3 className="font-semibold text-indigo-300 flex items-center gap-2">
                             <BrainCircuit size={18} />
                             AI Analysis
@@ -182,21 +232,16 @@ const Dashboard: React.FC = () => {
                         <button onClick={closeAnalysis} className="text-slate-400 hover:text-white">&times;</button>
                     </div>
                     
-                    <div className="p-6">
+                    <div className="p-6 overflow-y-auto custom-scrollbar flex-1">
                         {analyzing ? (
                             <div className="flex flex-col items-center justify-center py-12 space-y-4 text-indigo-300">
                                 <Loader2 size={32} className="animate-spin" />
                                 <p className="text-sm animate-pulse">
-                                  Analyzing with {settings.selectedModel.split('/')[1] || settings.selectedModel.split('-')[0]}...
+                                  Analyzing {selectedCampaign.name}...
                                 </p>
                             </div>
                         ) : analysis ? (
                             <div className="space-y-5 animate-fadeIn">
-                                <div>
-                                    <h4 className="text-xs uppercase tracking-wider text-slate-500 font-bold mb-2">Campaign</h4>
-                                    <p className="text-white font-medium">{selectedCampaign.name}</p>
-                                </div>
-
                                 <div>
                                     <h4 className="text-xs uppercase tracking-wider text-slate-500 font-bold mb-2">Summary</h4>
                                     <p className="text-sm text-slate-300 leading-relaxed bg-slate-800/50 p-3 rounded-lg border border-slate-700">
@@ -230,7 +275,7 @@ const Dashboard: React.FC = () => {
                     </div>
                 </div>
             ) : (
-                <div className="bg-[#1e293b] rounded-xl border border-slate-700 p-6 flex flex-col items-center justify-center h-full text-center min-h-[400px]">
+                <div className="bg-[#1e293b] rounded-xl border border-slate-700 p-6 flex flex-col items-center justify-center h-full text-center">
                     <div className="w-16 h-16 bg-slate-800 rounded-full flex items-center justify-center mb-4">
                         <BrainCircuit size={32} className="text-slate-500" />
                     </div>
@@ -240,25 +285,6 @@ const Dashboard: React.FC = () => {
             )}
         </div>
         
-        {/* Performance Chart - Full Width */}
-        <div className="lg:col-span-3 bg-[#1e293b] rounded-xl border border-slate-700 p-6">
-             <h3 className="font-semibold text-lg text-white mb-6">Aggregate Performance (ROAS)</h3>
-             <div className="h-64 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={MOCK_CAMPAIGNS[0].history}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                        <XAxis dataKey="date" stroke="#94a3b8" tick={{fontSize: 12}} />
-                        <YAxis stroke="#94a3b8" tick={{fontSize: 12}} />
-                        <Tooltip 
-                            contentStyle={{ backgroundColor: '#1e293b', borderColor: '#475569', color: '#fff' }}
-                            itemStyle={{ color: '#fff' }}
-                        />
-                        <Line type="monotone" dataKey="roas" stroke="#6366f1" strokeWidth={3} dot={{r: 4, fill: '#6366f1'}} activeDot={{r: 6}} />
-                    </LineChart>
-                </ResponsiveContainer>
-             </div>
-        </div>
-
       </div>
     </div>
   );

@@ -29,8 +29,11 @@ const App: React.FC = () => {
       isConnected: false,
       businessName: '',
       selectedAiProvider: AiProvider.CLAUDE, 
-      selectedModel: 'claude-3-5-sonnet-20241022', // Default model
+      selectedModel: 'claude-3-5-sonnet-20241022', 
       apiKey: '',
+      fbAppId: '',
+      fbAccessToken: '',
+      adAccountId: ''
     };
   });
 
