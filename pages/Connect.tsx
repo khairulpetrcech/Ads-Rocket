@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Rocket, CheckCircle, AlertTriangle } from 'lucide-react';
+import { Rocket, CheckCircle, AlertTriangle, Info } from 'lucide-react';
 import { useSettings } from '../App';
 import { initFacebookSdk, loginWithFacebook, getAdAccounts } from '../services/metaService';
 import { MetaAdAccount } from '../types';
@@ -41,7 +41,7 @@ const ConnectPage: React.FC = () => {
       const adAccounts = await getAdAccounts(accessToken);
       
       if (adAccounts.length === 0) {
-        setError("No Ad Accounts found for this user.");
+        setError("No Ad Accounts found for this user. Ensure you have admin access.");
         setLoading(false);
         return;
       }
@@ -52,7 +52,7 @@ const ConnectPage: React.FC = () => {
 
     } catch (err: any) {
       console.error(err);
-      setError(typeof err === 'string' ? err : "Failed to connect to Facebook. Check your App ID and Pop-up blocker.");
+      setError(typeof err === 'string' ? err : "Failed to connect to Facebook. Check your App ID and ensure your domain is allowed in Meta App Settings.");
       setLoading(false);
     }
   };
@@ -80,9 +80,15 @@ const ConnectPage: React.FC = () => {
           </p>
 
           {error && (
-            <div className="bg-red-900/20 border border-red-800 p-3 rounded-lg mb-4 flex items-center gap-2 text-red-400 text-sm">
-              <AlertTriangle size={16} />
-              {error}
+            <div className="bg-red-900/20 border border-red-800 p-3 rounded-lg mb-4 text-red-400 text-sm">
+              <div className="flex items-center gap-2 mb-1">
+                 <AlertTriangle size={16} />
+                 <span className="font-bold">Connection Failed</span>
+              </div>
+              <p>{error}</p>
+              <div className="mt-2 text-xs text-red-300 opacity-80 pl-6">
+                Tip: In Meta Developers > App Settings > Basic, ensure your Vercel URL is added to "App Domains".
+              </div>
             </div>
           )}
 
@@ -149,6 +155,9 @@ const ConnectPage: React.FC = () => {
           <div className="text-xs text-slate-500 mt-6 flex flex-col gap-2">
             <div className="flex items-center justify-center gap-2">
                <CheckCircle size={14} className="text-green-500"/> Read-Only Analytics Access
+            </div>
+            <div className="flex items-center justify-center gap-2">
+               <Info size={14} className="text-blue-500"/> Requires "App Domains" setup in Meta
             </div>
           </div>
         </div>

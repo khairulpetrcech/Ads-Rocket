@@ -10,12 +10,8 @@ declare global {
 // Initialize the SDK
 export const initFacebookSdk = (appId: string): Promise<void> => {
   return new Promise((resolve) => {
-    if (window.FB) {
-      resolve();
-      return;
-    }
-
-    window.fbAsyncInit = function() {
+    // Helper to perform the actual init
+    const initializeSDK = () => {
       window.FB.init({
         appId      : appId,
         cookie     : true,
@@ -24,19 +20,44 @@ export const initFacebookSdk = (appId: string): Promise<void> => {
       });
       resolve();
     };
+
+    if (window.FB) {
+      // SDK script already loaded, just initialize with the App ID
+      initializeSDK();
+      return;
+    }
+
+    // If SDK script not loaded yet, hook into the async callback
+    window.fbAsyncInit = initializeSDK;
+    
+    // Ensure script is injected if not already present (failsafe)
+    if (!document.getElementById('facebook-jssdk')) {
+       const js = document.createElement('script');
+       js.id = 'facebook-jssdk';
+       js.src = "https://connect.facebook.net/en_US/sdk.js";
+       js.async = true;
+       js.defer = true;
+       js.crossOrigin = "anonymous";
+       document.body.appendChild(js);
+    }
   });
 };
 
 // Login and request permissions
 export const loginWithFacebook = (): Promise<string> => {
   return new Promise((resolve, reject) => {
-    if (!window.FB) return reject("Facebook SDK not loaded");
+    if (!window.FB) return reject("Facebook SDK not loaded. Try refreshing the page.");
 
     window.FB.login((response: any) => {
       if (response.authResponse) {
         resolve(response.authResponse.accessToken);
       } else {
-        reject("User cancelled login or did not fully authorize.");
+        // More descriptive error
+        if (response.status === 'unknown') {
+            reject("Login cancelled or blocked. Please allow popups for this site.");
+        } else {
+            reject("User did not fully authorize the app.");
+        }
       }
     }, { 
       // Request permissions to read ads and insights
