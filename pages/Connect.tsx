@@ -97,7 +97,7 @@ const ConnectPage: React.FC = () => {
                   placeholder="1234567890..."
                   className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-indigo-500 outline-none"
                 />
-                <p className="text-[10px] text-slate-500 mt-1">Found in Meta Developers Portal > Your App > App ID</p>
+                <p className="text-[10px] text-slate-500 mt-1">Found in Meta Developers Portal</p>
               </div>
 
               <button
