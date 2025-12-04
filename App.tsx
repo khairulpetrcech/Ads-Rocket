@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, PropsWithChildren } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Layout from './components/Layout';
 import ConnectPage from './pages/Connect';
@@ -28,7 +28,9 @@ const App: React.FC = () => {
     return saved ? JSON.parse(saved) : {
       isConnected: false,
       businessName: '',
-      selectedAiProvider: AiProvider.FREE,
+      selectedAiProvider: AiProvider.CLAUDE, 
+      selectedModel: 'claude-3-5-sonnet-20241022', // Default model
+      apiKey: '',
     };
   });
 
@@ -42,7 +44,7 @@ const App: React.FC = () => {
   };
 
   // Protected Route Wrapper
-  const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
+  const ProtectedRoute = ({ children }: PropsWithChildren) => {
     if (!settings.isConnected) {
       return <Navigate to="/connect" replace />;
     }

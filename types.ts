@@ -1,14 +1,17 @@
 export enum AiProvider {
-  FREE = 'FREE', // OpenRouter/Free Tier Simulation
-  GEMINI = 'GEMINI',
-  OPENAI = 'OPENAI',
-  CLAUDE = 'CLAUDE'
+  FREE = 'FREE', // Simulation
+  GEMINI = 'GEMINI', // Google Gemini
+  CLAUDE = 'CLAUDE', // Anthropic Claude
+  OPENAI = 'OPENAI', // OpenAI GPT
+  OPENROUTER = 'OPENROUTER', // OpenRouter
 }
 
 export interface UserSettings {
   isConnected: boolean;
   businessName: string;
   selectedAiProvider: AiProvider;
+  selectedModel: string; // Specific model version
+  apiKey: string; // User provided key
 }
 
 export interface AdMetrics {

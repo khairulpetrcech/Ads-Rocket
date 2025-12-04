@@ -59,7 +59,13 @@ const Dashboard: React.FC = () => {
     setAnalysis(null);
     setAnalyzing(true);
 
-    const result = await analyzeCampaign(campaign, settings.selectedAiProvider);
+    // Pass custom settings including apiKey
+    const result = await analyzeCampaign(
+      campaign, 
+      settings.selectedAiProvider,
+      settings.apiKey,
+      settings.selectedModel
+    );
     
     setAnalysis(result);
     setAnalyzing(false);
@@ -180,7 +186,9 @@ const Dashboard: React.FC = () => {
                         {analyzing ? (
                             <div className="flex flex-col items-center justify-center py-12 space-y-4 text-indigo-300">
                                 <Loader2 size={32} className="animate-spin" />
-                                <p className="text-sm animate-pulse">Analyzing metrics with {settings.selectedAiProvider}...</p>
+                                <p className="text-sm animate-pulse">
+                                  Analyzing with {settings.selectedModel.split('/')[1] || settings.selectedModel.split('-')[0]}...
+                                </p>
                             </div>
                         ) : analysis ? (
                             <div className="space-y-5 animate-fadeIn">
