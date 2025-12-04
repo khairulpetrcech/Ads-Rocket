@@ -25,11 +25,19 @@ const createPrompt = (campaign: AdCampaign) => {
   `;
 };
 
+// Safe access to environment variable
+const getEnvApiKey = () => {
+  if (typeof process !== 'undefined' && process.env) {
+    return process.env.API_KEY;
+  }
+  return undefined;
+};
+
 // --- Model Fetching Services ---
 
 export const getAvailableModels = async (provider: AiProvider, userApiKey?: string): Promise<string[]> => {
   // Use user key if provided, else fallback to env (if available)
-  const key = userApiKey || process.env.API_KEY;
+  const key = userApiKey || getEnvApiKey();
   
   try {
     if (provider === AiProvider.CLAUDE) {
@@ -156,7 +164,7 @@ export const analyzeCampaign = async (
 ): Promise<AiAnalysisResult> => {
   
   try {
-    const apiKey = userApiKey || process.env.API_KEY;
+    const apiKey = userApiKey || getEnvApiKey();
     const prompt = createPrompt(campaign);
     
     // --- GEMINI ---
