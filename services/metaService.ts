@@ -8,17 +8,27 @@ declare global {
   }
 }
 
-// Initialize the SDK
+// Initialize the SDK with Timeout to prevent hanging
 export const initFacebookSdk = (appId: string): Promise<void> => {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
+    // 1. Setup Timeout (5 seconds)
+    const timeoutId = setTimeout(() => {
+      reject("Facebook SDK load timeout. Check your ad blocker or network connection.");
+    }, 5000);
+
     const initializeSDK = () => {
-      window.FB.init({
-        appId      : appId,
-        cookie     : true,
-        xfbml      : true,
-        version    : 'v19.0'
-      });
-      resolve();
+      clearTimeout(timeoutId); // Clear timeout on success
+      try {
+        window.FB.init({
+          appId      : appId,
+          cookie     : true,
+          xfbml      : true,
+          version    : 'v19.0'
+        });
+        resolve();
+      } catch (e) {
+        reject(e);
+      }
     };
 
     if (window.FB) {
@@ -28,6 +38,7 @@ export const initFacebookSdk = (appId: string): Promise<void> => {
 
     window.fbAsyncInit = initializeSDK;
     
+    // Only append script if not already present
     if (!document.getElementById('facebook-jssdk')) {
        const js = document.createElement('script');
        js.id = 'facebook-jssdk';
@@ -35,6 +46,10 @@ export const initFacebookSdk = (appId: string): Promise<void> => {
        js.async = true;
        js.defer = true;
        js.crossOrigin = "anonymous";
+       js.onerror = () => {
+         clearTimeout(timeoutId);
+         reject("Failed to load Facebook SDK script.");
+       };
        document.body.appendChild(js);
     }
   });
