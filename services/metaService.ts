@@ -447,6 +447,177 @@ export const getTopAdsForAccount = async (
     }
 };
 
+// --- CREATION & UPLOAD ACTIONS ---
+
+export const getPages = async (accessToken: string) => {
+    const response = await fetch(`https://graph.facebook.com/v19.0/me/accounts?fields=name,id,access_token&access_token=${accessToken}`);
+    const data = await response.json();
+    handleApiError(data);
+    return data.data || [];
+};
+
+export const createMetaCampaign = async (accountId: string, name: string, objective: string, accessToken: string) => {
+    const actId = accountId.startsWith('act_') ? accountId : `act_${accountId}`;
+    const url = `https://graph.facebook.com/v19.0/${actId}/campaigns`;
+    
+    const body = {
+        name,
+        objective, // e.g. OUTCOME_SALES, OUTCOME_TRAFFIC
+        status: 'PAUSED', // Always pause on creation for safety
+        special_ad_categories: [],
+        access_token: accessToken
+    };
+
+    const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+    });
+    const data = await response.json();
+    handleApiError(data);
+    
+    invalidateCache();
+    return data; // returns { id: ... }
+};
+
+export const createMetaAdSet = async (
+    accountId: string, 
+    campaignId: string, 
+    name: string, 
+    dailyBudget: number, 
+    optimizationGoal: string, 
+    accessToken: string
+) => {
+    const actId = accountId.startsWith('act_') ? accountId : `act_${accountId}`;
+    const url = `https://graph.facebook.com/v19.0/${actId}/adsets`;
+    
+    // Simplified targeting (MY, 18-65+)
+    const targeting = {
+        geo_locations: { countries: ['MY'] },
+        age_min: 18,
+        age_max: 65,
+    };
+
+    const body: any = {
+        name,
+        campaign_id: campaignId,
+        daily_budget: Math.floor(dailyBudget * 100), // convert to cents
+        billing_event: 'IMPRESSIONS',
+        optimization_goal: optimizationGoal, // e.g. OFFSITE_CONVERSIONS, LINK_CLICKS
+        targeting: targeting,
+        status: 'PAUSED',
+        start_time: new Date().toISOString(), // Start now
+        access_token: accessToken
+    };
+    
+    // Note: Conversion ads usually require a 'promoted_object' (pixel). 
+    // For simplicity in this general tool, we might fail if pixel is required for specific objectives.
+    // If objective is TRAFFIC/LINK_CLICKS, this usually works without pixel.
+    
+    const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+    });
+    const data = await response.json();
+    handleApiError(data);
+    invalidateCache();
+    return data;
+};
+
+export const uploadAdImage = async (accountId: string, file: File, accessToken: string) => {
+    const actId = accountId.startsWith('act_') ? accountId : `act_${accountId}`;
+    const url = `https://graph.facebook.com/v19.0/${actId}/adimages`;
+    
+    const formData = new FormData();
+    formData.append('access_token', accessToken);
+    formData.append('filename', file);
+
+    const response = await fetch(url, {
+        method: 'POST',
+        body: formData
+    });
+    const data = await response.json();
+    handleApiError(data);
+    
+    // Response format: { images: { "filename.jpg": { hash: "..." } } }
+    const images = data.images || {};
+    const firstKey = Object.keys(images)[0];
+    if (firstKey && images[firstKey].hash) {
+        return images[firstKey].hash;
+    }
+    throw new Error("Image upload failed: No hash returned");
+};
+
+export const createMetaCreative = async (
+    accountId: string,
+    name: string,
+    pageId: string,
+    imageHash: string,
+    message: string, // Primary Text
+    headline: string,
+    link: string,
+    accessToken: string
+) => {
+    const actId = accountId.startsWith('act_') ? accountId : `act_${accountId}`;
+    const url = `https://graph.facebook.com/v19.0/${actId}/adcreatives`;
+    
+    const body = {
+        name: name + " Creative",
+        object_story_spec: {
+            page_id: pageId,
+            link_data: {
+                message: message,
+                link: link,
+                image_hash: imageHash,
+                name: headline,
+                call_to_action: {
+                    type: "LEARN_MORE"
+                }
+            }
+        },
+        access_token: accessToken
+    };
+
+    const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+    });
+    const data = await response.json();
+    handleApiError(data);
+    return data.id; // Creative ID
+};
+
+export const createMetaAd = async (
+    accountId: string,
+    adSetId: string,
+    name: string,
+    creativeId: string,
+    accessToken: string
+) => {
+    const actId = accountId.startsWith('act_') ? accountId : `act_${accountId}`;
+    const url = `https://graph.facebook.com/v19.0/${actId}/ads`;
+
+    const body = {
+        name,
+        adset_id: adSetId,
+        creative: { creative_id: creativeId },
+        status: 'PAUSED', // Safety first
+        access_token: accessToken
+    };
+
+    const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+    });
+    const data = await response.json();
+    handleApiError(data);
+    invalidateCache();
+    return data;
+};
+
 // --- ACTIONS (Invalidate Cache on Success) ---
 
 export const updateEntityStatus = async (

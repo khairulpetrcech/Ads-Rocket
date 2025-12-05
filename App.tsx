@@ -5,6 +5,7 @@ import Layout from './components/Layout';
 import ConnectPage from './pages/Connect';
 import Dashboard from './pages/Dashboard';
 import SettingsPage from './pages/Settings';
+import CreateCampaign from './pages/CreateCampaign';
 import { UserSettings, AiProvider } from './types';
 import { initFacebookSdk, isSecureContext } from './services/metaService';
 
@@ -78,6 +79,7 @@ const App: React.FC = () => {
             </ProtectedRoute>
           }>
             <Route index element={<Dashboard />} />
+            <Route path="create-campaign" element={<CreateCampaign />} />
             <Route path="settings" element={<SettingsPage />} />
           </Route>
 

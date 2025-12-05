@@ -451,32 +451,41 @@ const Dashboard: React.FC = () => {
                                                                 <table className="w-full table-fixed">
                                                                     <tbody>
                                                                     {adsData[adset.id] ? (
-                                                                        adsData[adset.id].map(ad => (
-                                                                            <tr key={ad.id} className="text-xs hover:bg-slate-900/50 border-b border-slate-800/50 last:border-0">
-                                                                                <td className="p-3 pl-20 w-[25%]">
-                                                                                    <div className="flex items-center gap-3">
-                                                                                        <div className="w-10 h-10 bg-slate-800 rounded overflow-hidden flex-shrink-0 border border-slate-700">
-                                                                                            {ad.creative.thumbnail_url || ad.creative.image_url ? (
-                                                                                                <img src={ad.creative.thumbnail_url || ad.creative.image_url} className="w-full h-full object-cover" alt="" />
-                                                                                            ) : (
-                                                                                                <div className="w-full h-full flex items-center justify-center text-slate-600"><ImageIcon size={14} /></div>
-                                                                                            )}
-                                                                                        </div>
-                                                                                        <div className="min-w-0 flex-1">
-                                                                                            <div className="flex items-center gap-2 mb-1">
-                                                                                                <StatusToggle 
-                                                                                                    status={ad.status} 
-                                                                                                    loading={actionLoading === ad.id}
-                                                                                                    onToggle={() => handleStatusToggle(ad.id, ad.status, 'ad')} 
-                                                                                                />
-                                                                                                <span className="text-slate-400 truncate max-w-[150px]" title={ad.name}>{ad.name}</span>
+                                                                        // STRICT FILTER: Only Show ACTIVE Ads
+                                                                        adsData[adset.id].filter(ad => ad.status === 'ACTIVE').length > 0 ? (
+                                                                            adsData[adset.id].filter(ad => ad.status === 'ACTIVE').map(ad => (
+                                                                                <tr key={ad.id} className="text-xs hover:bg-slate-900/50 border-b border-slate-800/50 last:border-0">
+                                                                                    <td className="p-3 pl-20 w-[25%]">
+                                                                                        <div className="flex items-center gap-3">
+                                                                                            <div className="w-10 h-10 bg-slate-800 rounded overflow-hidden flex-shrink-0 border border-slate-700">
+                                                                                                {ad.creative.thumbnail_url || ad.creative.image_url ? (
+                                                                                                    <img src={ad.creative.thumbnail_url || ad.creative.image_url} className="w-full h-full object-cover" alt="" />
+                                                                                                ) : (
+                                                                                                    <div className="w-full h-full flex items-center justify-center text-slate-600"><ImageIcon size={14} /></div>
+                                                                                                )}
+                                                                                            </div>
+                                                                                            <div className="min-w-0 flex-1">
+                                                                                                <div className="flex items-center gap-2 mb-1">
+                                                                                                    <StatusToggle 
+                                                                                                        status={ad.status} 
+                                                                                                        loading={actionLoading === ad.id}
+                                                                                                        onToggle={() => handleStatusToggle(ad.id, ad.status, 'ad')} 
+                                                                                                    />
+                                                                                                    <span className="text-slate-400 truncate max-w-[150px]" title={ad.name}>{ad.name}</span>
+                                                                                                </div>
                                                                                             </div>
                                                                                         </div>
-                                                                                    </div>
+                                                                                    </td>
+                                                                                    {renderMetrics(ad.metrics)}
+                                                                                </tr>
+                                                                            ))
+                                                                        ) : (
+                                                                             <tr>
+                                                                                <td colSpan={7} className="text-center py-8 text-xs text-slate-500">
+                                                                                    No active ads in this ad set.
                                                                                 </td>
-                                                                                {renderMetrics(ad.metrics)}
                                                                             </tr>
-                                                                        ))
+                                                                        )
                                                                     ) : (
                                                                         <tr>
                                                                             <td colSpan={7} className="text-center py-8 text-xs text-slate-500">
