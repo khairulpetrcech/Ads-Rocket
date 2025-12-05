@@ -1,22 +1,26 @@
 
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Rocket, CheckCircle, AlertTriangle, Info, KeyRound, RefreshCw } from 'lucide-react';
+import { Rocket, CheckCircle, AlertTriangle, Info, RefreshCw } from 'lucide-react';
 import { useSettings } from '../App';
 import { initFacebookSdk, loginWithFacebook, getAdAccounts, checkLoginStatus } from '../services/metaService';
 import { MetaAdAccount } from '../types';
+
+// --- CONFIGURATION ---
+// Replace '123456789' with your REAL Meta App ID for production.
+// Keep '123456789' to use the Demo/Simulation mode.
+const SYSTEM_APP_ID = '123456789'; 
 
 const ConnectPage: React.FC = () => {
   const navigate = useNavigate();
   const { settings, updateSettings } = useSettings();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [appIdInput, setAppIdInput] = useState(settings.fbAppId || '');
   
-  const [step, setStep] = useState<1 | 2>(1); // 1 = App ID, 2 = Account Selection
+  const [step, setStep] = useState<1 | 2>(1); // 1 = Login, 2 = Account Selection
   const [accounts, setAccounts] = useState<MetaAdAccount[]>([]);
 
-  // On mount, auto-check login if App ID exists
+  // On mount, auto-check login
   useEffect(() => {
     const autoConnect = async () => {
       // If we already have everything, go to dashboard
@@ -25,27 +29,25 @@ const ConnectPage: React.FC = () => {
         return;
       }
 
-      // If we have App ID but no connection, try to auto-reconnect
-      if (settings.fbAppId && settings.fbAppId !== '123456789') {
+      // If NOT using the dummy ID, check real FB Login status
+      if (SYSTEM_APP_ID && SYSTEM_APP_ID !== '123456789') {
         setLoading(true);
         try {
-          await initFacebookSdk(settings.fbAppId);
+          await initFacebookSdk(SYSTEM_APP_ID);
           const existingToken = await checkLoginStatus();
           
           if (existingToken) {
             // Already connected to FB, fetch accounts automatically
-            updateSettings({ fbAccessToken: existingToken });
+            updateSettings({ fbAppId: SYSTEM_APP_ID, fbAccessToken: existingToken });
             const adAccounts = await getAdAccounts(existingToken);
             
             if (adAccounts.length > 0) {
               setAccounts(adAccounts);
-              // Save all accounts to global state for switcher
               updateSettings({ availableAccounts: adAccounts });
               setStep(2);
               
-              // If we previously had an account ID and it's still valid, auto-redirect
               if (settings.adAccountId && adAccounts.find(a => a.id === settings.adAccountId)) {
-                 updateSettings({ isConnected: true }); // Ensure connected flag is true
+                 updateSettings({ isConnected: true }); 
                  navigate('/');
               }
             } else {
@@ -61,20 +63,15 @@ const ConnectPage: React.FC = () => {
     };
 
     autoConnect();
-  }, [settings.fbAppId, settings.isConnected, settings.adAccountId, navigate, updateSettings]);
+  }, [settings.isConnected, settings.adAccountId, navigate, updateSettings]);
 
 
   const handleLogin = async () => {
-    if (!appIdInput) {
-      setError("Please enter your Facebook App ID first.");
-      return;
-    }
-    
     setLoading(true);
     setError('');
 
     // --- DUMMY LOGIN BACKDOOR ---
-    if (appIdInput === '123456789') {
+    if (SYSTEM_APP_ID === '123456789') {
         setTimeout(() => {
             const dummyAccounts = [
                 { id: 'act_dummy_123', name: 'Demo Store (Malaysia)', account_id: '123', currency: 'MYR' },
@@ -83,23 +80,23 @@ const ConnectPage: React.FC = () => {
             updateSettings({ 
                 fbAppId: '123456789', 
                 fbAccessToken: 'dummy_token',
-                isConnected: true,
-                businessName: 'Demo Store (Malaysia)',
-                adAccountId: 'act_dummy_123',
+                isConnected: true, // We don't set this fully until account is picked, but for dummy we skip
                 availableAccounts: dummyAccounts
             });
-            navigate('/');
+            // Skip directly to step 2 for demo feel
+            setAccounts(dummyAccounts);
+            setStep(2);
+            setLoading(false);
         }, 800);
         return;
     }
     // ---------------------------
 
     try {
-      await initFacebookSdk(appIdInput);
+      await initFacebookSdk(SYSTEM_APP_ID);
       const accessToken = await loginWithFacebook();
       
-      // Save Token and App ID temporarily
-      updateSettings({ fbAppId: appIdInput, fbAccessToken: accessToken });
+      updateSettings({ fbAppId: SYSTEM_APP_ID, fbAccessToken: accessToken });
       
       // Fetch Accounts
       const adAccounts = await getAdAccounts(accessToken);
@@ -111,13 +108,13 @@ const ConnectPage: React.FC = () => {
       }
 
       setAccounts(adAccounts);
-      updateSettings({ availableAccounts: adAccounts }); // Save list for dashboard
+      updateSettings({ availableAccounts: adAccounts });
       setStep(2);
       setLoading(false);
 
     } catch (err: any) {
       console.error(err);
-      setError(typeof err === 'string' ? err : "Failed to connect to Facebook. Check your App ID and ensure your domain is allowed in Meta App Settings.");
+      setError(typeof err === 'string' ? err : "Failed to connect to Facebook. Check your App Configuration.");
       setLoading(false);
     }
   };
@@ -126,7 +123,7 @@ const ConnectPage: React.FC = () => {
     updateSettings({
       isConnected: true,
       businessName: account.name,
-      adAccountId: account.id // usually act_123123
+      adAccountId: account.id 
     });
     navigate('/');
   };
@@ -139,7 +136,7 @@ const ConnectPage: React.FC = () => {
             <Rocket className="text-white w-8 h-8" />
           </div>
           
-          <h1 className="text-2xl md:text-3xl font-bold text-white mb-2 text-center">Ads Roket</h1>
+          <h1 className="text-2xl md:text-3xl font-bold text-white mb-2 text-center">Ads Rocket</h1>
           <p className="text-slate-400 mb-8 text-center text-sm md:text-base">
             Connect your Meta Ads Manager to unlock AI-powered insights.
           </p>
@@ -158,22 +155,7 @@ const ConnectPage: React.FC = () => {
           )}
 
           {step === 1 && (
-            <div className="space-y-4">
-              <div>
-                <label className="block text-xs uppercase text-slate-500 font-bold mb-1">Facebook App ID</label>
-                <div className="relative">
-                    <KeyRound className="absolute left-3 top-3.5 text-slate-500" size={16} />
-                    <input 
-                      type="text" 
-                      value={appIdInput}
-                      onChange={(e) => setAppIdInput(e.target.value)}
-                      placeholder="Enter App ID or 123456789 for demo"
-                      className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-10 pr-4 py-3 text-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all placeholder-slate-600"
-                    />
-                </div>
-                <p className="text-[10px] text-slate-500 mt-1">Found in Meta Developers Portal</p>
-              </div>
-
+            <div className="space-y-6">
               <button
                 onClick={handleLogin}
                 disabled={loading}
@@ -197,6 +179,10 @@ const ConnectPage: React.FC = () => {
                   </>
                 )}
               </button>
+              
+              <div className="text-center text-xs text-slate-600">
+                Securely connects to Meta Graph API
+              </div>
             </div>
           )}
 

@@ -9,13 +9,16 @@ const Layout: React.FC = () => {
   const { settings, updateSettings } = useSettings();
 
   const handleLogout = () => {
-    // Clear credentials and connection state but KEEP the App ID
+    // Fully clear credentials
     updateSettings({
       isConnected: false,
       fbAccessToken: '',
       adAccountId: '',
       businessName: '',
-      // We do NOT clear fbAppId so the user doesn't have to type it again
+      availableAccounts: [],
+      // We also clear the App ID so the logic resets if needed, 
+      // but Connect page has a hardcoded system ID now.
+      fbAppId: '' 
     });
     navigate('/connect');
   };
@@ -29,7 +32,7 @@ const Layout: React.FC = () => {
             <Rocket className="text-white w-6 h-6" />
           </div>
           <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-400">
-            Ads Roket
+            Ads Rocket
           </span>
         </div>
 
