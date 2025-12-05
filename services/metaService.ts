@@ -11,7 +11,6 @@ declare global {
 // Initialize the SDK
 export const initFacebookSdk = (appId: string): Promise<void> => {
   return new Promise((resolve) => {
-    // Helper to perform the actual init
     const initializeSDK = () => {
       window.FB.init({
         appId      : appId,
@@ -23,15 +22,12 @@ export const initFacebookSdk = (appId: string): Promise<void> => {
     };
 
     if (window.FB) {
-      // SDK script already loaded, just initialize with the App ID
       initializeSDK();
       return;
     }
 
-    // If SDK script not loaded yet, hook into the async callback
     window.fbAsyncInit = initializeSDK;
     
-    // Ensure script is injected if not already present (failsafe)
     if (!document.getElementById('facebook-jssdk')) {
        const js = document.createElement('script');
        js.id = 'facebook-jssdk';
@@ -53,7 +49,6 @@ export const loginWithFacebook = (): Promise<string> => {
       if (response.authResponse) {
         resolve(response.authResponse.accessToken);
       } else {
-        // More descriptive error
         if (response.status === 'unknown') {
             reject("Login cancelled or blocked. Please allow popups for this site.");
         } else {
@@ -61,7 +56,7 @@ export const loginWithFacebook = (): Promise<string> => {
         }
       }
     }, { 
-      // Request permissions to read ads and manage ads. Removed email/read_insights to prevent scope errors.
+      // Minimal scope for Ads Manager
       scope: 'public_profile,ads_read,ads_management' 
     });
   });
@@ -80,7 +75,7 @@ export const getAdAccounts = async (accessToken: string): Promise<MetaAdAccount[
   }
 };
 
-// Fetch Campaigns and Insights for a specific Account
+// Fetch Campaigns and Insights
 export const getRealCampaigns = async (
     adAccountId: string, 
     accessToken: string,
@@ -88,24 +83,26 @@ export const getRealCampaigns = async (
 ): Promise<AdCampaign[]> => {
   const accountId = adAccountId.startsWith('act_') ? adAccountId : `act_${adAccountId}`;
   
-  // Fields to fetch: Name, Status, Budget + Insights
   const fields = [
-    'id', 'name', 'status', 'daily_budget',
+    'id', 'name', 'status', 'daily_budget', 'effective_status',
     `insights.date_preset(${datePreset}){spend,impressions,clicks,cpc,ctr,actions,action_values}`
   ].join(',');
 
+  // Filter to get ACTIVE, PAUSED, IN_PROCESS (ASC), WITH_ISSUES. 
+  // 'effective_status' filtering ensures we don't get deleted/archived campaigns clogging the limit.
+  const filtering = `[{field:"effective_status",operator:"IN",value:["ACTIVE","PAUSED","IN_PROCESS","WITH_ISSUES"]}]`;
+
   try {
-    const url = `https://graph.facebook.com/v19.0/${accountId}/campaigns?fields=${fields}&access_token=${accessToken}&limit=50`;
+    // Increased limit to 200 to capture ASC campaigns that might be pushed down by older campaigns
+    const url = `https://graph.facebook.com/v19.0/${accountId}/campaigns?fields=${fields}&access_token=${accessToken}&limit=200&filtering=${filtering}`;
     const response = await fetch(url);
     const data = await response.json();
 
     if (data.error) throw new Error(data.error.message);
     
-    // Transform Graph API data to our App's format
     const campaigns: AdCampaign[] = data.data.map((camp: any) => {
       const insights = camp.insights?.data?.[0] || {};
       
-      // Calculate Purchases and Revenue from 'actions' array
       const purchaseAction = insights.actions?.find((a: any) => a.action_type === 'purchase')?.value || 0;
       const purchaseValue = insights.action_values?.find((a: any) => a.action_type === 'purchase_value')?.value || 0;
       const landingPageViews = insights.actions?.find((a: any) => a.action_type === 'landing_page_view')?.value || 0;
@@ -116,8 +113,9 @@ export const getRealCampaigns = async (
       return {
         id: camp.id,
         name: camp.name,
-        status: camp.status,
-        dailyBudget: parseInt(camp.daily_budget || '0') / 100, // Meta gives budget in cents usually, but API v19 might be local currency. Assuming standard.
+        // Use effective_status if available, fallback to status
+        status: camp.effective_status || camp.status,
+        dailyBudget: parseInt(camp.daily_budget || '0') / 100, 
         metrics: {
           spend: spend,
           revenue: revenue,
@@ -131,7 +129,6 @@ export const getRealCampaigns = async (
           purchases: parseInt(purchaseAction),
           costPerPurchase: purchaseAction > 0 ? parseFloat((spend / purchaseAction).toFixed(2)) : 0
         },
-        // We simulate history for now as fetching daily breakdown for every campaign requires individual calls
         history: [] 
       };
     });

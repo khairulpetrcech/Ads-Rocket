@@ -8,21 +8,23 @@ const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash";
 const DEFAULT_OPENAI_MODEL = "gpt-4o";
 const DEFAULT_OPENROUTER_MODEL = "anthropic/claude-3.5-sonnet";
 
-// Helper to format prompt
+// Helper to format prompt - HIGHLY OPTIMIZED FOR LOW COST
 const createPrompt = (campaign: AdCampaign) => {
   return `
-    You are a senior Meta Ads Expert. Analyze this Facebook Ad Campaign performance data.
+    Context: Meta Ads Analysis.
+    Data:
+    - Campaign: ${campaign.name} (${campaign.status})
+    - Spend: RM ${campaign.metrics.spend.toFixed(2)}
+    - ROAS: ${campaign.metrics.roas.toFixed(2)} (Target: >2.0)
+    - CPA: RM ${campaign.metrics.costPerPurchase.toFixed(2)}
+    - CTR: ${campaign.metrics.ctr.toFixed(2)}%
+
+    Task: Return a JSON object.
+    1. "summary": One short sentence (max 15 words) on performance.
+    2. "actionPlan": Array of exactly 3 short, imperative bullet points (max 10 words each). Focus on Scale, Kill, or Optimize.
+    3. "sentiment": "POSITIVE", "NEUTRAL", or "NEGATIVE".
     
-    Campaign Name: ${campaign.name}
-    Status: ${campaign.status}
-    Spend: RM ${campaign.metrics.spend}
-    Revenue: RM ${campaign.metrics.revenue}
-    ROAS: ${campaign.metrics.roas}
-    CTR: ${campaign.metrics.ctr}%
-    Cost Per Purchase: RM ${campaign.metrics.costPerPurchase}
-    Cost Per Landing Page View: RM ${campaign.metrics.costPerLandingPageView}
-    
-    Provide a concise summary, a concrete step-by-step action plan to improve performance, and an overall sentiment.
+    Keep response strictly minimal to minimize token cost. No fluff.
   `;
 };
 
@@ -37,18 +39,14 @@ const getEnvApiKey = () => {
 // --- Model Fetching Services ---
 
 export const getAvailableModels = async (provider: AiProvider, userApiKey?: string): Promise<string[]> => {
-  // Use user key if provided, else fallback to env (if available)
   const key = userApiKey || getEnvApiKey();
   
   try {
     if (provider === AiProvider.CLAUDE) {
-      // Force latest models initially to ensure users see the best options even if API fails due to CORS
       const latestClaudeModels = [
         "claude-3-5-sonnet-20241022",
         "claude-3-5-haiku-20241022",
-        "claude-3-opus-20240229",
-        "claude-3-sonnet-20240229",
-        "claude-3-haiku-20240307"
+        "claude-3-opus-20240229"
       ];
 
       if (!key) return latestClaudeModels;
@@ -68,52 +66,23 @@ export const getAvailableModels = async (provider: AiProvider, userApiKey?: stri
             .filter((m: any) => m.id.includes('claude-3'))
             .map((m: any) => m.id)
             .sort();
-            
-          // If the API returns a list, use it. But ensure 3.5 Sonnet is at top if present.
           return fetchedModels.length > 0 ? fetchedModels : latestClaudeModels;
         }
       } catch (e) {
-        console.warn("Could not fetch Claude models dynamically (likely CORS), using forced latest list.");
+        console.warn("Could not fetch Claude models dynamically, using defaults.");
       }
       return latestClaudeModels;
     } 
     
     if (provider === AiProvider.GEMINI) {
-      if (!key) return ["gemini-2.5-flash", "gemini-3-pro-preview"];
-      try {
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${key}`);
-        if (response.ok) {
-            const data = await response.json();
-            return data.models
-                .filter((m: any) => m.name.includes('gemini') || m.name.includes('flash') || m.name.includes('pro'))
-                .map((m: any) => m.name.replace('models/', ''));
-        }
-      } catch (e) {
-         console.warn("Could not fetch Gemini models dynamically, using defaults.");
-      }
       return ["gemini-2.5-flash", "gemini-3-pro-preview"];
     }
 
     if (provider === AiProvider.OPENAI) {
-      // OpenAI doesn't easily support listing models from client side due to CORS often, 
-      // but we can try or return standard list.
       return ["gpt-4o", "gpt-4-turbo", "gpt-3.5-turbo"];
     }
 
     if (provider === AiProvider.OPENROUTER) {
-      try {
-        const response = await fetch('https://openrouter.ai/api/v1/models');
-        if (response.ok) {
-          const data = await response.json();
-          // Sort by context length or just take top ones, OpenRouter has MANY models.
-          // Let's filter for some popular ones to keep list clean
-          return data.data
-            .map((m: any) => m.id)
-            .sort();
-        }
-      } catch (e) {
-        console.warn("Could not fetch OpenRouter models");
-      }
       return [
         "anthropic/claude-3.5-sonnet",
         "openai/gpt-4o",
@@ -132,29 +101,29 @@ export const getAvailableModels = async (provider: AiProvider, userApiKey?: stri
 // --- Simulation Service ---
 
 const simulateAiResponse = async (campaign: AdCampaign): Promise<AiAnalysisResult> => {
-  await new Promise(resolve => setTimeout(resolve, 1500)); // Simulate network delay
+  await new Promise(resolve => setTimeout(resolve, 800)); 
   
   let sentiment: 'POSITIVE' | 'NEUTRAL' | 'NEGATIVE' = 'NEUTRAL';
   const plans = [];
 
-  if (campaign.metrics.roas > 3) {
+  if (campaign.metrics.roas > 2.5) {
     sentiment = 'POSITIVE';
-    plans.push("Increase daily budget by 20% every 48 hours to scale winning ad sets.");
-    plans.push("Duplicate winning ad sets to new Broad audiences.");
-    plans.push("Launch a new creative iteration batch based on current winners.");
+    plans.push("Scale budget by 20% immediately.");
+    plans.push("Duplicate best ad set to broad audience.");
+    plans.push("Launch new creative variations.");
   } else if (campaign.metrics.roas < 1.5) {
     sentiment = 'NEGATIVE';
-    plans.push("Pause ads with Spend > RM 50 and 0 Purchases.");
-    plans.push("Review landing page load speed (current metrics suggest drop-off).");
-    plans.push("Refresh creative: CTR is below benchmark.");
+    plans.push("Pause ad sets with high CPA.");
+    plans.push("Check landing page speed.");
+    plans.push("Test new scroll-stopper hooks.");
   } else {
-    plans.push("Monitor CPC trends over the next 24 hours.");
-    plans.push("Test new primary text variations to improve Relevance Score.");
-    plans.push("Breakdown placement performance and exclude Audience Network if inefficient.");
+    plans.push("Monitor CPA for 24 hours.");
+    plans.push("Refresh primary text copy.");
+    plans.push("Exclude Audience Network placement.");
   }
 
   return {
-    summary: `[SIMULATED ANALYSIS] Based on the ROAS of ${campaign.metrics.roas.toFixed(2)} and CTR of ${campaign.metrics.ctr}%, this campaign is ${sentiment === 'POSITIVE' ? 'highly profitable' : sentiment === 'NEGATIVE' ? 'underperforming' : 'stable'}.`,
+    summary: `ROAS is ${campaign.metrics.roas.toFixed(2)}, campaign is ${sentiment.toLowerCase()}.`,
     actionPlan: plans,
     sentiment
   };
@@ -211,12 +180,7 @@ export const analyzeCampaign = async (
 
       const modelName = modelOverride || DEFAULT_CLAUDE_MODEL;
       const claudePrompt = `${prompt}
-      CRITICAL INSTRUCTION: Return the result strictly as a valid JSON object matching this structure.
-      {
-        "summary": "string",
-        "actionPlan": ["string", "string"],
-        "sentiment": "POSITIVE" | "NEUTRAL" | "NEGATIVE"
-      }`;
+      CRITICAL: Return strictly JSON. No markdown, no pre-text.`;
 
       const response = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
@@ -228,7 +192,7 @@ export const analyzeCampaign = async (
         },
         body: JSON.stringify({
           model: modelName, 
-          max_tokens: 4096,
+          max_tokens: 1024,
           messages: [{ role: "user", content: claudePrompt }]
         })
       });
@@ -246,10 +210,6 @@ export const analyzeCampaign = async (
       if (!apiKey) throw new Error("Missing API Key for OpenAI");
       
       const modelName = modelOverride || DEFAULT_OPENAI_MODEL;
-      const openAiPrompt = `${prompt}
-      Return the result strictly as a valid JSON object.
-      Schema: { summary: string, actionPlan: string[], sentiment: "POSITIVE" | "NEUTRAL" | "NEGATIVE" }`;
-
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -258,7 +218,7 @@ export const analyzeCampaign = async (
         },
         body: JSON.stringify({
           model: modelName,
-          messages: [{ role: "user", content: openAiPrompt }],
+          messages: [{ role: "user", content: prompt }],
           response_format: { type: "json_object" }
         })
       });
@@ -274,34 +234,27 @@ export const analyzeCampaign = async (
        if (!apiKey) throw new Error("Missing API Key for OpenRouter");
        
        const modelName = modelOverride || DEFAULT_OPENROUTER_MODEL;
-       const orPrompt = `${prompt}
-       Return the result strictly as a valid JSON object.
-       Schema: { summary: string, actionPlan: string[], sentiment: "POSITIVE" | "NEUTRAL" | "NEGATIVE" }`;
- 
        const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
          method: 'POST',
          headers: {
            'Authorization': `Bearer ${apiKey}`,
            'Content-Type': 'application/json',
-           'HTTP-Referer': window.location.href, // Required by OpenRouter
-           'X-Title': 'Ads Roket', // Required by OpenRouter
+           'HTTP-Referer': window.location.href, 
+           'X-Title': 'Ads Roket', 
          },
          body: JSON.stringify({
            model: modelName,
-           messages: [{ role: "user", content: orPrompt }],
-           // Not all OpenRouter models support json_object mode, so we rely on the prompt instructions
+           messages: [{ role: "user", content: prompt }]
          })
        });
  
        if (!response.ok) throw new Error(`OpenRouter request failed: ${response.statusText}`);
        const data = await response.json();
        const content = data.choices[0]?.message?.content;
-       // Attempt to strip markdown code blocks if present
        const jsonStr = content.replace(/```json\n?|\n?```/g, '').trim();
        return JSON.parse(jsonStr) as AiAnalysisResult;
     }
 
-    // Fallback/Free Tier Simulation
     return await simulateAiResponse(campaign);
 
   } catch (error) {

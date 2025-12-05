@@ -1,12 +1,22 @@
+
 import React from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { LayoutDashboard, Settings, LogOut, Zap, Rocket } from 'lucide-react';
+import { useSettings } from '../App';
 
 const Layout: React.FC = () => {
   const navigate = useNavigate();
+  const { updateSettings } = useSettings();
 
   const handleLogout = () => {
-    // In a real app, clear tokens here
+    // Clear credentials and connection state
+    updateSettings({
+      isConnected: false,
+      fbAccessToken: '',
+      adAccountId: '',
+      businessName: '',
+      fbAppId: '' // Optional: keep App ID if you want to remember it, but usually safer to clear
+    });
     navigate('/connect');
   };
 
@@ -82,6 +92,7 @@ const Layout: React.FC = () => {
       <div className="md:hidden fixed bottom-0 w-full bg-[#1e293b] border-t border-slate-700 flex justify-around p-3 z-50">
         <NavLink to="/" className={({isActive}) => isActive ? 'text-indigo-400' : 'text-slate-500'}><LayoutDashboard /></NavLink>
         <NavLink to="/settings" className={({isActive}) => isActive ? 'text-indigo-400' : 'text-slate-500'}><Settings /></NavLink>
+        <button onClick={handleLogout} className="text-slate-500"><LogOut /></button>
       </div>
     </div>
   );
