@@ -6,8 +6,8 @@ import { useSettings } from '../App';
 import { initFacebookSdk, loginWithFacebook, getAdAccounts, checkLoginStatus } from '../services/metaService';
 import { MetaAdAccount } from '../types';
 
-// Default Demo ID - REPLACE THIS WITH YOUR REAL APP ID
-const SYSTEM_APP_ID = '123456789'; 
+// Production App ID
+const SYSTEM_APP_ID = '861724536220118'; 
 
 const ConnectPage: React.FC = () => {
   const navigate = useNavigate();
@@ -15,11 +15,11 @@ const ConnectPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   
-  // Local state for App ID input (Optional override)
-  const [inputAppId, setInputAppId] = useState(settings.fbAppId || '');
-
   const [step, setStep] = useState<1 | 2>(1); // 1 = Login, 2 = Account Selection
   const [accounts, setAccounts] = useState<MetaAdAccount[]>([]);
+  const [appIdToUse, setAppIdToUse] = useState(SYSTEM_APP_ID);
+
+  const isSecure = window.location.protocol === 'https:' || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
 
   // On mount, auto-check login
   useEffect(() => {
@@ -30,17 +30,15 @@ const ConnectPage: React.FC = () => {
         return;
       }
       
-      const appIdToUse = settings.fbAppId || SYSTEM_APP_ID;
-      // If using demo ID, don't auto-connect unless user previously logged in
-      if (appIdToUse === '123456789' && !settings.fbAccessToken) return;
-
+      const currentAppId = settings.fbAppId || appIdToUse;
+      
       setLoading(true);
       try {
-        await initFacebookSdk(appIdToUse);
+        await initFacebookSdk(currentAppId);
         const existingToken = await checkLoginStatus();
         
         if (existingToken) {
-          updateSettings({ fbAccessToken: existingToken, fbAppId: appIdToUse });
+          updateSettings({ fbAccessToken: existingToken, fbAppId: currentAppId });
           const adAccounts = await getAdAccounts(existingToken);
           
           if (adAccounts.length > 0) {
@@ -69,10 +67,7 @@ const ConnectPage: React.FC = () => {
     setLoading(true);
     setError('');
     
-    // Determine which ID to use (Input overrides System Default)
-    const appIdToUse = inputAppId.trim() || SYSTEM_APP_ID;
-
-    // --- DUMMY LOGIN BACKDOOR (For Demo/Dev) ---
+    // --- DUMMY LOGIN BACKDOOR (For Demo/Dev if needed) ---
     if (appIdToUse === '123456789') {
         setTimeout(() => {
             const dummyAccounts = [
@@ -114,7 +109,7 @@ const ConnectPage: React.FC = () => {
     } catch (err: any) {
       console.error(err);
       // Extract meaningful error message
-      let msg = "Failed to connect to Facebook. Check your App ID.";
+      let msg = "Failed to connect to Facebook.";
       if (typeof err === 'string') {
         msg = err;
       } else if (err?.message) {
@@ -150,6 +145,16 @@ const ConnectPage: React.FC = () => {
             Connect your Meta Ads Manager to unlock AI-powered insights.
           </p>
 
+          {!isSecure && (
+             <div className="bg-yellow-900/20 border border-yellow-800 p-3 rounded-lg mb-4 text-yellow-400 text-sm animate-fadeIn">
+               <div className="flex items-center gap-2 mb-1">
+                 <AlertTriangle size={16} />
+                 <span className="font-bold">HTTPS Required</span>
+               </div>
+               <p>Facebook Login does not work on HTTP. Please access this site via <b>HTTPS</b>.</p>
+             </div>
+          )}
+
           {error && (
             <div className="bg-red-900/20 border border-red-800 p-3 rounded-lg mb-4 text-red-400 text-sm animate-fadeIn">
               <div className="flex items-center gap-2 mb-1">
@@ -163,16 +168,16 @@ const ConnectPage: React.FC = () => {
           {step === 1 && (
             <div className="space-y-4">
               
-              <div>
-                  <label className="block text-xs text-slate-400 mb-1 ml-1">Meta App ID (Optional)</label>
-                  <input 
+              {/* Optional App ID Input for flexibility */}
+              <div className="mb-2">
+                <label className="text-xs text-slate-500 mb-1 block">Meta App ID (Optional)</label>
+                <input 
                     type="text" 
-                    value={inputAppId}
-                    onChange={(e) => setInputAppId(e.target.value)}
+                    value={appIdToUse}
+                    onChange={(e) => setAppIdToUse(e.target.value)}
                     placeholder={SYSTEM_APP_ID}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-indigo-500 transition-colors text-sm placeholder-slate-600"
-                  />
-                  <p className="text-[10px] text-slate-500 mt-1 ml-1">Leave empty to use System Default ID.</p>
+                    className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:ring-1 focus:ring-indigo-500 outline-none placeholder-slate-600"
+                />
               </div>
 
               <button

@@ -8,26 +8,70 @@ declare global {
   }
 }
 
-// Initialize the SDK with Timeout to prevent hanging
+// --- SMART CACHING SYSTEM ---
+// Cache responses for 60 seconds to avoid hitting Meta's Rate Limit (#80004)
+const CACHE_TTL = 60 * 1000; 
+const apiCache: Record<string, { timestamp: number, data: any }> = {};
+
+const getCachedData = (key: string) => {
+  const cached = apiCache[key];
+  if (!cached) return null;
+  
+  // Return cached data if valid
+  if (Date.now() - cached.timestamp < CACHE_TTL) {
+    console.log(`[Meta Cache Hit] ${key}`);
+    return cached.data;
+  }
+  
+  // Delete expired cache
+  delete apiCache[key];
+  return null;
+};
+
+const setCachedData = (key: string, data: any) => {
+  apiCache[key] = { timestamp: Date.now(), data };
+};
+
+// Clear cache when user performs an action (Edit budget, Toggle status)
+const invalidateCache = () => {
+  console.log('[Meta Cache] Invalidating all cache due to write action.');
+  for (const key in apiCache) delete apiCache[key];
+};
+
+// Helper to handle API Errors specifically Rate Limits
+const handleApiError = (data: any) => {
+  if (data.error) {
+    const code = data.error.code;
+    // 80004: Account level rate limit, 17: User level rate limit, 613: Custom rate limit
+    if (code === 80004 || code === 17 || code === 613) {
+      throw new Error("Meta API Rate Limit Exceeded. Please wait 1-2 minutes before refreshing.");
+    }
+    throw new Error(data.error.message || "Unknown Meta API Error");
+  }
+};
+
+
+// --- FACEBOOK SDK INIT ---
+
 export const initFacebookSdk = (appId: string): Promise<void> => {
   return new Promise((resolve, reject) => {
-    // 1. Check if FB is already available (Script loaded from index.html)
+    // 1. Check if FB is already available
     if (window.FB) {
       try {
         window.FB.init({
           appId      : appId,
           cookie     : true,
-          xfbml      : false, // Optimized: Don't parse DOM for plugins
+          xfbml      : false, 
           version    : 'v19.0'
         });
         return resolve();
       } catch (e) {
         console.warn("FB Init warning:", e);
-        return resolve(); // Assuming previously working
+        return resolve(); 
       }
     }
 
-    // 2. Set timeout to stop waiting if AdBlocker blocks it
+    // 2. Set timeout to stop waiting (3s)
     const timeoutId = setTimeout(() => {
       reject("Facebook SDK load timeout (3s). Check AdBlocker or Network.");
     }, 3000);
@@ -48,7 +92,7 @@ export const initFacebookSdk = (appId: string): Promise<void> => {
       }
     };
 
-    // 4. Inject script only if missing (index.html usually has it)
+    // 4. Inject script carefully
     const existingScript = document.querySelector('script[src*="connect.facebook.net"]');
     if (!existingScript) {
        const js = document.createElement('script');
@@ -66,21 +110,40 @@ export const initFacebookSdk = (appId: string): Promise<void> => {
   });
 };
 
-// Check if user is already connected
 export const checkLoginStatus = (): Promise<string | null> => {
   return new Promise((resolve) => {
+    // 1. Protocol Check: FB API fails silently or throws errors on HTTP (except localhost)
+    // This prevents "The method FB.getLoginStatus can no longer be called from http pages"
+    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    if (window.location.protocol === 'http:' && !isLocal) {
+        console.warn("Skipping FB.getLoginStatus: HTTPS required.");
+        return resolve(null);
+    }
+
     if (!window.FB) return resolve(null);
-    window.FB.getLoginStatus((response: any) => {
-      if (response.status === 'connected' && response.authResponse) {
-        resolve(response.authResponse.accessToken);
-      } else {
+
+    // 2. Timeout Safety: If callback never fires (common on insecure origins or adblock)
+    const timeoutId = setTimeout(() => {
+        console.warn("FB.getLoginStatus timed out.");
         resolve(null);
-      }
-    });
+    }, 2000);
+
+    try {
+        window.FB.getLoginStatus((response: any) => {
+            clearTimeout(timeoutId);
+            if (response.status === 'connected' && response.authResponse) {
+                resolve(response.authResponse.accessToken);
+            } else {
+                resolve(null);
+            }
+        });
+    } catch (e) {
+        clearTimeout(timeoutId);
+        resolve(null);
+    }
   });
 };
 
-// Login and request permissions
 export const loginWithFacebook = (): Promise<string> => {
   return new Promise((resolve, reject) => {
     if (!window.FB) return reject("Facebook SDK not loaded. Try refreshing the page.");
@@ -97,6 +160,7 @@ export const loginWithFacebook = (): Promise<string> => {
                 }
             }
         }, { 
+            // Removed 'email' and 'read_insights' to prevent Invalid Scope errors
             scope: 'public_profile,ads_read,ads_management' 
         });
     } catch (e) {
@@ -106,12 +170,11 @@ export const loginWithFacebook = (): Promise<string> => {
   });
 };
 
-// Get List of Ad Accounts
 export const getAdAccounts = async (accessToken: string): Promise<MetaAdAccount[]> => {
   try {
     const response = await fetch(`https://graph.facebook.com/v19.0/me/adaccounts?fields=name,account_id,currency&access_token=${accessToken}`);
     const data = await response.json();
-    if (data.error) throw new Error(data.error.message);
+    handleApiError(data);
     return data.data || [];
   } catch (error) {
     console.error("Failed to fetch ad accounts", error);
@@ -119,7 +182,6 @@ export const getAdAccounts = async (accessToken: string): Promise<MetaAdAccount[
   }
 };
 
-// HELPER: Map insights to metrics
 const mapInsightsToMetrics = (data: any) => {
   const insights = data.insights?.data?.[0] || {};
   const purchaseAction = insights.actions?.find((a: any) => a.action_type === 'purchase')?.value || 0;
@@ -143,7 +205,8 @@ const mapInsightsToMetrics = (data: any) => {
   };
 };
 
-// Fetch Campaigns
+// --- DATA FETCHING WITH CACHE ---
+
 export const getRealCampaigns = async (
     adAccountId: string, 
     accessToken: string,
@@ -151,6 +214,11 @@ export const getRealCampaigns = async (
 ): Promise<AdCampaign[]> => {
   const accountId = adAccountId.startsWith('act_') ? adAccountId : `act_${adAccountId}`;
   
+  // Check Cache
+  const cacheKey = `campaigns-${accountId}-${datePreset}`;
+  const cached = getCachedData(cacheKey);
+  if (cached) return cached;
+
   const fields = [
     'id', 'name', 'status', 'daily_budget', 'effective_status',
     `insights.date_preset(${datePreset}){spend,impressions,clicks,cpc,ctr,actions,action_values}`
@@ -163,9 +231,9 @@ export const getRealCampaigns = async (
     const response = await fetch(url);
     const data = await response.json();
 
-    if (data.error) throw new Error(data.error.message);
+    handleApiError(data);
     
-    return data.data.map((camp: any) => ({
+    const result = data.data.map((camp: any) => ({
         id: camp.id,
         name: camp.name,
         status: camp.effective_status || camp.status,
@@ -173,66 +241,94 @@ export const getRealCampaigns = async (
         metrics: mapInsightsToMetrics(camp),
         history: [] 
     }));
+
+    // Save to Cache
+    setCachedData(cacheKey, result);
+    return result;
+
   } catch (error) {
     console.error("Failed to fetch campaigns", error);
     throw error;
   }
 };
 
-// Fetch Ad Sets
 export const getAdSets = async (
     campaignId: string,
     accessToken: string,
     datePreset: string = 'today'
 ): Promise<AdSet[]> => {
+    // Check Cache
+    const cacheKey = `adsets-${campaignId}-${datePreset}`;
+    const cached = getCachedData(cacheKey);
+    if (cached) return cached;
+
     const fields = [
         'id', 'name', 'status', 'daily_budget', 'effective_status', 'campaign_id',
         `insights.date_preset(${datePreset}){spend,impressions,clicks,cpc,ctr,actions,action_values}`
     ].join(',');
 
-    const url = `https://graph.facebook.com/v19.0/${campaignId}/adsets?fields=${fields}&access_token=${accessToken}&limit=50`;
-    const response = await fetch(url);
-    const data = await response.json();
-    if (data.error) throw new Error(data.error.message);
+    try {
+        const url = `https://graph.facebook.com/v19.0/${campaignId}/adsets?fields=${fields}&access_token=${accessToken}&limit=50`;
+        const response = await fetch(url);
+        const data = await response.json();
+        handleApiError(data);
 
-    return data.data.map((adset: any) => ({
-        id: adset.id,
-        name: adset.name,
-        status: adset.effective_status || adset.status,
-        dailyBudget: parseInt(adset.daily_budget || '0') / 100,
-        campaign_id: adset.campaign_id,
-        metrics: mapInsightsToMetrics(adset)
-    }));
+        const result = data.data.map((adset: any) => ({
+            id: adset.id,
+            name: adset.name,
+            status: adset.effective_status || adset.status,
+            dailyBudget: parseInt(adset.daily_budget || '0') / 100,
+            campaign_id: adset.campaign_id,
+            metrics: mapInsightsToMetrics(adset)
+        }));
+
+        setCachedData(cacheKey, result);
+        return result;
+    } catch (error) {
+        throw error;
+    }
 };
 
-// Fetch Ads
 export const getAds = async (
     adSetId: string,
     accessToken: string,
     datePreset: string = 'today'
 ): Promise<Ad[]> => {
+    // Check Cache
+    const cacheKey = `ads-${adSetId}-${datePreset}`;
+    const cached = getCachedData(cacheKey);
+    if (cached) return cached;
+
     const fields = [
         'id', 'name', 'status', 'effective_status', 'adset_id',
         'creative{thumbnail_url,image_url}',
         `insights.date_preset(${datePreset}){spend,impressions,clicks,cpc,ctr,actions,action_values}`
     ].join(',');
 
-    const url = `https://graph.facebook.com/v19.0/${adSetId}/ads?fields=${fields}&access_token=${accessToken}&limit=50`;
-    const response = await fetch(url);
-    const data = await response.json();
-    if (data.error) throw new Error(data.error.message);
+    try {
+        const url = `https://graph.facebook.com/v19.0/${adSetId}/ads?fields=${fields}&access_token=${accessToken}&limit=50`;
+        const response = await fetch(url);
+        const data = await response.json();
+        handleApiError(data);
 
-    return data.data.map((ad: any) => ({
-        id: ad.id,
-        name: ad.name,
-        status: ad.effective_status || ad.status,
-        adset_id: ad.adset_id,
-        creative: ad.creative || {},
-        metrics: mapInsightsToMetrics(ad)
-    }));
+        const result = data.data.map((ad: any) => ({
+            id: ad.id,
+            name: ad.name,
+            status: ad.effective_status || ad.status,
+            adset_id: ad.adset_id,
+            creative: ad.creative || {},
+            metrics: mapInsightsToMetrics(ad)
+        }));
+
+        setCachedData(cacheKey, result);
+        return result;
+    } catch (error) {
+        throw error;
+    }
 };
 
-// ACTIONS: Toggle Status
+// --- ACTIONS (Invalidate Cache on Success) ---
+
 export const updateEntityStatus = async (
     id: string, 
     status: 'ACTIVE' | 'PAUSED',
@@ -245,14 +341,18 @@ export const updateEntityStatus = async (
         body: JSON.stringify({ status: status, access_token: accessToken })
     });
     const data = await response.json();
-    if (data.error) throw new Error(data.error.message);
-    return data.success;
+    handleApiError(data);
+    
+    if (data.success) {
+        invalidateCache(); // Clear cache so UI updates instantly on next fetch
+        return true;
+    }
+    return false;
 };
 
-// ACTIONS: Update Budget
 export const updateEntityBudget = async (
     id: string, 
-    dailyBudget: number, // in Currency Units (e.g. RM)
+    dailyBudget: number, // in Currency Units
     accessToken: string
 ) => {
     const amountInCents = Math.floor(dailyBudget * 100);
@@ -263,6 +363,11 @@ export const updateEntityBudget = async (
         body: JSON.stringify({ daily_budget: amountInCents, access_token: accessToken })
     });
     const data = await response.json();
-    if (data.error) throw new Error(data.error.message);
-    return data.success;
+    handleApiError(data);
+
+    if (data.success) {
+        invalidateCache(); // Clear cache so UI updates instantly on next fetch
+        return true;
+    }
+    return false;
 };
