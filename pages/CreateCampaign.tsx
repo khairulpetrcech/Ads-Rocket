@@ -11,7 +11,7 @@ import {
     createMetaCreative,
     getPages
 } from '../services/metaService';
-import { CheckCircle, Circle, ChevronRight, Loader2, Upload, AlertTriangle } from 'lucide-react';
+import { CheckCircle, Circle, ChevronRight, Loader2, Upload, AlertTriangle, RefreshCw } from 'lucide-react';
 
 const CreateCampaign: React.FC = () => {
     const { settings } = useSettings();
@@ -58,9 +58,15 @@ const CreateCampaign: React.FC = () => {
                 setExistingCampaigns(campaigns);
 
                 // Load Pages
-                const pages = await getPages(settings.fbAccessToken);
-                setUserPages(pages);
-                if (pages.length > 0) setSelectedPageId(pages[0].id);
+                if (settings.fbAccessToken !== 'dummy_token') {
+                    const pages = await getPages(settings.fbAccessToken);
+                    setUserPages(pages);
+                    if (pages.length > 0) setSelectedPageId(pages[0].id);
+                } else {
+                    // Dummy Pages
+                    setUserPages([{id: 'p1', name: 'Demo Page'}]);
+                    setSelectedPageId('p1');
+                }
 
             } catch (e) {
                 console.error("Failed to load initial data", e);
@@ -332,14 +338,26 @@ const CreateCampaign: React.FC = () => {
                         
                         <div>
                             <label className="block text-sm text-slate-400 mb-1">Facebook Page</label>
-                            <select 
-                                value={selectedPageId}
-                                onChange={(e) => setSelectedPageId(e.target.value)}
-                                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-3 text-white outline-none"
-                            >
-                                <option value="">-- Select Page --</option>
-                                {userPages.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                            </select>
+                            {userPages.length > 0 ? (
+                                <select 
+                                    value={selectedPageId}
+                                    onChange={(e) => setSelectedPageId(e.target.value)}
+                                    className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-3 text-white outline-none"
+                                >
+                                    <option value="">-- Select Page --</option>
+                                    {userPages.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                                </select>
+                            ) : (
+                                <div className="p-3 bg-yellow-900/20 border border-yellow-800 rounded-lg text-yellow-500 text-sm">
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <AlertTriangle size={14} /> No Pages Found
+                                    </div>
+                                    <p className="text-xs text-slate-400">
+                                        We couldn't find any Facebook Pages you manage. 
+                                        You may need to <strong className="text-white">Disconnect</strong> and Reconnect to grant "Page" permissions.
+                                    </p>
+                                </div>
+                            )}
                         </div>
 
                         <div>

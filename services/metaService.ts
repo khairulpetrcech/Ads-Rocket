@@ -193,8 +193,8 @@ export const loginWithFacebook = (): Promise<string> => {
                 }
             }
         }, { 
-            // Removed 'email' and 'read_insights' to prevent Invalid Scope errors
-            scope: 'public_profile,ads_read,ads_management' 
+            // Added pages_show_list and pages_read_engagement to fetch Pages for Ad Creatives
+            scope: 'public_profile,ads_read,ads_management,pages_show_list,pages_read_engagement' 
         });
     } catch (e) {
         console.error("FB.login sync error:", e);
@@ -450,6 +450,7 @@ export const getTopAdsForAccount = async (
 // --- CREATION & UPLOAD ACTIONS ---
 
 export const getPages = async (accessToken: string) => {
+    // Requires pages_show_list or pages_read_engagement
     const response = await fetch(`https://graph.facebook.com/v19.0/me/accounts?fields=name,id,access_token&access_token=${accessToken}`);
     const data = await response.json();
     handleApiError(data);
