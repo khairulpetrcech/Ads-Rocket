@@ -59,7 +59,7 @@ export const isSecureContext = (): boolean => {
 };
 
 // --- HELPER: DATE RANGE PARAMS ---
-const getDateRangeParams = (preset: string) => {
+export const getDateRangeParams = (preset: string) => {
   const today = new Date();
   const formatDate = (date: Date) => date.toISOString().split('T')[0];
 
@@ -382,6 +382,68 @@ export const getAds = async (
         return result;
     } catch (error) {
         throw error;
+    }
+};
+
+// Fetch Top 3 Performing Ads Account-Wide for the last 7 days
+export const getTopAdsForAccount = async (
+    adAccountId: string,
+    accessToken: string
+): Promise<Ad[]> => {
+    const accountId = adAccountId.startsWith('act_') ? adAccountId : `act_${adAccountId}`;
+    
+    // Check Cache
+    const cacheKey = `top-ads-${accountId}-last_7d`;
+    const cached = getCachedData(cacheKey);
+    if (cached) return cached;
+
+    // Use last_7d for AI context
+    const { time_range, date_preset } = getDateRangeParams('last_7d');
+    
+    const insightsQuery = time_range 
+      ? `insights.time_range(${time_range}){spend,impressions,clicks,cpc,ctr,actions,action_values}`
+      : `insights.date_preset(${date_preset}){spend,impressions,clicks,cpc,ctr,actions,action_values}`;
+
+    const fields = [
+        'id', 'name', 'status', 'effective_status', 'adset_id',
+        'creative{thumbnail_url,image_url}',
+        insightsQuery
+    ].join(',');
+
+    // Filter Active ads only
+    const filtering = `[{field:"effective_status",operator:"IN",value:["ACTIVE"]}]`;
+
+    try {
+        // Fetch a batch of ads
+        const url = `https://graph.facebook.com/v19.0/${accountId}/ads?fields=${fields}&access_token=${accessToken}&limit=100&filtering=${filtering}`;
+        const response = await fetch(url);
+        const data = await response.json();
+        handleApiError(data);
+
+        // Process Metrics
+        let ads: Ad[] = (data.data || []).map((ad: any) => ({
+            id: ad.id,
+            name: ad.name,
+            status: ad.effective_status || ad.status,
+            adset_id: ad.adset_id,
+            creative: ad.creative || {},
+            metrics: mapInsightsToMetrics(ad)
+        }));
+
+        // Filter: Must have Spend > 0
+        ads = ads.filter(a => a.metrics.spend > 0);
+
+        // Sort by ROAS Descending
+        ads.sort((a, b) => b.metrics.roas - a.metrics.roas);
+
+        // Take Top 3
+        const top3 = ads.slice(0, 3);
+        
+        setCachedData(cacheKey, top3);
+        return top3;
+    } catch (error) {
+        console.error("Failed to fetch top ads", error);
+        return [];
     }
 };
 

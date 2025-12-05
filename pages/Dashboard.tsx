@@ -64,15 +64,11 @@ const Dashboard: React.FC = () => {
   const [expandedCampaigns, setExpandedCampaigns] = useState<Set<string>>(new Set());
   const [expandedAdSets, setExpandedAdSets] = useState<Set<string>>(new Set());
   const [showAllCampaigns, setShowAllCampaigns] = useState(false);
+  const [showHiddenAdSets, setShowHiddenAdSets] = useState<Set<string>>(new Set()); // Track which campaigns show secondary adsets
   
   // Loading States for Actions
   const [actionLoading, setActionLoading] = useState<string | null>(null); // ID of entity being acted upon
 
-  // AI Analysis
-  const [selectedCampaign, setSelectedCampaign] = useState<AdCampaign | null>(null);
-  const [analysis, setAnalysis] = useState<AiAnalysisResult | null>(null);
-  const [analyzing, setAnalyzing] = useState(false);
-  
   // Filters
   const [dateRange, setDateRange] = useState<DateRange>('today');
   const [sortBy, setSortBy] = useState<SortOption>('spend');
@@ -87,6 +83,8 @@ const Dashboard: React.FC = () => {
       // Reset expansions on date change for cleaner view
       setExpandedCampaigns(new Set());
       setExpandedAdSets(new Set());
+      setShowHiddenAdSets(new Set());
+      setShowAllCampaigns(false);
       
       try {
         if (settings.fbAccessToken === 'dummy_token' || (settings.fbAccessToken && settings.adAccountId)) {
@@ -146,6 +144,16 @@ const Dashboard: React.FC = () => {
           }
       }
       setExpandedAdSets(newSet);
+  };
+
+  const toggleHiddenAdSetsForCampaign = (campId: string) => {
+      const newSet = new Set(showHiddenAdSets);
+      if (newSet.has(campId)) {
+          newSet.delete(campId);
+      } else {
+          newSet.add(campId);
+      }
+      setShowHiddenAdSets(newSet);
   };
 
   const handleStatusToggle = async (id: string, currentStatus: string, type: 'campaign' | 'adset' | 'ad') => {
@@ -215,18 +223,9 @@ const Dashboard: React.FC = () => {
       }
   };
 
-  const handleAnalyze = async (campaign: AdCampaign) => {
-    setSelectedCampaign(campaign);
-    setAnalysis(null);
-    setAnalyzing(true);
-    const result = await analyzeCampaign(campaign, settings.selectedAiProvider, settings.apiKey, settings.selectedModel);
-    setAnalysis(result);
-    setAnalyzing(false);
-  };
-
   // --- RENDER HELPERS ---
   
-  // Explicit Widths: Name(35%), Spend(12%), ROAS(10%), CPA(12%), CTR(10%), Purchases(10%), AI(11%)
+  // Adjusted Widths: Name(25%), Spend(12%), ROAS(10%), CPA(12%), CTR(10%), LPV(18%), Purchases(13%)
   const renderMetrics = (metrics: any) => (
       <>
         <td className="p-3 text-right whitespace-nowrap w-[12%]">{formatMYR(metrics.spend)}</td>
@@ -237,7 +236,11 @@ const Dashboard: React.FC = () => {
         </td>
         <td className="p-3 text-right whitespace-nowrap w-[12%]">{formatMYR(metrics.costPerPurchase)}</td>
         <td className="p-3 text-right whitespace-nowrap w-[10%]">{metrics.ctr.toFixed(2)}%</td>
-        <td className="p-3 text-right whitespace-nowrap w-[10%]">{metrics.purchases}</td>
+        <td className="p-3 text-right whitespace-nowrap w-[18%]">
+            <span className="text-white">{metrics.landingPageViews}</span>
+            <span className="text-xs text-slate-400 ml-1">({formatMYR(metrics.costPerLandingPageView)})</span>
+        </td>
+        <td className="p-3 text-right whitespace-nowrap w-[13%]">{metrics.purchases}</td>
       </>
   );
 
@@ -250,14 +253,14 @@ const Dashboard: React.FC = () => {
     return sorted;
   }, [campaigns, sortBy]);
 
-  // Primary: Active OR Spend > 0
+  // STRICT RULE: Active AND Spend > 0
   const primaryCampaigns = useMemo(() => {
-      return sortedCampaigns.filter(c => c.status === 'ACTIVE' || c.metrics.spend > 0);
+      return sortedCampaigns.filter(c => c.status === 'ACTIVE' && c.metrics.spend > 0);
   }, [sortedCampaigns]);
 
-  // Secondary: Not Active AND Spend 0
+  // "Page 2" Campaigns: Inactive OR No Spend
   const secondaryCampaigns = useMemo(() => {
-      return sortedCampaigns.filter(c => c.status !== 'ACTIVE' && c.metrics.spend === 0);
+      return sortedCampaigns.filter(c => !(c.status === 'ACTIVE' && c.metrics.spend > 0));
   }, [sortedCampaigns]);
 
   const campaignsToShow = showAllCampaigns ? sortedCampaigns : primaryCampaigns;
@@ -350,21 +353,31 @@ const Dashboard: React.FC = () => {
                 <table className="w-full min-w-[1000px] text-left border-collapse table-fixed">
                     <thead>
                         <tr className="bg-slate-800/50 text-slate-400 text-xs uppercase border-b border-slate-700">
-                            <th className="p-4 w-[35%]">Name</th>
+                            <th className="p-4 w-[25%]">Name</th>
                             <th className="p-3 text-right w-[12%]">Spend</th>
                             <th className="p-3 text-right w-[10%]">ROAS</th>
                             <th className="p-3 text-right w-[12%]">CPA</th>
                             <th className="p-3 text-right w-[10%]">CTR</th>
-                            <th className="p-3 text-right w-[10%]">Purchases</th>
-                            <th className="p-3 w-[11%]">AI</th>
+                            <th className="p-3 text-right w-[18%]">LPV/(CPLV)</th>
+                            <th className="p-3 text-right w-[13%]">Purchases</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-700">
-                        {campaignsToShow.map(camp => (
+                        {campaignsToShow.map(camp => {
+                            // Filter Ad Sets for this campaign
+                            const allAdSets = adSetsData[camp.id] || [];
+                            // Rule: Active AND Spend > 0
+                            const primaryAdSets = allAdSets.filter(a => a.status === 'ACTIVE' && a.metrics.spend > 0);
+                            const secondaryAdSets = allAdSets.filter(a => !(a.status === 'ACTIVE' && a.metrics.spend > 0));
+
+                            const showHidden = showHiddenAdSets.has(camp.id);
+                            const adSetsToShow = showHidden ? allAdSets : primaryAdSets;
+
+                            return (
                             <React.Fragment key={camp.id}>
                                 {/* Level 1: Campaign */}
                                 <tr className="bg-[#1e293b] hover:bg-slate-800/30 text-sm transition-colors group">
-                                    <td className="p-4 w-[35%]">
+                                    <td className="p-4 w-[25%]">
                                         <div className="flex items-center gap-3">
                                             <button 
                                                 onClick={() => toggleExpandCampaign(camp.id)}
@@ -389,20 +402,20 @@ const Dashboard: React.FC = () => {
                                         </div>
                                     </td>
                                     {renderMetrics(camp.metrics)}
-                                    <td className="p-3 w-[11%]">
-                                        <button onClick={() => handleAnalyze(camp)} className="text-indigo-400 hover:text-white">
-                                            <BrainCircuit size={16} />
-                                        </button>
-                                    </td>
                                 </tr>
 
                                 {/* Level 2: Ad Sets */}
                                 {expandedCampaigns.has(camp.id) && (
                                     <>
-                                        {adSetsData[camp.id]?.map(adset => (
+                                        {/* Loading State for Ad Sets */}
+                                        {!adSetsData[camp.id] && (
+                                            <tr><td colSpan={7} className="text-center py-4 text-xs text-slate-500"><Loader2 className="animate-spin inline mr-2" size={14}/> Loading Ad Sets...</td></tr>
+                                        )}
+
+                                        {adSetsToShow.map(adset => (
                                             <React.Fragment key={adset.id}>
                                                 <tr className="bg-slate-900/50 text-sm hover:bg-slate-800/20">
-                                                    <td className="p-4 pl-12 border-l-4 border-indigo-500/20 w-[35%]">
+                                                    <td className="p-4 pl-12 border-l-4 border-indigo-500/20 w-[25%]">
                                                         <div className="flex items-center gap-3">
                                                             <button 
                                                                 onClick={() => toggleExpandAdSet(adset.id)}
@@ -427,7 +440,6 @@ const Dashboard: React.FC = () => {
                                                         </div>
                                                     </td>
                                                     {renderMetrics(adset.metrics)}
-                                                    <td className="w-[11%]"></td>
                                                 </tr>
 
                                                 {/* Level 3: Ads Container */}
@@ -441,7 +453,7 @@ const Dashboard: React.FC = () => {
                                                                     {adsData[adset.id] ? (
                                                                         adsData[adset.id].map(ad => (
                                                                             <tr key={ad.id} className="text-xs hover:bg-slate-900/50 border-b border-slate-800/50 last:border-0">
-                                                                                <td className="p-3 pl-20 w-[35%]">
+                                                                                <td className="p-3 pl-20 w-[25%]">
                                                                                     <div className="flex items-center gap-3">
                                                                                         <div className="w-10 h-10 bg-slate-800 rounded overflow-hidden flex-shrink-0 border border-slate-700">
                                                                                             {ad.creative.thumbnail_url || ad.creative.image_url ? (
@@ -463,7 +475,6 @@ const Dashboard: React.FC = () => {
                                                                                     </div>
                                                                                 </td>
                                                                                 {renderMetrics(ad.metrics)}
-                                                                                <td className="p-3 w-[11%]"></td>
                                                                             </tr>
                                                                         ))
                                                                     ) : (
@@ -481,19 +492,29 @@ const Dashboard: React.FC = () => {
                                                 )}
                                             </React.Fragment>
                                         ))}
-                                        {/* Loading State for Ad Sets */}
-                                        {!adSetsData[camp.id] && (
-                                            <tr><td colSpan={7} className="text-center py-4 text-xs text-slate-500"><Loader2 className="animate-spin inline mr-2" size={14}/> Loading Ad Sets...</td></tr>
+
+                                        {/* Show More Ad Sets Button */}
+                                        {secondaryAdSets.length > 0 && (
+                                            <tr className="bg-slate-900/30">
+                                                <td colSpan={7} className="text-center py-2 border-b border-slate-800">
+                                                    <button 
+                                                        onClick={() => toggleHiddenAdSetsForCampaign(camp.id)}
+                                                        className="text-[10px] text-slate-500 hover:text-indigo-400 uppercase tracking-wide font-semibold"
+                                                    >
+                                                        {showHidden ? `Hide ${secondaryAdSets.length} inactive Ad Sets` : `Show ${secondaryAdSets.length} inactive/low-spend Ad Sets`}
+                                                    </button>
+                                                </td>
+                                            </tr>
                                         )}
                                     </>
                                 )}
                             </React.Fragment>
-                        ))}
+                        )})}
                     </tbody>
                 </table>
             </div>
 
-            {/* Pagination / Show More */}
+            {/* Pagination / Show More Campaigns */}
             {secondaryCampaigns.length > 0 && (
                 <div className="text-center pt-4">
                     <button 
@@ -505,40 +526,6 @@ const Dashboard: React.FC = () => {
                 </div>
             )}
         </>
-      )}
-
-      {/* AI Modal (Same as before) */}
-      {selectedCampaign && (
-           <div className={`fixed inset-0 z-50 flex items-center justify-center p-4 ${!selectedCampaign ? 'pointer-events-none' : ''}`}>
-                <div className="absolute inset-0 bg-black/80" onClick={() => setSelectedCampaign(null)}></div>
-                <div className="bg-[#1e293b] w-full max-w-lg rounded-2xl border border-indigo-500/30 shadow-2xl relative z-10 overflow-hidden flex flex-col max-h-[80vh]">
-                    <div className="p-4 bg-indigo-900/20 border-b border-indigo-500/30 flex justify-between items-center">
-                        <h3 className="font-semibold text-indigo-300 flex items-center gap-2">
-                            <BrainCircuit size={18} /> AI Analysis
-                        </h3>
-                        <button onClick={() => setSelectedCampaign(null)} className="text-slate-400 hover:text-white">&times;</button>
-                    </div>
-                    <div className="p-6 overflow-y-auto custom-scrollbar">
-                        {analyzing ? (
-                            <div className="text-center py-10 text-indigo-300">
-                                <Loader2 size={32} className="animate-spin mx-auto mb-4" />
-                                <p className="animate-pulse">Analyzing Data...</p>
-                            </div>
-                        ) : analysis && (
-                            <div className="space-y-4">
-                                <div className="p-3 bg-slate-800 rounded-lg text-sm text-slate-300">{analysis.summary}</div>
-                                <ul className="space-y-2">
-                                    {analysis.actionPlan.map((step, i) => (
-                                        <li key={i} className="flex gap-2 text-sm text-slate-300">
-                                            <span className="text-indigo-400 font-bold">{i+1}.</span> {step}
-                                        </li>
-                                    ))}
-                                </ul>
-                            </div>
-                        )}
-                    </div>
-                </div>
-           </div>
       )}
 
     </div>

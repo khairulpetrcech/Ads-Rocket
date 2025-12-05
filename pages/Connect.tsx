@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CheckCircle, AlertTriangle, RefreshCw } from 'lucide-react';
@@ -145,7 +146,7 @@ const ConnectPage: React.FC = () => {
           
           <h1 className="text-2xl md:text-3xl font-bold text-white mb-2 text-center">Ads Rocket</h1>
           <p className="text-slate-400 mb-8 text-center text-sm md:text-base">
-            Connect your Meta Ads Manager to unlock AI-powered insights.
+            Ambil Advantage Dengan Update Andromeda. Buat Ads Lelaju dan Meroket 10x Lebih Pantas
           </p>
 
           {!isSecure && (

@@ -1,11 +1,17 @@
-import React from 'react';
+
+import React, { useEffect, useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Settings, LogOut, Zap } from 'lucide-react';
+import { LayoutDashboard, Settings, LogOut, Zap, Loader2 } from 'lucide-react';
 import { useSettings } from '../App';
+import { getTopAdsForAccount } from '../services/metaService';
+import { analyzeAccountPerformance } from '../services/aiService';
 
 const Layout: React.FC = () => {
   const navigate = useNavigate();
   const { settings, updateSettings } = useSettings();
+  
+  const [aiStatus, setAiStatus] = useState<string[]>([]);
+  const [loadingAi, setLoadingAi] = useState(false);
 
   const handleLogout = () => {
     // Clear credentials and connection state but KEEP the App ID
@@ -18,6 +24,49 @@ const Layout: React.FC = () => {
     });
     navigate('/connect');
   };
+
+  // Run AI Analysis for Sidebar
+  useEffect(() => {
+    const runAnalysis = async () => {
+        if (!settings.isConnected || !settings.adAccountId || !settings.fbAccessToken) return;
+
+        // Skip if dummy token (unless you want to mock it, but usually we just skip real API calls)
+        if (settings.fbAccessToken === 'dummy_token') {
+             setAiStatus([
+                 "Scale the 'Broad' audience ad set by 20%.",
+                 "Create similar UGC video creatives for winning ads.",
+                 "Retest the headline from Top Ad #1."
+             ]);
+             return;
+        }
+
+        setLoadingAi(true);
+        try {
+            // 1. Get Top 3 Ads
+            const topAds = await getTopAdsForAccount(settings.adAccountId, settings.fbAccessToken);
+            
+            // 2. Analyze
+            if (topAds.length > 0) {
+                const actionPlan = await analyzeAccountPerformance(
+                    topAds, 
+                    settings.selectedAiProvider, 
+                    settings.apiKey, 
+                    settings.selectedModel
+                );
+                setAiStatus(actionPlan);
+            } else {
+                setAiStatus(["Not enough active ads to analyze."]);
+            }
+        } catch (e) {
+            console.error("Sidebar AI Error", e);
+            setAiStatus(["Could not analyze ads at this time."]);
+        } finally {
+            setLoadingAi(false);
+        }
+    };
+
+    runAnalysis();
+  }, [settings.adAccountId, settings.isConnected, settings.fbAccessToken]);
 
   return (
     <div className="flex h-screen bg-[#0f172a] text-gray-100 overflow-hidden">
@@ -68,7 +117,19 @@ const Layout: React.FC = () => {
                     <Zap size={16} />
                     <span className="text-xs font-semibold uppercase tracking-wider">AI Status</span>
                 </div>
-                <p className="text-xs text-slate-400">Ready to analyze campaigns.</p>
+                {loadingAi ? (
+                    <div className="flex items-center gap-2 text-xs text-slate-400">
+                        <Loader2 size={12} className="animate-spin" /> Analyzing Top Ads...
+                    </div>
+                ) : (
+                    <ul className="text-xs text-slate-400 space-y-2 list-disc pl-4">
+                        {aiStatus.length > 0 ? (
+                            aiStatus.map((plan, i) => <li key={i}>{plan}</li>)
+                        ) : (
+                            <li>Ready to analyze campaigns.</li>
+                        )}
+                    </ul>
+                )}
             </div>
           <button
             onClick={handleLogout}
