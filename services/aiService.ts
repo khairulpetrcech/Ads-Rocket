@@ -83,16 +83,47 @@ export const getAvailableModels = async (provider: AiProvider, userApiKey?: stri
     }
 
     if (provider === AiProvider.OPENROUTER) {
-      return [
-        "anthropic/claude-3.5-sonnet",
-        "openai/gpt-4o",
-        "google/gemini-pro-1.5",
-        "meta-llama/llama-3-70b-instruct"
-      ];
+      if (!key) {
+        // If no key, we can't fetch models from OpenRouter endpoint comfortably without auth usually,
+        // but OpenRouter docs say GET /models doesn't technically need auth? 
+        // Let's try fetching without auth or return a basic list.
+        // Actually, let's just return an empty list or prompts user to enter key.
+        return []; 
+      }
+      
+      try {
+        const response = await fetch('https://openrouter.ai/api/v1/models', {
+          method: 'GET',
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          // data.data is the array of models
+          const models = data.data.map((m: any) => m.id);
+          
+          // Sort to put popular models at top
+          const priorities = ['anthropic/claude-3.5-sonnet', 'openai/gpt-4o', 'google/gemini-pro-1.5'];
+          
+          return models.sort((a: string, b: string) => {
+             const aP = priorities.findIndex(p => a.includes(p));
+             const bP = priorities.findIndex(p => b.includes(p));
+             if (aP !== -1 && bP !== -1) return aP - bP; // Both in priority list
+             if (aP !== -1) return -1; // a is priority
+             if (bP !== -1) return 1; // b is priority
+             return a.localeCompare(b);
+          });
+        }
+      } catch (e) {
+        throw new Error("Failed to fetch OpenRouter models. Check connection.");
+      }
     }
 
   } catch (error) {
     console.error("Error fetching models:", error);
+    // User requested NO FALLBACK for OpenRouter if it errors.
+    if (provider === AiProvider.OPENROUTER) {
+        throw error;
+    }
   }
   return [];
 };

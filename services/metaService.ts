@@ -79,7 +79,7 @@ export const getAdAccounts = async (accessToken: string): Promise<MetaAdAccount[
 export const getRealCampaigns = async (
     adAccountId: string, 
     accessToken: string,
-    datePreset: string = 'maximum'
+    datePreset: string = 'today' // Default updated to today if not provided
 ): Promise<AdCampaign[]> => {
   const accountId = adAccountId.startsWith('act_') ? adAccountId : `act_${adAccountId}`;
   
@@ -104,7 +104,10 @@ export const getRealCampaigns = async (
       const insights = camp.insights?.data?.[0] || {};
       
       const purchaseAction = insights.actions?.find((a: any) => a.action_type === 'purchase')?.value || 0;
-      const purchaseValue = insights.action_values?.find((a: any) => a.action_type === 'purchase_value')?.value || 0;
+      
+      // FIX: In action_values, the action_type for purchase value is simply 'purchase'
+      const purchaseValue = insights.action_values?.find((a: any) => a.action_type === 'purchase')?.value || 0;
+      
       const landingPageViews = insights.actions?.find((a: any) => a.action_type === 'landing_page_view')?.value || 0;
       
       const spend = parseFloat(insights.spend || '0');

@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect, PropsWithChildren } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Layout from './components/Layout';
@@ -5,6 +6,7 @@ import ConnectPage from './pages/Connect';
 import Dashboard from './pages/Dashboard';
 import SettingsPage from './pages/Settings';
 import { UserSettings, AiProvider } from './types';
+import { initFacebookSdk } from './services/metaService';
 
 // Context Definition
 interface AppContextType {
@@ -31,7 +33,7 @@ const App: React.FC = () => {
       selectedAiProvider: AiProvider.CLAUDE, 
       selectedModel: 'claude-3-5-sonnet-20241022', 
       apiKey: '',
-      fbAppId: '',
+      fbAppId: '', // Will be preserved if previously set
       fbAccessToken: '',
       adAccountId: ''
     };
@@ -41,6 +43,15 @@ const App: React.FC = () => {
   useEffect(() => {
     localStorage.setItem('adsRoketSettings', JSON.stringify(settings));
   }, [settings]);
+
+  // Auto-init Facebook SDK if App ID is present
+  useEffect(() => {
+    if (settings.fbAppId && settings.fbAppId !== '123456789') {
+      initFacebookSdk(settings.fbAppId).catch(err => 
+        console.warn("Auto-init FB SDK failed:", err)
+      );
+    }
+  }, [settings.fbAppId]);
 
   const updateSettings = (newSettings: Partial<UserSettings>) => {
     setSettings(prev => ({ ...prev, ...newSettings }));

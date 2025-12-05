@@ -58,8 +58,8 @@ const Dashboard: React.FC = () => {
   const [analyzing, setAnalyzing] = useState(false);
   const [fetchError, setFetchError] = useState('');
   
-  // Filters & Sorting State
-  const [dateRange, setDateRange] = useState<DateRange>('maximum');
+  // Filters & Sorting State - DEFAULT TO TODAY
+  const [dateRange, setDateRange] = useState<DateRange>('today');
   const [sortBy, setSortBy] = useState<SortOption>('spend');
 
   // Fetch campaigns logic

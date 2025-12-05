@@ -6,16 +6,16 @@ import { useSettings } from '../App';
 
 const Layout: React.FC = () => {
   const navigate = useNavigate();
-  const { updateSettings } = useSettings();
+  const { settings, updateSettings } = useSettings();
 
   const handleLogout = () => {
-    // Clear credentials and connection state
+    // Clear credentials and connection state but KEEP the App ID
     updateSettings({
       isConnected: false,
       fbAccessToken: '',
       adAccountId: '',
       businessName: '',
-      fbAppId: '' // Optional: keep App ID if you want to remember it, but usually safer to clear
+      // We do NOT clear fbAppId so the user doesn't have to type it again
     });
     navigate('/connect');
   };
