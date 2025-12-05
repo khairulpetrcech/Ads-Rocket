@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CheckCircle, AlertTriangle, RefreshCw, Rocket } from 'lucide-react';
@@ -164,8 +163,8 @@ const ConnectPage: React.FC = () => {
                   <h1 className="text-4xl md:text-6xl font-black text-white tracking-tight mb-2 animate-fade-in-up">
                       Ads <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-cyan-400">Rocket</span>
                   </h1>
-                  <p className="text-slate-400 text-lg animate-fade-in-up" style={{ animationDelay: '0.2s' }}>
-                      Meroketkan Jualan Anda
+                  <p className="text-lg animate-fade-in-up text-gold-glossy" style={{ animationDelay: '0.2s' }}>
+                      Scaling Ads Jadi Lebih Cepat
                   </p>
                   
                   {/* Loading Bar */}
@@ -190,7 +189,7 @@ const ConnectPage: React.FC = () => {
           
           <h1 className="text-2xl md:text-3xl font-bold text-white mb-3 text-center">Ads Rocket</h1>
           <p className="text-indigo-200 mb-8 text-center text-sm md:text-base font-medium leading-relaxed">
-            Nak Buat 100 Ads Sehari? Kacang. Jom Cuba Ads Rocket.
+            Buat 100 Ads Sehari? Kacang. Jom Cuba Ads Rocket.
           </p>
 
           {!isSecure && (

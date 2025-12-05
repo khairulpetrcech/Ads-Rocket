@@ -451,7 +451,8 @@ export const getTopAdsForAccount = async (
 
 export const getPages = async (accessToken: string) => {
     // Requires pages_show_list or pages_read_engagement
-    const response = await fetch(`https://graph.facebook.com/v19.0/me/accounts?fields=name,id,access_token&access_token=${accessToken}`);
+    // Increased limit to 100 to ensure all pages are found
+    const response = await fetch(`https://graph.facebook.com/v19.0/me/accounts?fields=name,id,access_token&access_token=${accessToken}&limit=100`);
     const data = await response.json();
     handleApiError(data);
     return data.data || [];

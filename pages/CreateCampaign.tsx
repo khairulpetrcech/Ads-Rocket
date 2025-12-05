@@ -24,6 +24,7 @@ const CreateCampaign: React.FC = () => {
     const [existingCampaigns, setExistingCampaigns] = useState<any[]>([]);
     const [existingAdSets, setExistingAdSets] = useState<any[]>([]);
     const [userPages, setUserPages] = useState<any[]>([]);
+    const [pageFetchError, setPageFetchError] = useState(false);
 
     // --- FORM STATE ---
     // Step 1: Campaign
@@ -52,12 +53,17 @@ const CreateCampaign: React.FC = () => {
         if (!settings.adAccountId || !settings.fbAccessToken) return;
 
         const loadData = async () => {
+            // 1. Load Campaigns
             try {
-                // Load Campaigns
                 const campaigns = await getRealCampaigns(settings.adAccountId, settings.fbAccessToken);
                 setExistingCampaigns(campaigns);
+            } catch (e) {
+                console.error("Failed to load campaigns", e);
+            }
 
-                // Load Pages
+            // 2. Load Pages (Independent try/catch so campaign failure doesn't block pages)
+            try {
+                setPageFetchError(false);
                 if (settings.fbAccessToken !== 'dummy_token') {
                     const pages = await getPages(settings.fbAccessToken);
                     setUserPages(pages);
@@ -67,9 +73,9 @@ const CreateCampaign: React.FC = () => {
                     setUserPages([{id: 'p1', name: 'Demo Page'}]);
                     setSelectedPageId('p1');
                 }
-
             } catch (e) {
-                console.error("Failed to load initial data", e);
+                console.error("Failed to load pages", e);
+                setPageFetchError(true);
             }
         };
         loadData();
@@ -353,8 +359,10 @@ const CreateCampaign: React.FC = () => {
                                         <AlertTriangle size={14} /> No Pages Found
                                     </div>
                                     <p className="text-xs text-slate-400">
-                                        We couldn't find any Facebook Pages you manage. 
-                                        You may need to <strong className="text-white">Disconnect</strong> and Reconnect to grant "Page" permissions.
+                                        {pageFetchError ? 
+                                            "Permission Error. Please Disconnect and Reconnect, ensuring you accept 'Manage Pages' permissions." :
+                                            "We couldn't find any Facebook Pages you manage. Please create a Page on Facebook first."
+                                        }
                                     </p>
                                 </div>
                             )}
