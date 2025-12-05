@@ -1,13 +1,12 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Rocket, CheckCircle, AlertTriangle, Info, RefreshCw } from 'lucide-react';
+import { CheckCircle, AlertTriangle, RefreshCw } from 'lucide-react';
 import { useSettings } from '../App';
 import { initFacebookSdk, loginWithFacebook, getAdAccounts, checkLoginStatus } from '../services/metaService';
 import { MetaAdAccount } from '../types';
 
-// Default Demo ID
-const DEFAULT_APP_ID = '123456789'; 
+// Default Demo ID - REPLACE THIS WITH YOUR REAL APP ID
+const SYSTEM_APP_ID = '123456789'; 
 
 const ConnectPage: React.FC = () => {
   const navigate = useNavigate();
@@ -15,8 +14,8 @@ const ConnectPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   
-  // Local state for App ID input
-  const [inputAppId, setInputAppId] = useState(settings.fbAppId || DEFAULT_APP_ID);
+  // Local state for App ID input (Optional override)
+  const [inputAppId, setInputAppId] = useState(settings.fbAppId || '');
 
   const [step, setStep] = useState<1 | 2>(1); // 1 = Login, 2 = Account Selection
   const [accounts, setAccounts] = useState<MetaAdAccount[]>([]);
@@ -30,9 +29,9 @@ const ConnectPage: React.FC = () => {
         return;
       }
       
-      // Use stored ID if available, otherwise default
-      const appIdToUse = settings.fbAppId || DEFAULT_APP_ID;
-      if (appIdToUse === DEFAULT_APP_ID) return; // Don't auto-connect on default demo ID
+      const appIdToUse = settings.fbAppId || SYSTEM_APP_ID;
+      // If using demo ID, don't auto-connect unless user previously logged in
+      if (appIdToUse === '123456789' && !settings.fbAccessToken) return;
 
       setLoading(true);
       try {
@@ -62,15 +61,15 @@ const ConnectPage: React.FC = () => {
     };
 
     autoConnect();
-  }, [settings.isConnected, settings.adAccountId, navigate, updateSettings, settings.fbAppId]);
+  }, [settings.isConnected, settings.adAccountId, navigate, updateSettings, settings.fbAppId, settings.fbAccessToken]);
 
 
   const handleLogin = async () => {
     setLoading(true);
     setError('');
     
-    // Determine which ID to use
-    const appIdToUse = inputAppId.trim() || DEFAULT_APP_ID;
+    // Determine which ID to use (Input overrides System Default)
+    const appIdToUse = inputAppId.trim() || SYSTEM_APP_ID;
 
     // --- DUMMY LOGIN BACKDOOR (For Demo/Dev) ---
     if (appIdToUse === '123456789') {
@@ -133,8 +132,8 @@ const ConnectPage: React.FC = () => {
     <div className="min-h-screen bg-[#0f172a] flex items-center justify-center p-4">
       <div className="max-w-md w-full bg-[#1e293b] rounded-2xl border border-slate-700 shadow-2xl overflow-hidden">
         <div className="p-6 md:p-8">
-          <div className="w-16 h-16 bg-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg shadow-indigo-500/30">
-            <Rocket className="text-white w-8 h-8" />
+          <div className="w-24 h-24 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg shadow-indigo-500/30 overflow-hidden bg-white">
+             <img src="https://i.postimg.cc/pLyD6HKz/adsrocket.jpg" alt="Ads Rocket" className="w-full h-full object-cover" />
           </div>
           
           <h1 className="text-2xl md:text-3xl font-bold text-white mb-2 text-center">Ads Rocket</h1>
@@ -161,9 +160,10 @@ const ConnectPage: React.FC = () => {
                     type="text" 
                     value={inputAppId}
                     onChange={(e) => setInputAppId(e.target.value)}
-                    placeholder="Enter App ID"
-                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-indigo-500 transition-colors text-sm"
+                    placeholder={SYSTEM_APP_ID}
+                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-indigo-500 transition-colors text-sm placeholder-slate-600"
                   />
+                  <p className="text-[10px] text-slate-500 mt-1 ml-1">Leave empty to use System Default ID.</p>
               </div>
 
               <button
