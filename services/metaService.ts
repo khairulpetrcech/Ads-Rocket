@@ -60,8 +60,8 @@ export const loginWithFacebook = (): Promise<string> => {
         }
       }
     }, { 
-      // Request permissions to read ads and insights
-      scope: 'public_profile,email,ads_read,read_insights,ads_management' 
+      // Request permissions to read ads and manage ads. Removed email/read_insights to prevent scope errors.
+      scope: 'public_profile,ads_read,ads_management' 
     });
   });
 };
