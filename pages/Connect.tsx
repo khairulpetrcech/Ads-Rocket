@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Rocket, CheckCircle, AlertTriangle, Info } from 'lucide-react';
+import { Rocket, CheckCircle, AlertTriangle, Info, KeyRound } from 'lucide-react';
 import { useSettings } from '../App';
 import { initFacebookSdk, loginWithFacebook, getAdAccounts } from '../services/metaService';
 import { MetaAdAccount } from '../types';
@@ -30,6 +30,22 @@ const ConnectPage: React.FC = () => {
     
     setLoading(true);
     setError('');
+
+    // --- DUMMY LOGIN BACKDOOR ---
+    if (appIdInput === '123456789') {
+        setTimeout(() => {
+            updateSettings({ 
+                fbAppId: '123456789', 
+                fbAccessToken: 'dummy_token',
+                isConnected: true,
+                businessName: 'Demo Store (Malaysia)',
+                adAccountId: 'act_dummy_123'
+            });
+            navigate('/');
+        }, 800);
+        return;
+    }
+    // ---------------------------
 
     try {
       await initFacebookSdk(appIdInput);
@@ -70,13 +86,13 @@ const ConnectPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-[#0f172a] flex items-center justify-center p-4">
       <div className="max-w-md w-full bg-[#1e293b] rounded-2xl border border-slate-700 shadow-2xl overflow-hidden">
-        <div className="p-8">
+        <div className="p-6 md:p-8">
           <div className="w-16 h-16 bg-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg shadow-indigo-500/30">
             <Rocket className="text-white w-8 h-8" />
           </div>
           
-          <h1 className="text-3xl font-bold text-white mb-2 text-center">Ads Roket</h1>
-          <p className="text-slate-400 mb-8 text-center">
+          <h1 className="text-2xl md:text-3xl font-bold text-white mb-2 text-center">Ads Roket</h1>
+          <p className="text-slate-400 mb-8 text-center text-sm md:text-base">
             Connect your Meta Ads Manager to unlock AI-powered insights.
           </p>
 
@@ -97,13 +113,16 @@ const ConnectPage: React.FC = () => {
             <div className="space-y-4">
               <div>
                 <label className="block text-xs uppercase text-slate-500 font-bold mb-1">Facebook App ID</label>
-                <input 
-                  type="text" 
-                  value={appIdInput}
-                  onChange={(e) => setAppIdInput(e.target.value)}
-                  placeholder="1234567890..."
-                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-indigo-500 outline-none"
-                />
+                <div className="relative">
+                    <KeyRound className="absolute left-3 top-3.5 text-slate-500" size={16} />
+                    <input 
+                      type="text" 
+                      value={appIdInput}
+                      onChange={(e) => setAppIdInput(e.target.value)}
+                      placeholder="Enter App ID or 123456789 for demo"
+                      className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-10 pr-4 py-3 text-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all placeholder-slate-600"
+                    />
+                </div>
                 <p className="text-[10px] text-slate-500 mt-1">Found in Meta Developers Portal</p>
               </div>
 

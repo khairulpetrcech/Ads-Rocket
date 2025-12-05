@@ -1,3 +1,4 @@
+
 import { AdCampaign, MetaAdAccount } from '../types';
 
 declare global {
@@ -80,13 +81,17 @@ export const getAdAccounts = async (accessToken: string): Promise<MetaAdAccount[
 };
 
 // Fetch Campaigns and Insights for a specific Account
-export const getRealCampaigns = async (adAccountId: string, accessToken: string): Promise<AdCampaign[]> => {
+export const getRealCampaigns = async (
+    adAccountId: string, 
+    accessToken: string,
+    datePreset: string = 'maximum'
+): Promise<AdCampaign[]> => {
   const accountId = adAccountId.startsWith('act_') ? adAccountId : `act_${adAccountId}`;
   
-  // Fields to fetch: Name, Status, Budget + Insights (Spend, Impressions, Clicks, Actions for Purchases)
+  // Fields to fetch: Name, Status, Budget + Insights
   const fields = [
     'id', 'name', 'status', 'daily_budget',
-    'insights.date_preset(maximum){spend,impressions,clicks,cpc,ctr,actions,action_values}'
+    `insights.date_preset(${datePreset}){spend,impressions,clicks,cpc,ctr,actions,action_values}`
   ].join(',');
 
   try {

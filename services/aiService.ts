@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, Type } from "@google/genai";
 import { AdCampaign, AiProvider, AiAnalysisResult } from "../types";
 
@@ -14,12 +15,12 @@ const createPrompt = (campaign: AdCampaign) => {
     
     Campaign Name: ${campaign.name}
     Status: ${campaign.status}
-    Spend: $${campaign.metrics.spend}
-    Revenue: $${campaign.metrics.revenue}
+    Spend: RM ${campaign.metrics.spend}
+    Revenue: RM ${campaign.metrics.revenue}
     ROAS: ${campaign.metrics.roas}
     CTR: ${campaign.metrics.ctr}%
-    Cost Per Purchase: $${campaign.metrics.costPerPurchase}
-    Cost Per Landing Page View: $${campaign.metrics.costPerLandingPageView}
+    Cost Per Purchase: RM ${campaign.metrics.costPerPurchase}
+    Cost Per Landing Page View: RM ${campaign.metrics.costPerLandingPageView}
     
     Provide a concise summary, a concrete step-by-step action plan to improve performance, and an overall sentiment.
   `;
@@ -41,11 +42,17 @@ export const getAvailableModels = async (provider: AiProvider, userApiKey?: stri
   
   try {
     if (provider === AiProvider.CLAUDE) {
-      if (!key) return [
+      // Force latest models initially to ensure users see the best options even if API fails due to CORS
+      const latestClaudeModels = [
         "claude-3-5-sonnet-20241022",
         "claude-3-5-haiku-20241022",
         "claude-3-opus-20240229",
+        "claude-3-sonnet-20240229",
+        "claude-3-haiku-20240307"
       ];
+
+      if (!key) return latestClaudeModels;
+      
       try {
         const response = await fetch('https://api.anthropic.com/v1/models', {
           method: 'GET',
@@ -57,19 +64,18 @@ export const getAvailableModels = async (provider: AiProvider, userApiKey?: stri
         });
         if (response.ok) {
           const data = await response.json();
-          return data.data
+          const fetchedModels = data.data
             .filter((m: any) => m.id.includes('claude-3'))
             .map((m: any) => m.id)
             .sort();
+            
+          // If the API returns a list, use it. But ensure 3.5 Sonnet is at top if present.
+          return fetchedModels.length > 0 ? fetchedModels : latestClaudeModels;
         }
       } catch (e) {
-        console.warn("Could not fetch Claude models dynamically, using defaults.");
+        console.warn("Could not fetch Claude models dynamically (likely CORS), using forced latest list.");
       }
-      return [
-        "claude-3-5-sonnet-20241022",
-        "claude-3-5-haiku-20241022",
-        "claude-3-opus-20240229",
-      ];
+      return latestClaudeModels;
     } 
     
     if (provider === AiProvider.GEMINI) {
@@ -138,7 +144,7 @@ const simulateAiResponse = async (campaign: AdCampaign): Promise<AiAnalysisResul
     plans.push("Launch a new creative iteration batch based on current winners.");
   } else if (campaign.metrics.roas < 1.5) {
     sentiment = 'NEGATIVE';
-    plans.push("Pause ads with Spend > $50 and 0 Purchases.");
+    plans.push("Pause ads with Spend > RM 50 and 0 Purchases.");
     plans.push("Review landing page load speed (current metrics suggest drop-off).");
     plans.push("Refresh creative: CTR is below benchmark.");
   } else {
