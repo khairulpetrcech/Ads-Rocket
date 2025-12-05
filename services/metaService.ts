@@ -11,11 +11,29 @@ declare global {
 // Initialize the SDK with Timeout to prevent hanging
 export const initFacebookSdk = (appId: string): Promise<void> => {
   return new Promise((resolve, reject) => {
-    const timeoutId = setTimeout(() => {
-      reject("Facebook SDK load timeout. Check your ad blocker or network connection.");
-    }, 5000);
+    // 1. Check if FB is already available (Script loaded from index.html)
+    if (window.FB) {
+      try {
+        window.FB.init({
+          appId      : appId,
+          cookie     : true,
+          xfbml      : true,
+          version    : 'v19.0'
+        });
+        return resolve();
+      } catch (e) {
+        console.warn("FB Init warning:", e);
+        return resolve(); // Assuming previously working
+      }
+    }
 
-    const initializeSDK = () => {
+    // 2. Set timeout to stop waiting if AdBlocker blocks it
+    const timeoutId = setTimeout(() => {
+      reject("Facebook SDK load timeout (3s). Check AdBlocker.");
+    }, 3000);
+
+    // 3. Setup Callback
+    window.fbAsyncInit = () => {
       clearTimeout(timeoutId);
       try {
         window.FB.init({
@@ -30,14 +48,9 @@ export const initFacebookSdk = (appId: string): Promise<void> => {
       }
     };
 
-    if (window.FB) {
-      initializeSDK();
-      return;
-    }
-
-    window.fbAsyncInit = initializeSDK;
-    
-    if (!document.getElementById('facebook-jssdk')) {
+    // 4. Inject script only if missing (index.html usually has it)
+    const existingScript = document.querySelector('script[src*="connect.facebook.net"]');
+    if (!existingScript) {
        const js = document.createElement('script');
        js.id = 'facebook-jssdk';
        js.src = "https://connect.facebook.net/en_US/sdk.js";

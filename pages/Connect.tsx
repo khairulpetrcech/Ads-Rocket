@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CheckCircle, AlertTriangle, RefreshCw } from 'lucide-react';
@@ -103,18 +104,20 @@ const ConnectPage: React.FC = () => {
       
       if (adAccounts.length === 0) {
         setError("No Ad Accounts found for this user. Ensure you have admin access.");
-        setLoading(false);
+        // setLoading(false) moved to finally block
         return;
       }
 
       setAccounts(adAccounts);
       updateSettings({ availableAccounts: adAccounts });
       setStep(2);
-      setLoading(false);
+      // setLoading(false) moved to finally block
 
     } catch (err: any) {
       console.error(err);
       setError(typeof err === 'string' ? err : "Failed to connect to Facebook. Check your App ID.");
+      // setLoading(false) moved to finally block
+    } finally {
       setLoading(false);
     }
   };
