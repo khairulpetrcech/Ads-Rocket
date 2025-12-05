@@ -17,7 +17,7 @@ export const initFacebookSdk = (appId: string): Promise<void> => {
         window.FB.init({
           appId      : appId,
           cookie     : true,
-          xfbml      : true,
+          xfbml      : false, // Optimized: Don't parse DOM for plugins
           version    : 'v19.0'
         });
         return resolve();
@@ -29,7 +29,7 @@ export const initFacebookSdk = (appId: string): Promise<void> => {
 
     // 2. Set timeout to stop waiting if AdBlocker blocks it
     const timeoutId = setTimeout(() => {
-      reject("Facebook SDK load timeout (3s). Check AdBlocker.");
+      reject("Facebook SDK load timeout (3s). Check AdBlocker or Network.");
     }, 3000);
 
     // 3. Setup Callback
@@ -39,7 +39,7 @@ export const initFacebookSdk = (appId: string): Promise<void> => {
         window.FB.init({
           appId      : appId,
           cookie     : true,
-          xfbml      : true,
+          xfbml      : false,
           version    : 'v19.0'
         });
         resolve();
@@ -85,19 +85,24 @@ export const loginWithFacebook = (): Promise<string> => {
   return new Promise((resolve, reject) => {
     if (!window.FB) return reject("Facebook SDK not loaded. Try refreshing the page.");
 
-    window.FB.login((response: any) => {
-      if (response.authResponse) {
-        resolve(response.authResponse.accessToken);
-      } else {
-        if (response.status === 'unknown') {
-            reject("Login cancelled or blocked. Please allow popups for this site.");
-        } else {
-            reject("User did not fully authorize the app.");
-        }
-      }
-    }, { 
-      scope: 'public_profile,ads_read,ads_management' 
-    });
+    try {
+        window.FB.login((response: any) => {
+            if (response.authResponse) {
+                resolve(response.authResponse.accessToken);
+            } else {
+                if (response.status === 'unknown') {
+                    reject("Login cancelled or blocked. Please allow popups for this site.");
+                } else {
+                    reject(`Login Failed: ${response.status}`);
+                }
+            }
+        }, { 
+            scope: 'public_profile,ads_read,ads_management' 
+        });
+    } catch (e) {
+        console.error("FB.login sync error:", e);
+        reject("Failed to open Facebook Login dialog.");
+    }
   });
 };
 

@@ -104,19 +104,25 @@ const ConnectPage: React.FC = () => {
       
       if (adAccounts.length === 0) {
         setError("No Ad Accounts found for this user. Ensure you have admin access.");
-        // setLoading(false) moved to finally block
         return;
       }
 
       setAccounts(adAccounts);
       updateSettings({ availableAccounts: adAccounts });
       setStep(2);
-      // setLoading(false) moved to finally block
 
     } catch (err: any) {
       console.error(err);
-      setError(typeof err === 'string' ? err : "Failed to connect to Facebook. Check your App ID.");
-      // setLoading(false) moved to finally block
+      // Extract meaningful error message
+      let msg = "Failed to connect to Facebook. Check your App ID.";
+      if (typeof err === 'string') {
+        msg = err;
+      } else if (err?.message) {
+        msg = err.message;
+      } else if (err?.error_user_msg) {
+        msg = err.error_user_msg;
+      }
+      setError(msg);
     } finally {
       setLoading(false);
     }
@@ -145,12 +151,12 @@ const ConnectPage: React.FC = () => {
           </p>
 
           {error && (
-            <div className="bg-red-900/20 border border-red-800 p-3 rounded-lg mb-4 text-red-400 text-sm">
+            <div className="bg-red-900/20 border border-red-800 p-3 rounded-lg mb-4 text-red-400 text-sm animate-fadeIn">
               <div className="flex items-center gap-2 mb-1">
                  <AlertTriangle size={16} />
                  <span className="font-bold">Connection Failed</span>
               </div>
-              <p>{error}</p>
+              <p className="break-words">{error}</p>
             </div>
           )}
 
