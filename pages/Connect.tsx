@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CheckCircle, AlertTriangle, RefreshCw } from 'lucide-react';
@@ -7,7 +6,7 @@ import { initFacebookSdk, loginWithFacebook, getAdAccounts, checkLoginStatus, is
 import { MetaAdAccount } from '../types';
 
 // Production App ID
-const SYSTEM_APP_ID = '861724536220118'; 
+const SYSTEM_APP_ID: string = '861724536220118'; 
 
 const ConnectPage: React.FC = () => {
   const navigate = useNavigate();
@@ -17,7 +16,8 @@ const ConnectPage: React.FC = () => {
   
   const [step, setStep] = useState<1 | 2>(1); // 1 = Login, 2 = Account Selection
   const [accounts, setAccounts] = useState<MetaAdAccount[]>([]);
-  const [appIdToUse, setAppIdToUse] = useState(SYSTEM_APP_ID);
+  // We strictly use SYSTEM_APP_ID now
+  const appIdToUse = SYSTEM_APP_ID;
 
   const isSecure = isSecureContext();
 
@@ -171,18 +171,6 @@ const ConnectPage: React.FC = () => {
           {step === 1 && (
             <div className="space-y-4">
               
-              {/* Optional App ID Input for flexibility */}
-              <div className="mb-2">
-                <label className="text-xs text-slate-500 mb-1 block">Meta App ID (Optional)</label>
-                <input 
-                    type="text" 
-                    value={appIdToUse}
-                    onChange={(e) => setAppIdToUse(e.target.value)}
-                    placeholder={SYSTEM_APP_ID}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:ring-1 focus:ring-indigo-500 outline-none placeholder-slate-600"
-                />
-              </div>
-
               <button
                 onClick={handleLogin}
                 disabled={loading || !isSecure}

@@ -9,8 +9,8 @@ declare global {
 }
 
 // --- SMART CACHING SYSTEM ---
-// Cache responses for 60 seconds to avoid hitting Meta's Rate Limit (#80004)
-const CACHE_TTL = 60 * 1000; 
+// Cache responses for 5 minutes (300s) to avoid hitting Meta's Rate Limit (#80004)
+const CACHE_TTL = 5 * 60 * 1000; 
 const apiCache: Record<string, { timestamp: number, data: any }> = {};
 
 const getCachedData = (key: string) => {
@@ -182,11 +182,19 @@ export const loginWithFacebook = (): Promise<string> => {
 };
 
 export const getAdAccounts = async (accessToken: string): Promise<MetaAdAccount[]> => {
+  // Check Cache first
+  const cacheKey = `adaccounts-${accessToken.substring(0, 10)}`;
+  const cached = getCachedData(cacheKey);
+  if (cached) return cached;
+
   try {
     const response = await fetch(`https://graph.facebook.com/v19.0/me/adaccounts?fields=name,account_id,currency&access_token=${accessToken}`);
     const data = await response.json();
     handleApiError(data);
-    return data.data || [];
+    
+    const accounts = data.data || [];
+    setCachedData(cacheKey, accounts);
+    return accounts;
   } catch (error) {
     console.error("Failed to fetch ad accounts", error);
     throw error;
