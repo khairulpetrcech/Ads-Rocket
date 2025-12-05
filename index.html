@@ -28,6 +28,65 @@
       ::-webkit-scrollbar-thumb:hover {
         background: #64748b; 
       }
+
+      /* --- SPACE ANIMATIONS --- */
+      
+      /* Stars Background */
+      .stars-bg {
+        background: radial-gradient(ellipse at bottom, #1b2735 0%, #090a0f 100%);
+        overflow: hidden;
+      }
+      
+      .stars {
+        width: 1px;
+        height: 1px;
+        background: transparent;
+        box-shadow: 1744px 122px #FFF , 134px 1321px #FFF , 92px 859px #FFF, 1200px 400px #FFF, 500px 300px #FFF, 800px 100px #FFF;
+        animation: animStar 50s linear infinite;
+      }
+      
+      .stars2 {
+        width: 2px;
+        height: 2px;
+        background: transparent;
+        box-shadow: 100px 200px #FFF , 300px 1000px #FFF , 800px 500px #FFF;
+        animation: animStar 100s linear infinite;
+      }
+
+      @keyframes animStar {
+        from { transform: translateY(0px); }
+        to { transform: translateY(-2000px); }
+      }
+
+      /* Logo Float & Glow */
+      @keyframes float {
+        0% { transform: translateY(0px); box-shadow: 0 5px 15px 0px rgba(0,0,0,0.6); }
+        50% { transform: translateY(-20px); box-shadow: 0 25px 15px 0px rgba(0,0,0,0.2); }
+        100% { transform: translateY(0px); box-shadow: 0 5px 15px 0px rgba(0,0,0,0.6); }
+      }
+
+      @keyframes pulse-glow {
+        0% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.4); }
+        70% { box-shadow: 0 0 0 20px rgba(99, 102, 241, 0); }
+        100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0); }
+      }
+
+      .animate-float {
+        animation: float 6s ease-in-out infinite;
+      }
+      
+      .animate-pulse-glow {
+        animation: pulse-glow 2s infinite;
+      }
+
+      .animate-fade-in-up {
+        animation: fadeInUp 0.8s ease-out forwards;
+      }
+
+      @keyframes fadeInUp {
+        from { opacity: 0; transform: translate3d(0, 40px, 0); }
+        to { opacity: 1; transform: translate3d(0, 0, 0); }
+      }
     </style>
   <script type="importmap">
 {

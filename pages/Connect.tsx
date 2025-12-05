@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CheckCircle, AlertTriangle, RefreshCw } from 'lucide-react';
+import { CheckCircle, AlertTriangle, RefreshCw, Rocket } from 'lucide-react';
 import { useSettings } from '../App';
 import { initFacebookSdk, loginWithFacebook, getAdAccounts, checkLoginStatus, isSecureContext } from '../services/metaService';
 import { MetaAdAccount } from '../types';
@@ -17,13 +17,28 @@ const ConnectPage: React.FC = () => {
   
   const [step, setStep] = useState<1 | 2>(1); // 1 = Login, 2 = Account Selection
   const [accounts, setAccounts] = useState<MetaAdAccount[]>([]);
-  // We strictly use SYSTEM_APP_ID now
   const appIdToUse = SYSTEM_APP_ID;
 
   const isSecure = isSecureContext();
 
-  // On mount, auto-check login
+  // Splash Screen State
+  const [showSplash, setShowSplash] = useState(true);
+
+  // Splash Screen Logic
   useEffect(() => {
+    // Only show splash if not already connected to avoid annoyance on re-visits
+    if (!settings.isConnected) {
+        const timer = setTimeout(() => setShowSplash(false), 2500); // 2.5s splash
+        return () => clearTimeout(timer);
+    } else {
+        setShowSplash(false);
+    }
+  }, [settings.isConnected]);
+
+  // On mount, auto-check login (runs after splash)
+  useEffect(() => {
+    if (showSplash) return; // Wait for splash to finish
+
     const autoConnect = async () => {
       // If we already have everything, go to dashboard
       if (settings.isConnected && settings.adAccountId) {
@@ -64,7 +79,7 @@ const ConnectPage: React.FC = () => {
     };
 
     autoConnect();
-  }, [settings.isConnected, settings.adAccountId, navigate, updateSettings, settings.fbAppId, settings.fbAccessToken]);
+  }, [showSplash, settings.isConnected, settings.adAccountId, navigate, updateSettings, settings.fbAppId, settings.fbAccessToken]);
 
 
   const handleLogin = async () => {
@@ -136,17 +151,46 @@ const ConnectPage: React.FC = () => {
     navigate('/');
   };
 
+  // --- SPLASH SCREEN VIEW ---
+  if (showSplash) {
+      return (
+          <div className="fixed inset-0 z-50 flex flex-col items-center justify-center stars-bg">
+              <div className="stars"></div>
+              <div className="stars2"></div>
+              <div className="relative z-10 flex flex-col items-center">
+                  <div className="w-32 h-32 rounded-3xl overflow-hidden shadow-[0_0_50px_rgba(99,102,241,0.5)] animate-float mb-8 bg-white border-4 border-indigo-500/30">
+                      <img src="https://i.postimg.cc/pLyD6HKz/adsrocket.jpg" alt="Ads Rocket" className="w-full h-full object-cover" />
+                  </div>
+                  <h1 className="text-4xl md:text-6xl font-black text-white tracking-tight mb-2 animate-fade-in-up">
+                      Ads <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-cyan-400">Rocket</span>
+                  </h1>
+                  <p className="text-slate-400 text-lg animate-fade-in-up" style={{ animationDelay: '0.2s' }}>
+                      Meroketkan Jualan Anda
+                  </p>
+                  
+                  {/* Loading Bar */}
+                  <div className="w-48 h-1 bg-slate-800 rounded-full mt-12 overflow-hidden animate-fade-in-up" style={{ animationDelay: '0.4s' }}>
+                      <div className="h-full bg-gradient-to-r from-indigo-500 to-cyan-400 animate-[width_2.5s_ease-out_forwards]" style={{ width: '0%' }}></div>
+                  </div>
+              </div>
+          </div>
+      );
+  }
+
+  // --- MAIN CONNECT UI ---
   return (
-    <div className="min-h-screen bg-[#0f172a] flex items-center justify-center p-4">
-      <div className="max-w-md w-full bg-[#1e293b] rounded-2xl border border-slate-700 shadow-2xl overflow-hidden">
+    <div className="min-h-screen bg-[#0f172a] flex items-center justify-center p-4 stars-bg relative">
+      <div className="stars"></div>
+      
+      <div className="max-w-md w-full bg-[#1e293b]/90 backdrop-blur-xl rounded-2xl border border-slate-700 shadow-2xl overflow-hidden z-10 animate-fade-in-up">
         <div className="p-6 md:p-8">
-          <div className="w-24 h-24 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg shadow-indigo-500/30 overflow-hidden bg-white">
+          <div className="w-24 h-24 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg shadow-indigo-500/30 overflow-hidden bg-white animate-float">
              <img src="https://i.postimg.cc/pLyD6HKz/adsrocket.jpg" alt="Ads Rocket" className="w-full h-full object-cover" />
           </div>
           
-          <h1 className="text-2xl md:text-3xl font-bold text-white mb-2 text-center">Ads Rocket</h1>
-          <p className="text-slate-400 mb-8 text-center text-sm md:text-base">
-            Ambil Advantage Dengan Update Andromeda. Buat Ads Lelaju dan Meroket 10x Lebih Pantas
+          <h1 className="text-2xl md:text-3xl font-bold text-white mb-3 text-center">Ads Rocket</h1>
+          <p className="text-indigo-200 mb-8 text-center text-sm md:text-base font-medium leading-relaxed">
+            Nak Buat 100 Ads Sehari? Kacang. Jom Cuba Ads Rocket.
           </p>
 
           {!isSecure && (
@@ -175,10 +219,10 @@ const ConnectPage: React.FC = () => {
               <button
                 onClick={handleLogin}
                 disabled={loading || !isSecure}
-                className={`w-full py-4 px-6 rounded-xl font-semibold flex items-center justify-center gap-3 transition-all duration-300 ${
+                className={`w-full py-4 px-6 rounded-xl font-bold tracking-wide flex items-center justify-center gap-3 transition-all duration-300 transform ${
                   loading || !isSecure
                     ? 'bg-slate-700 text-slate-400 cursor-not-allowed'
-                    : 'bg-[#1877F2] hover:bg-[#166fe5] text-white shadow-lg shadow-blue-900/50 hover:scale-[1.02]'
+                    : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-lg shadow-indigo-500/50 hover:scale-[1.02] hover:shadow-indigo-500/70 animate-pulse-glow'
                 }`}
               >
                 {loading ? (
