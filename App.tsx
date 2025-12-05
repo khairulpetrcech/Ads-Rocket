@@ -6,7 +6,7 @@ import ConnectPage from './pages/Connect';
 import Dashboard from './pages/Dashboard';
 import SettingsPage from './pages/Settings';
 import { UserSettings, AiProvider } from './types';
-import { initFacebookSdk } from './services/metaService';
+import { initFacebookSdk, isSecureContext } from './services/metaService';
 
 // Context Definition
 interface AppContextType {
@@ -45,9 +45,9 @@ const App: React.FC = () => {
     localStorage.setItem('adsRoketSettings', JSON.stringify(settings));
   }, [settings]);
 
-  // Auto-init Facebook SDK if App ID is present
+  // Auto-init Facebook SDK if App ID is present AND we are in a secure context
   useEffect(() => {
-    if (settings.fbAppId && settings.fbAppId !== '123456789') {
+    if (settings.fbAppId && settings.fbAppId !== '123456789' && isSecureContext()) {
       initFacebookSdk(settings.fbAppId).catch(err => 
         console.warn("Auto-init FB SDK failed:", err)
       );

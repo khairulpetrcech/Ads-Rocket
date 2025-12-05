@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CheckCircle, AlertTriangle, RefreshCw } from 'lucide-react';
 import { useSettings } from '../App';
-import { initFacebookSdk, loginWithFacebook, getAdAccounts, checkLoginStatus } from '../services/metaService';
+import { initFacebookSdk, loginWithFacebook, getAdAccounts, checkLoginStatus, isSecureContext } from '../services/metaService';
 import { MetaAdAccount } from '../types';
 
 // Production App ID
@@ -19,7 +19,7 @@ const ConnectPage: React.FC = () => {
   const [accounts, setAccounts] = useState<MetaAdAccount[]>([]);
   const [appIdToUse, setAppIdToUse] = useState(SYSTEM_APP_ID);
 
-  const isSecure = window.location.protocol === 'https:' || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+  const isSecure = isSecureContext();
 
   // On mount, auto-check login
   useEffect(() => {
@@ -29,6 +29,9 @@ const ConnectPage: React.FC = () => {
         navigate('/');
         return;
       }
+
+      // Skip auto-connect on insecure protocols to avoid console errors
+      if (!isSecureContext()) return;
       
       const currentAppId = settings.fbAppId || appIdToUse;
       
@@ -182,9 +185,9 @@ const ConnectPage: React.FC = () => {
 
               <button
                 onClick={handleLogin}
-                disabled={loading}
+                disabled={loading || !isSecure}
                 className={`w-full py-4 px-6 rounded-xl font-semibold flex items-center justify-center gap-3 transition-all duration-300 ${
-                  loading
+                  loading || !isSecure
                     ? 'bg-slate-700 text-slate-400 cursor-not-allowed'
                     : 'bg-[#1877F2] hover:bg-[#166fe5] text-white shadow-lg shadow-blue-900/50 hover:scale-[1.02]'
                 }`}

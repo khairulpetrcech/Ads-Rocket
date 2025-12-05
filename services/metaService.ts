@@ -50,11 +50,23 @@ const handleApiError = (data: any) => {
   }
 };
 
+// --- SECURITY HELPER ---
+export const isSecureContext = (): boolean => {
+  // Facebook requires HTTPS or Localhost
+  return window.location.protocol === 'https:' || 
+         window.location.hostname === 'localhost' || 
+         window.location.hostname === '127.0.0.1';
+};
 
 // --- FACEBOOK SDK INIT ---
 
 export const initFacebookSdk = (appId: string): Promise<void> => {
   return new Promise((resolve, reject) => {
+    
+    if (!isSecureContext()) {
+      return reject("Secure HTTPS connection required for Facebook SDK.");
+    }
+
     // 1. Check if FB is already available
     if (window.FB) {
       try {
@@ -112,10 +124,8 @@ export const initFacebookSdk = (appId: string): Promise<void> => {
 
 export const checkLoginStatus = (): Promise<string | null> => {
   return new Promise((resolve) => {
-    // 1. Protocol Check: FB API fails silently or throws errors on HTTP (except localhost)
-    // This prevents "The method FB.getLoginStatus can no longer be called from http pages"
-    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-    if (window.location.protocol === 'http:' && !isLocal) {
+    // 1. Protocol Check: Skip immediately if insecure
+    if (!isSecureContext()) {
         console.warn("Skipping FB.getLoginStatus: HTTPS required.");
         return resolve(null);
     }
@@ -146,6 +156,7 @@ export const checkLoginStatus = (): Promise<string | null> => {
 
 export const loginWithFacebook = (): Promise<string> => {
   return new Promise((resolve, reject) => {
+    if (!isSecureContext()) return reject("Facebook Login requires a secure HTTPS connection.");
     if (!window.FB) return reject("Facebook SDK not loaded. Try refreshing the page.");
 
     try {
