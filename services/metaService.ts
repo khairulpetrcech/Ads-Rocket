@@ -58,6 +58,28 @@ export const isSecureContext = (): boolean => {
          window.location.hostname === '127.0.0.1';
 };
 
+// --- HELPER: DATE RANGE PARAMS ---
+const getDateRangeParams = (preset: string) => {
+  const today = new Date();
+  const formatDate = (date: Date) => date.toISOString().split('T')[0];
+
+  if (preset === 'last_4d') {
+    const end = new Date(today);
+    const start = new Date(today);
+    start.setDate(today.getDate() - 3); // Today (1) + 3 days back = 4 days total
+    return {
+      time_range: JSON.stringify({ since: formatDate(start), until: formatDate(end) }),
+      date_preset: null
+    };
+  }
+  
+  // Standard presets that Meta supports
+  return { 
+    date_preset: preset,
+    time_range: null
+  };
+};
+
 // --- FACEBOOK SDK INIT ---
 
 export const initFacebookSdk = (appId: string): Promise<void> => {
@@ -238,9 +260,16 @@ export const getRealCampaigns = async (
   const cached = getCachedData(cacheKey);
   if (cached) return cached;
 
+  // Determine if we use date_preset or time_range
+  const { date_preset, time_range } = getDateRangeParams(datePreset);
+  
+  const insightsQuery = time_range 
+    ? `insights.time_range(${time_range}){spend,impressions,clicks,cpc,ctr,actions,action_values}`
+    : `insights.date_preset(${date_preset}){spend,impressions,clicks,cpc,ctr,actions,action_values}`;
+
   const fields = [
     'id', 'name', 'status', 'daily_budget', 'effective_status',
-    `insights.date_preset(${datePreset}){spend,impressions,clicks,cpc,ctr,actions,action_values}`
+    insightsQuery
   ].join(',');
 
   const filtering = `[{field:"effective_status",operator:"IN",value:["ACTIVE","PAUSED","IN_PROCESS","WITH_ISSUES"]}]`;
@@ -281,9 +310,14 @@ export const getAdSets = async (
     const cached = getCachedData(cacheKey);
     if (cached) return cached;
 
+    const { date_preset, time_range } = getDateRangeParams(datePreset);
+    const insightsQuery = time_range 
+      ? `insights.time_range(${time_range}){spend,impressions,clicks,cpc,ctr,actions,action_values}`
+      : `insights.date_preset(${date_preset}){spend,impressions,clicks,cpc,ctr,actions,action_values}`;
+
     const fields = [
         'id', 'name', 'status', 'daily_budget', 'effective_status', 'campaign_id',
-        `insights.date_preset(${datePreset}){spend,impressions,clicks,cpc,ctr,actions,action_values}`
+        insightsQuery
     ].join(',');
 
     try {
@@ -318,10 +352,15 @@ export const getAds = async (
     const cached = getCachedData(cacheKey);
     if (cached) return cached;
 
+    const { date_preset, time_range } = getDateRangeParams(datePreset);
+    const insightsQuery = time_range 
+      ? `insights.time_range(${time_range}){spend,impressions,clicks,cpc,ctr,actions,action_values}`
+      : `insights.date_preset(${date_preset}){spend,impressions,clicks,cpc,ctr,actions,action_values}`;
+
     const fields = [
         'id', 'name', 'status', 'effective_status', 'adset_id',
         'creative{thumbnail_url,image_url}',
-        `insights.date_preset(${datePreset}){spend,impressions,clicks,cpc,ctr,actions,action_values}`
+        insightsQuery
     ].join(',');
 
     try {

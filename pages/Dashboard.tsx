@@ -38,9 +38,17 @@ const StatusToggle = ({ status, onToggle, loading }: { status: string, onToggle:
     </button>
 );
 
+const LoadingSkeleton = () => (
+    <div className="w-full space-y-3 animate-pulse">
+        {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="h-16 bg-[#1e293b]/50 rounded-lg border border-slate-800"></div>
+        ))}
+    </div>
+);
+
 // --- MAIN DASHBOARD ---
 
-type DateRange = 'today' | 'yesterday' | 'last_3d' | 'last_7d' | 'maximum';
+type DateRange = 'today' | 'yesterday' | 'last_3d' | 'last_4d' | 'last_7d' | 'maximum';
 type SortOption = 'status' | 'spend' | 'roas';
 
 const Dashboard: React.FC = () => {
@@ -55,6 +63,7 @@ const Dashboard: React.FC = () => {
   const [loadingCampaigns, setLoadingCampaigns] = useState(false);
   const [expandedCampaigns, setExpandedCampaigns] = useState<Set<string>>(new Set());
   const [expandedAdSets, setExpandedAdSets] = useState<Set<string>>(new Set());
+  const [showAllCampaigns, setShowAllCampaigns] = useState(false);
   
   // Loading States for Actions
   const [actionLoading, setActionLoading] = useState<string | null>(null); // ID of entity being acted upon
@@ -75,6 +84,10 @@ const Dashboard: React.FC = () => {
     const fetchData = async () => {
       setLoadingCampaigns(true);
       setFetchError('');
+      // Reset expansions on date change for cleaner view
+      setExpandedCampaigns(new Set());
+      setExpandedAdSets(new Set());
+      
       try {
         if (settings.fbAccessToken === 'dummy_token' || (settings.fbAccessToken && settings.adAccountId)) {
           if (settings.fbAccessToken === 'dummy_token') {
@@ -147,8 +160,6 @@ const Dashboard: React.FC = () => {
               if (type === 'campaign') {
                   setCampaigns(prev => prev.map(c => c.id === id ? { ...c, status: newStatus } : c));
               } else if (type === 'adset') {
-                  // Find parent campaign for state update (complex, simplification: just reload or iterate all)
-                  // For optimized updates, we iterate the dictionary
                   setAdSetsData(prev => {
                       const newData = { ...prev };
                       Object.keys(newData).forEach(key => {
@@ -217,26 +228,38 @@ const Dashboard: React.FC = () => {
 
   const renderMetrics = (metrics: any) => (
       <>
-        <td className="p-3 text-right">{formatMYR(metrics.spend)}</td>
-        <td className="p-3 text-right font-bold text-white">
+        <td className="p-3 text-right whitespace-nowrap">{formatMYR(metrics.spend)}</td>
+        <td className="p-3 text-right font-bold text-white whitespace-nowrap">
             <span className={metrics.roas >= 2 ? 'text-green-400' : metrics.roas > 0 ? 'text-red-400' : 'text-slate-500'}>
                 {metrics.roas.toFixed(2)}x
             </span>
         </td>
-        <td className="p-3 text-right">{formatMYR(metrics.costPerPurchase)}</td>
-        <td className="p-3 text-right hidden lg:table-cell">{metrics.ctr.toFixed(2)}%</td>
-        <td className="p-3 text-right hidden lg:table-cell">{metrics.purchases}</td>
+        <td className="p-3 text-right whitespace-nowrap">{formatMYR(metrics.costPerPurchase)}</td>
+        <td className="p-3 text-right whitespace-nowrap">{metrics.ctr.toFixed(2)}%</td>
+        <td className="p-3 text-right whitespace-nowrap">{metrics.purchases}</td>
       </>
   );
 
-  // --- SORTING ---
+  // --- SORTING & FILTERING ---
   const sortedCampaigns = useMemo(() => {
     const sorted = [...campaigns];
-    if (sortBy === 'spend') return sorted.sort((a, b) => b.metrics.spend - a.metrics.spend);
-    if (sortBy === 'roas') return sorted.sort((a, b) => b.metrics.roas - a.metrics.roas);
-    if (sortBy === 'status') return sorted.sort((a, b) => (a.status === 'ACTIVE' ? -1 : 1));
+    if (sortBy === 'spend') sorted.sort((a, b) => b.metrics.spend - a.metrics.spend);
+    else if (sortBy === 'roas') sorted.sort((a, b) => b.metrics.roas - a.metrics.roas);
+    else if (sortBy === 'status') sorted.sort((a, b) => (a.status === 'ACTIVE' ? -1 : 1));
     return sorted;
   }, [campaigns, sortBy]);
+
+  // Primary: Active OR Spend > 0
+  const primaryCampaigns = useMemo(() => {
+      return sortedCampaigns.filter(c => c.status === 'ACTIVE' || c.metrics.spend > 0);
+  }, [sortedCampaigns]);
+
+  // Secondary: Not Active AND Spend 0
+  const secondaryCampaigns = useMemo(() => {
+      return sortedCampaigns.filter(c => c.status !== 'ACTIVE' && c.metrics.spend === 0);
+  }, [sortedCampaigns]);
+
+  const campaignsToShow = showAllCampaigns ? sortedCampaigns : primaryCampaigns;
 
   // Totals
   const totalSpend = campaigns.reduce((acc, c) => acc + c.metrics.spend, 0);
@@ -280,6 +303,7 @@ const Dashboard: React.FC = () => {
                     <option value="today">Today</option>
                     <option value="yesterday">Yesterday</option>
                     <option value="last_3d">Last 3 Days</option>
+                    <option value="last_4d">Last 4 Days</option>
                     <option value="last_7d">Last 7 Days</option>
                     <option value="maximum">All Time</option>
                 </select>
@@ -316,132 +340,169 @@ const Dashboard: React.FC = () => {
         ))}
       </div>
 
-      {/* NESTED LIST VIEW */}
-      <div className="bg-[#1e293b] rounded-xl border border-slate-700 overflow-hidden">
-          <table className="w-full text-left border-collapse">
-            <thead>
-                <tr className="bg-slate-800/50 text-slate-400 text-xs uppercase border-b border-slate-700">
-                    <th className="p-4 w-[40%]">Name</th>
-                    <th className="p-3 text-right">Spend</th>
-                    <th className="p-3 text-right">ROAS</th>
-                    <th className="p-3 text-right">CPA</th>
-                    <th className="p-3 text-right hidden lg:table-cell">CTR</th>
-                    <th className="p-3 text-right hidden lg:table-cell">Purchases</th>
-                    <th className="p-3 w-10">AI</th>
-                </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-700">
-                {sortedCampaigns.map(camp => (
-                    <React.Fragment key={camp.id}>
-                        {/* Level 1: Campaign */}
-                        <tr className="bg-[#1e293b] hover:bg-slate-800/30 text-sm transition-colors group">
-                            <td className="p-4">
-                                <div className="flex items-center gap-3">
-                                    <button 
-                                        onClick={() => toggleExpandCampaign(camp.id)}
-                                        className="text-slate-500 hover:text-white transition-colors"
-                                    >
-                                        {expandedCampaigns.has(camp.id) ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-                                    </button>
-                                    <StatusToggle 
-                                        status={camp.status} 
-                                        loading={actionLoading === camp.id} 
-                                        onToggle={() => handleStatusToggle(camp.id, camp.status, 'campaign')} 
-                                    />
-                                    <div className="min-w-0">
-                                        <div className="font-medium text-white truncate max-w-[200px] lg:max-w-xs" title={camp.name}>{camp.name}</div>
-                                        <div className="flex items-center gap-2 text-xs text-slate-500 mt-0.5 group-hover:opacity-100 transition-opacity">
-                                            <span>Budget: {formatMYR(camp.dailyBudget)}</span>
-                                            <button onClick={() => handleBudgetEdit(camp.id, camp.dailyBudget, 'campaign')} className="text-indigo-400 hover:text-white">
-                                                <Edit2 size={10} />
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                            </td>
-                            {renderMetrics(camp.metrics)}
-                            <td className="p-3">
-                                <button onClick={() => handleAnalyze(camp)} className="text-indigo-400 hover:text-white">
-                                    <BrainCircuit size={16} />
-                                </button>
-                            </td>
+      {loadingCampaigns && campaigns.length === 0 ? (
+          <LoadingSkeleton />
+      ) : (
+        <>
+            {/* NESTED LIST VIEW */}
+            <div className="bg-[#1e293b] rounded-xl border border-slate-700 overflow-x-auto">
+                <table className="w-full min-w-[1000px] text-left border-collapse">
+                    <thead>
+                        <tr className="bg-slate-800/50 text-slate-400 text-xs uppercase border-b border-slate-700">
+                            <th className="p-4 w-[35%]">Name</th>
+                            <th className="p-3 text-right">Spend</th>
+                            <th className="p-3 text-right">ROAS</th>
+                            <th className="p-3 text-right">CPA</th>
+                            <th className="p-3 text-right">CTR</th>
+                            <th className="p-3 text-right">Purchases</th>
+                            <th className="p-3 w-10">AI</th>
                         </tr>
-
-                        {/* Level 2: Ad Sets */}
-                        {expandedCampaigns.has(camp.id) && (
-                            <>
-                                {adSetsData[camp.id]?.map(adset => (
-                                    <React.Fragment key={adset.id}>
-                                        <tr className="bg-slate-900/50 text-sm hover:bg-slate-800/20">
-                                            <td className="p-4 pl-12 border-l-4 border-indigo-500/20">
-                                                <div className="flex items-center gap-3">
-                                                    <button 
-                                                        onClick={() => toggleExpandAdSet(adset.id)}
-                                                        className="text-slate-500 hover:text-white"
-                                                    >
-                                                        {expandedAdSets.has(adset.id) ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                    </thead>
+                    <tbody className="divide-y divide-slate-700">
+                        {campaignsToShow.map(camp => (
+                            <React.Fragment key={camp.id}>
+                                {/* Level 1: Campaign */}
+                                <tr className="bg-[#1e293b] hover:bg-slate-800/30 text-sm transition-colors group">
+                                    <td className="p-4">
+                                        <div className="flex items-center gap-3">
+                                            <button 
+                                                onClick={() => toggleExpandCampaign(camp.id)}
+                                                className="text-slate-500 hover:text-white transition-colors"
+                                            >
+                                                {expandedCampaigns.has(camp.id) ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                                            </button>
+                                            <StatusToggle 
+                                                status={camp.status} 
+                                                loading={actionLoading === camp.id} 
+                                                onToggle={() => handleStatusToggle(camp.id, camp.status, 'campaign')} 
+                                            />
+                                            <div className="min-w-0">
+                                                <div className="font-medium text-white truncate max-w-[200px] lg:max-w-xs" title={camp.name}>{camp.name}</div>
+                                                <div className="flex items-center gap-2 text-xs text-slate-500 mt-0.5 group-hover:opacity-100 transition-opacity">
+                                                    <span>Budget: {formatMYR(camp.dailyBudget)}</span>
+                                                    <button onClick={() => handleBudgetEdit(camp.id, camp.dailyBudget, 'campaign')} className="text-indigo-400 hover:text-white">
+                                                        <Edit2 size={10} />
                                                     </button>
-                                                    <StatusToggle 
-                                                        status={adset.status} 
-                                                        loading={actionLoading === adset.id}
-                                                        onToggle={() => handleStatusToggle(adset.id, adset.status, 'adset')} 
-                                                    />
-                                                    <div className="min-w-0">
-                                                        <div className="text-slate-300 truncate max-w-[180px]">{adset.name}</div>
-                                                        <div className="flex items-center gap-2 text-xs text-slate-600">
-                                                            <span>Ad Set Budget: {formatMYR(adset.dailyBudget)}</span>
-                                                            <button onClick={() => handleBudgetEdit(adset.id, adset.dailyBudget, 'adset')} className="text-indigo-400 hover:text-white">
-                                                                <Edit2 size={10} />
-                                                            </button>
-                                                        </div>
-                                                    </div>
                                                 </div>
-                                            </td>
-                                            {renderMetrics(adset.metrics)}
-                                            <td></td>
-                                        </tr>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    {renderMetrics(camp.metrics)}
+                                    <td className="p-3">
+                                        <button onClick={() => handleAnalyze(camp)} className="text-indigo-400 hover:text-white">
+                                            <BrainCircuit size={16} />
+                                        </button>
+                                    </td>
+                                </tr>
 
-                                        {/* Level 3: Ads */}
-                                        {expandedAdSets.has(adset.id) && (
-                                            adsData[adset.id]?.map(ad => (
-                                                <tr key={ad.id} className="bg-slate-950/50 text-xs hover:bg-slate-900/50">
-                                                    <td className="p-3 pl-20 flex items-center gap-3">
-                                                        <div className="w-10 h-10 bg-slate-800 rounded overflow-hidden flex-shrink-0 border border-slate-700">
-                                                            {ad.creative.thumbnail_url || ad.creative.image_url ? (
-                                                                <img src={ad.creative.thumbnail_url || ad.creative.image_url} className="w-full h-full object-cover" alt="" />
-                                                            ) : (
-                                                                <div className="w-full h-full flex items-center justify-center text-slate-600"><ImageIcon size={14} /></div>
-                                                            )}
-                                                        </div>
-                                                        <div className="min-w-0">
-                                                            <div className="flex items-center gap-2 mb-1">
-                                                                <StatusToggle 
-                                                                    status={ad.status} 
-                                                                    loading={actionLoading === ad.id}
-                                                                    onToggle={() => handleStatusToggle(ad.id, ad.status, 'ad')} 
-                                                                />
-                                                                <span className="text-slate-400 truncate max-w-[150px]">{ad.name}</span>
+                                {/* Level 2: Ad Sets */}
+                                {expandedCampaigns.has(camp.id) && (
+                                    <>
+                                        {adSetsData[camp.id]?.map(adset => (
+                                            <React.Fragment key={adset.id}>
+                                                <tr className="bg-slate-900/50 text-sm hover:bg-slate-800/20">
+                                                    <td className="p-4 pl-12 border-l-4 border-indigo-500/20">
+                                                        <div className="flex items-center gap-3">
+                                                            <button 
+                                                                onClick={() => toggleExpandAdSet(adset.id)}
+                                                                className="text-slate-500 hover:text-white"
+                                                            >
+                                                                {expandedAdSets.has(adset.id) ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                                                            </button>
+                                                            <StatusToggle 
+                                                                status={adset.status} 
+                                                                loading={actionLoading === adset.id}
+                                                                onToggle={() => handleStatusToggle(adset.id, adset.status, 'adset')} 
+                                                            />
+                                                            <div className="min-w-0">
+                                                                <div className="text-slate-300 truncate max-w-[180px]">{adset.name}</div>
+                                                                <div className="flex items-center gap-2 text-xs text-slate-600">
+                                                                    <span>Ad Set Budget: {formatMYR(adset.dailyBudget)}</span>
+                                                                    <button onClick={() => handleBudgetEdit(adset.id, adset.dailyBudget, 'adset')} className="text-indigo-400 hover:text-white">
+                                                                        <Edit2 size={10} />
+                                                                    </button>
+                                                                </div>
                                                             </div>
                                                         </div>
                                                     </td>
-                                                    {renderMetrics(ad.metrics)}
+                                                    {renderMetrics(adset.metrics)}
                                                     <td></td>
                                                 </tr>
-                                            ))
+
+                                                {/* Level 3: Ads Container */}
+                                                {expandedAdSets.has(adset.id) && (
+                                                    <tr className="bg-slate-950/30">
+                                                        <td colSpan={7} className="p-0 border-b border-slate-800">
+                                                            {/* SCROLLABLE ADS AREA */}
+                                                            <div className="max-h-[350px] overflow-y-auto custom-scrollbar border-y border-slate-700/50 bg-slate-950/50">
+                                                                <table className="w-full">
+                                                                    <tbody>
+                                                                    {adsData[adset.id] ? (
+                                                                        adsData[adset.id].map(ad => (
+                                                                            <tr key={ad.id} className="text-xs hover:bg-slate-900/50 border-b border-slate-800/50 last:border-0">
+                                                                                <td className="p-3 pl-20 w-[35%] flex items-center gap-3">
+                                                                                    <div className="w-10 h-10 bg-slate-800 rounded overflow-hidden flex-shrink-0 border border-slate-700">
+                                                                                        {ad.creative.thumbnail_url || ad.creative.image_url ? (
+                                                                                            <img src={ad.creative.thumbnail_url || ad.creative.image_url} className="w-full h-full object-cover" alt="" />
+                                                                                        ) : (
+                                                                                            <div className="w-full h-full flex items-center justify-center text-slate-600"><ImageIcon size={14} /></div>
+                                                                                        )}
+                                                                                    </div>
+                                                                                    <div className="min-w-0">
+                                                                                        <div className="flex items-center gap-2 mb-1">
+                                                                                            <StatusToggle 
+                                                                                                status={ad.status} 
+                                                                                                loading={actionLoading === ad.id}
+                                                                                                onToggle={() => handleStatusToggle(ad.id, ad.status, 'ad')} 
+                                                                                            />
+                                                                                            <span className="text-slate-400 truncate max-w-[150px]" title={ad.name}>{ad.name}</span>
+                                                                                        </div>
+                                                                                    </div>
+                                                                                </td>
+                                                                                {renderMetrics(ad.metrics)}
+                                                                                <td className="p-3 w-10"></td>
+                                                                            </tr>
+                                                                        ))
+                                                                    ) : (
+                                                                        <tr>
+                                                                            <td colSpan={7} className="text-center py-8 text-xs text-slate-500">
+                                                                                <Loader2 className="animate-spin inline mr-2" size={14}/> Loading Ads...
+                                                                            </td>
+                                                                        </tr>
+                                                                    )}
+                                                                    </tbody>
+                                                                </table>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                )}
+                                            </React.Fragment>
+                                        ))}
+                                        {/* Loading State for Ad Sets */}
+                                        {!adSetsData[camp.id] && (
+                                            <tr><td colSpan={7} className="text-center py-4 text-xs text-slate-500"><Loader2 className="animate-spin inline mr-2" size={14}/> Loading Ad Sets...</td></tr>
                                         )}
-                                    </React.Fragment>
-                                ))}
-                                {/* Loading State for Ad Sets */}
-                                {!adSetsData[camp.id] && (
-                                    <tr><td colSpan={7} className="text-center py-4 text-xs text-slate-500"><Loader2 className="animate-spin inline mr-2" size={14}/> Loading Ad Sets...</td></tr>
+                                    </>
                                 )}
-                            </>
-                        )}
-                    </React.Fragment>
-                ))}
-            </tbody>
-          </table>
-      </div>
+                            </React.Fragment>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+
+            {/* Pagination / Show More */}
+            {secondaryCampaigns.length > 0 && (
+                <div className="text-center pt-4">
+                    <button 
+                        onClick={() => setShowAllCampaigns(!showAllCampaigns)}
+                        className="text-xs text-slate-500 hover:text-white underline underline-offset-4"
+                    >
+                        {showAllCampaigns ? 'Show Less' : `Show ${secondaryCampaigns.length} other campaigns (Paused/Inactive)`}
+                    </button>
+                </div>
+            )}
+        </>
+      )}
 
       {/* AI Modal (Same as before) */}
       {selectedCampaign && (
