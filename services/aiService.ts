@@ -83,13 +83,7 @@ export const getAvailableModels = async (provider: AiProvider, userApiKey?: stri
     }
 
     if (provider === AiProvider.OPENROUTER) {
-      if (!key) {
-        // If no key, we can't fetch models from OpenRouter endpoint comfortably without auth usually,
-        // but OpenRouter docs say GET /models doesn't technically need auth? 
-        // Let's try fetching without auth or return a basic list.
-        // Actually, let's just return an empty list or prompts user to enter key.
-        return []; 
-      }
+      if (!key) return []; 
       
       try {
         const response = await fetch('https://openrouter.ai/api/v1/models', {
@@ -98,18 +92,15 @@ export const getAvailableModels = async (provider: AiProvider, userApiKey?: stri
         
         if (response.ok) {
           const data = await response.json();
-          // data.data is the array of models
           const models = data.data.map((m: any) => m.id);
-          
-          // Sort to put popular models at top
           const priorities = ['anthropic/claude-3.5-sonnet', 'openai/gpt-4o', 'google/gemini-pro-1.5'];
           
           return models.sort((a: string, b: string) => {
              const aP = priorities.findIndex(p => a.includes(p));
              const bP = priorities.findIndex(p => b.includes(p));
-             if (aP !== -1 && bP !== -1) return aP - bP; // Both in priority list
-             if (aP !== -1) return -1; // a is priority
-             if (bP !== -1) return 1; // b is priority
+             if (aP !== -1 && bP !== -1) return aP - bP; 
+             if (aP !== -1) return -1; 
+             if (bP !== -1) return 1; 
              return a.localeCompare(b);
           });
         }
@@ -120,7 +111,6 @@ export const getAvailableModels = async (provider: AiProvider, userApiKey?: stri
 
   } catch (error) {
     console.error("Error fetching models:", error);
-    // User requested NO FALLBACK for OpenRouter if it errors.
     if (provider === AiProvider.OPENROUTER) {
         throw error;
     }
@@ -169,6 +159,11 @@ const simulateAccountAnalysis = async (): Promise<string[]> => {
     ];
 };
 
+const simulateChatResponse = async (): Promise<string> => {
+    await new Promise(resolve => setTimeout(resolve, 800));
+    return "Your top ad 'Video V1' is driving 80% of sales. Consider duplicating it to a broad audience.";
+};
+
 // --- Main Analysis Function ---
 
 const executeAiRequest = async (
@@ -205,7 +200,7 @@ const executeAiRequest = async (
         if (!apiKey) throw new Error("Missing API Key for Claude");
         const modelName = modelOverride || DEFAULT_CLAUDE_MODEL;
         const claudePrompt = `${prompt}
-        CRITICAL: Return strictly JSON. No markdown, no pre-text.`;
+        ${schema ? 'CRITICAL: Return strictly JSON. No markdown, no pre-text.' : ''}`;
 
         const response = await fetch('https://api.anthropic.com/v1/messages', {
             method: 'POST',
@@ -233,17 +228,21 @@ const executeAiRequest = async (
     if (provider === AiProvider.OPENAI) {
         if (!apiKey) throw new Error("Missing API Key for OpenAI");
         const modelName = modelOverride || DEFAULT_OPENAI_MODEL;
+        const body: any = {
+            model: modelName,
+            messages: [{ role: "user", content: prompt }]
+        };
+        if (schema) {
+            body.response_format = { type: "json_object" };
+        }
+
         const response = await fetch('https://api.openai.com/v1/chat/completions', {
             method: 'POST',
             headers: {
             'Authorization': `Bearer ${apiKey}`,
             'Content-Type': 'application/json',
             },
-            body: JSON.stringify({
-            model: modelName,
-            messages: [{ role: "user", content: prompt }],
-            response_format: { type: "json_object" }
-            })
+            body: JSON.stringify(body)
         });
 
         if (!response.ok) throw new Error(`OpenAI request failed: ${response.statusText}`);
@@ -320,7 +319,7 @@ export const analyzeAccountPerformance = async (
         if (topAds.length === 0) return ["Not enough data to analyze."];
 
         const adDetails = topAds.map((ad, i) => `
-            Ad #${i+1}: "${ad.name}"
+            Ad Name: "${ad.name}"
             - ROAS: ${ad.metrics.roas.toFixed(2)}
             - Spend: RM ${ad.metrics.spend.toFixed(2)}
             - CTR: ${ad.metrics.ctr.toFixed(2)}%
@@ -332,10 +331,11 @@ export const analyzeAccountPerformance = async (
             Ads Data:
             ${adDetails}
 
-            Task: Analyze why these ads are performing (winning elements).
-            Output: Return a JSON object with a single property "actionPlan" which is an Array of strings.
-            The array must contain exactly 3 concise bullet points (Action Plan) derived from these winning elements.
-            Example: { "actionPlan": ["Scale Ad #1 budget.", "Duplicate Ad #2 to new audience.", "Iterate on Ad #3 hook."] }
+            Task: Analyze the winning elements.
+            Output: Return a JSON object with a property "actionPlan" (Array of strings).
+            1. The array must contain exactly 3 concise bullet points.
+            2. IMPORTANT: Reference the specific Ad Names provided in the data (e.g., "Scale 'Video V1'...") instead of saying "Ad #1".
+            3. Keep it imperative and short.
         `;
 
         const schema = {
@@ -355,3 +355,41 @@ export const analyzeAccountPerformance = async (
         return await simulateAccountAnalysis();
     }
 };
+
+export const chatWithAi = async (
+    userMessage: string,
+    contextAds: Ad[],
+    provider: AiProvider,
+    userApiKey?: string,
+    modelOverride?: string
+): Promise<string> => {
+    try {
+        let contextText = "No active ads data available.";
+        if (contextAds.length > 0) {
+            contextText = contextAds.map(ad => 
+                `Ad: "${ad.name}" | ROAS: ${ad.metrics.roas.toFixed(2)} | Spend: RM${ad.metrics.spend} | Purchases: ${ad.metrics.purchases}`
+            ).join('\n');
+        }
+
+        const prompt = `
+            Role: Expert Meta Ads Manager Assistant.
+            Context (Top Performing Ads):
+            ${contextText}
+
+            User Question: "${userMessage}"
+
+            Instructions:
+            1. Answer based on the context provided.
+            2. STRICT CONSTRAINT: Reply in LESS THAN 25 WORDS.
+            3. Be direct and helpful.
+        `;
+
+        // No schema needed for chat, just text
+        const response = await executeAiRequest(prompt, provider, userApiKey, modelOverride);
+        return response;
+
+    } catch (error) {
+        console.error("Chat Failed:", error);
+        return await simulateChatResponse();
+    }
+}

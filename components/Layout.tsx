@@ -1,10 +1,11 @@
 
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Settings, LogOut, Zap, Loader2 } from 'lucide-react';
+import { LayoutDashboard, Settings, LogOut, Zap, Loader2, ChevronDown, ChevronUp, Play } from 'lucide-react';
 import { useSettings } from '../App';
 import { getTopAdsForAccount } from '../services/metaService';
 import { analyzeAccountPerformance } from '../services/aiService';
+import Chatbot from './Chatbot';
 
 const Layout: React.FC = () => {
   const navigate = useNavigate();
@@ -12,6 +13,7 @@ const Layout: React.FC = () => {
   
   const [aiStatus, setAiStatus] = useState<string[]>([]);
   const [loadingAi, setLoadingAi] = useState(false);
+  const [isAiExpanded, setIsAiExpanded] = useState(true);
 
   const handleLogout = () => {
     // Clear credentials and connection state but KEEP the App ID
@@ -25,22 +27,12 @@ const Layout: React.FC = () => {
     navigate('/connect');
   };
 
-  // Run AI Analysis for Sidebar
-  useEffect(() => {
-    const runAnalysis = async () => {
+  // Manual Trigger AI Analysis
+  const handleAnalyze = async () => {
         if (!settings.isConnected || !settings.adAccountId || !settings.fbAccessToken) return;
 
-        // Skip if dummy token (unless you want to mock it, but usually we just skip real API calls)
-        if (settings.fbAccessToken === 'dummy_token') {
-             setAiStatus([
-                 "Scale the 'Broad' audience ad set by 20%.",
-                 "Create similar UGC video creatives for winning ads.",
-                 "Retest the headline from Top Ad #1."
-             ]);
-             return;
-        }
-
         setLoadingAi(true);
+        setIsAiExpanded(true);
         try {
             // 1. Get Top 3 Ads
             const topAds = await getTopAdsForAccount(settings.adAccountId, settings.fbAccessToken);
@@ -63,13 +55,10 @@ const Layout: React.FC = () => {
         } finally {
             setLoadingAi(false);
         }
-    };
-
-    runAnalysis();
-  }, [settings.adAccountId, settings.isConnected, settings.fbAccessToken]);
+  };
 
   return (
-    <div className="flex h-screen bg-[#0f172a] text-gray-100 overflow-hidden">
+    <div className="flex h-screen bg-[#0f172a] text-gray-100 overflow-hidden relative">
       {/* Sidebar */}
       <aside className="w-64 bg-[#1e293b] border-r border-slate-700 flex flex-col hidden md:flex">
         <div className="p-6 flex items-center gap-3">
@@ -112,32 +101,52 @@ const Layout: React.FC = () => {
         </nav>
 
         <div className="p-4 border-t border-slate-700">
-            <div className="bg-slate-800/50 rounded-lg p-4 mb-4 border border-slate-700">
-                <div className="flex items-center gap-2 mb-2 text-indigo-400">
-                    <Zap size={16} />
-                    <span className="text-xs font-semibold uppercase tracking-wider">AI Status</span>
-                </div>
-                {loadingAi ? (
-                    <div className="flex items-center gap-2 text-xs text-slate-400">
-                        <Loader2 size={12} className="animate-spin" /> Analyzing Top Ads...
+            {/* AI Status Box */}
+            <div className="bg-slate-800/50 rounded-lg p-4 mb-4 border border-slate-700 transition-all">
+                <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2 text-indigo-400">
+                        <Zap size={16} />
+                        <span className="text-xs font-semibold uppercase tracking-wider">AI Status</span>
                     </div>
-                ) : (
-                    <ul className="text-xs text-slate-400 space-y-2 list-disc pl-4">
-                        {aiStatus.length > 0 ? (
-                            aiStatus.map((plan, i) => <li key={i}>{plan}</li>)
+                    <button onClick={() => setIsAiExpanded(!isAiExpanded)} className="text-slate-500 hover:text-white">
+                        {isAiExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                    </button>
+                </div>
+
+                {isAiExpanded && (
+                    <div className="animate-fadeIn">
+                        {loadingAi ? (
+                            <div className="flex items-center gap-2 text-xs text-slate-400 py-2">
+                                <Loader2 size={12} className="animate-spin" /> Analyzing Top Ads...
+                            </div>
                         ) : (
-                            <li>Ready to analyze campaigns.</li>
+                            <ul className="text-xs text-slate-400 space-y-2 list-disc pl-4 mb-3">
+                                {aiStatus.length > 0 ? (
+                                    aiStatus.map((plan, i) => <li key={i}>{plan}</li>)
+                                ) : (
+                                    <li className="list-none italic text-slate-500">Ready to analyze performance.</li>
+                                )}
+                            </ul>
                         )}
-                    </ul>
+
+                        <button 
+                            onClick={handleAnalyze} 
+                            disabled={loadingAi}
+                            className="w-full flex items-center justify-center gap-2 bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-300 text-xs py-2 rounded border border-indigo-500/30 transition-colors"
+                        >
+                            <Play size={10} fill="currentColor" /> Analyze Now
+                        </button>
+                    </div>
                 )}
             </div>
-          <button
-            onClick={handleLogout}
-            className="flex items-center gap-3 px-4 py-3 w-full text-slate-400 hover:text-red-400 hover:bg-red-900/20 rounded-lg transition-colors"
-          >
-            <LogOut size={20} />
-            <span>Disconnect</span>
-          </button>
+
+            <button
+                onClick={handleLogout}
+                className="flex items-center gap-3 px-4 py-3 w-full text-slate-400 hover:text-red-400 hover:bg-red-900/20 rounded-lg transition-colors"
+            >
+                <LogOut size={20} />
+                <span>Disconnect</span>
+            </button>
         </div>
       </aside>
 
@@ -147,6 +156,9 @@ const Layout: React.FC = () => {
             <Outlet />
         </div>
       </main>
+
+      {/* Chatbot */}
+      <Chatbot />
 
       {/* Mobile Nav (Bottom) */}
       <div className="md:hidden fixed bottom-0 w-full bg-[#1e293b] border-t border-slate-700 flex justify-around p-3 z-50">
