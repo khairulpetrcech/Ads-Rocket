@@ -40,6 +40,21 @@ export const initFacebookSdk = (appId: string): Promise<void> => {
   });
 };
 
+// Check if user is already connected
+export const checkLoginStatus = (): Promise<string | null> => {
+  return new Promise((resolve) => {
+    if (!window.FB) return resolve(null);
+    
+    window.FB.getLoginStatus((response: any) => {
+      if (response.status === 'connected' && response.authResponse) {
+        resolve(response.authResponse.accessToken);
+      } else {
+        resolve(null);
+      }
+    });
+  });
+};
+
 // Login and request permissions
 export const loginWithFacebook = (): Promise<string> => {
   return new Promise((resolve, reject) => {

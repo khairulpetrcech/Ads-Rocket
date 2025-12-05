@@ -35,7 +35,8 @@ const App: React.FC = () => {
       apiKey: '',
       fbAppId: '', // Will be preserved if previously set
       fbAccessToken: '',
-      adAccountId: ''
+      adAccountId: '',
+      availableAccounts: []
     };
   });
 

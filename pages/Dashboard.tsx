@@ -15,7 +15,8 @@ import {
   RefreshCw,
   Filter,
   ArrowUpDown,
-  Calendar
+  Calendar,
+  Briefcase
 } from 'lucide-react';
 
 // Helper for RM Currency
@@ -50,7 +51,7 @@ type DateRange = 'today' | 'yesterday' | 'last_3d' | 'last_7d' | 'maximum';
 type SortOption = 'status' | 'spend' | 'roas';
 
 const Dashboard: React.FC = () => {
-  const { settings } = useSettings();
+  const { settings, updateSettings } = useSettings();
   const [campaigns, setCampaigns] = useState<AdCampaign[]>([]);
   const [loadingCampaigns, setLoadingCampaigns] = useState(false);
   const [selectedCampaign, setSelectedCampaign] = useState<AdCampaign | null>(null);
@@ -139,14 +140,53 @@ const Dashboard: React.FC = () => {
     setAnalysis(null);
   };
 
+  const handleAccountSwitch = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const newAccountId = e.target.value;
+    const newAccount = settings.availableAccounts.find(a => a.id === newAccountId);
+    if (newAccount) {
+      updateSettings({ 
+        adAccountId: newAccount.id,
+        businessName: newAccount.name
+      });
+      // Logic to clear old campaigns/refresh handled by useEffect dependency on adAccountId
+    }
+  };
+
   return (
     <div className="space-y-6 pb-20 md:pb-0"> {/* Extra padding bottom for mobile nav */}
       
       {/* Header & Controls */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
-        <div>
-            <h1 className="text-2xl font-bold text-white tracking-tight">Dashboard</h1>
-            <p className="text-slate-400 text-sm">Account: <span className="text-indigo-400 font-semibold">{settings.businessName}</span></p>
+        <div className="w-full md:w-auto">
+            <h1 className="text-2xl font-bold text-white tracking-tight mb-1">Dashboard</h1>
+            
+            {/* Account Switcher */}
+            <div className="flex items-center gap-2">
+              <Briefcase size={14} className="text-slate-400" />
+              <div className="relative group">
+                {settings.availableAccounts && settings.availableAccounts.length > 0 ? (
+                  <select 
+                    value={settings.adAccountId}
+                    onChange={handleAccountSwitch}
+                    className="appearance-none bg-transparent text-indigo-400 font-semibold text-sm focus:outline-none pr-6 cursor-pointer hover:text-indigo-300 transition-colors"
+                  >
+                    {settings.availableAccounts.map(acc => (
+                      <option key={acc.id} value={acc.id} className="bg-slate-800 text-white">
+                        {acc.name}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <span className="text-indigo-400 font-semibold text-sm">{settings.businessName}</span>
+                )}
+                {/* Custom arrow only if select is active */}
+                {settings.availableAccounts && settings.availableAccounts.length > 0 && (
+                   <div className="absolute right-0 top-1/2 -translate-y-1/2 pointer-events-none text-indigo-400">
+                     <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M7 10l5 5 5-5z"/></svg>
+                   </div>
+                )}
+              </div>
+            </div>
         </div>
         
         <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">

@@ -1,3 +1,4 @@
+
 export enum AiProvider {
   FREE = 'FREE', // Simulation
   GEMINI = 'GEMINI', // Google Gemini
@@ -16,6 +17,7 @@ export interface UserSettings {
   fbAppId: string;
   fbAccessToken: string;
   adAccountId: string;
+  availableAccounts: MetaAdAccount[]; // List of all accounts user can access
 }
 
 export interface AdMetrics {

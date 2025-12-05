@@ -1,9 +1,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Rocket, CheckCircle, AlertTriangle, Info, KeyRound } from 'lucide-react';
+import { Rocket, CheckCircle, AlertTriangle, Info, KeyRound, RefreshCw } from 'lucide-react';
 import { useSettings } from '../App';
-import { initFacebookSdk, loginWithFacebook, getAdAccounts } from '../services/metaService';
+import { initFacebookSdk, loginWithFacebook, getAdAccounts, checkLoginStatus } from '../services/metaService';
 import { MetaAdAccount } from '../types';
 
 const ConnectPage: React.FC = () => {
@@ -16,11 +16,53 @@ const ConnectPage: React.FC = () => {
   const [step, setStep] = useState<1 | 2>(1); // 1 = App ID, 2 = Account Selection
   const [accounts, setAccounts] = useState<MetaAdAccount[]>([]);
 
+  // On mount, auto-check login if App ID exists
   useEffect(() => {
-    if (settings.isConnected && settings.adAccountId) {
-      navigate('/');
-    }
-  }, [settings, navigate]);
+    const autoConnect = async () => {
+      // If we already have everything, go to dashboard
+      if (settings.isConnected && settings.adAccountId) {
+        navigate('/');
+        return;
+      }
+
+      // If we have App ID but no connection, try to auto-reconnect
+      if (settings.fbAppId && settings.fbAppId !== '123456789') {
+        setLoading(true);
+        try {
+          await initFacebookSdk(settings.fbAppId);
+          const existingToken = await checkLoginStatus();
+          
+          if (existingToken) {
+            // Already connected to FB, fetch accounts automatically
+            updateSettings({ fbAccessToken: existingToken });
+            const adAccounts = await getAdAccounts(existingToken);
+            
+            if (adAccounts.length > 0) {
+              setAccounts(adAccounts);
+              // Save all accounts to global state for switcher
+              updateSettings({ availableAccounts: adAccounts });
+              setStep(2);
+              
+              // If we previously had an account ID and it's still valid, auto-redirect
+              if (settings.adAccountId && adAccounts.find(a => a.id === settings.adAccountId)) {
+                 updateSettings({ isConnected: true }); // Ensure connected flag is true
+                 navigate('/');
+              }
+            } else {
+               setError("Connected to Facebook, but no Ad Accounts found.");
+            }
+          }
+        } catch (e) {
+          console.warn("Auto-connect failed, falling back to manual login", e);
+        } finally {
+          setLoading(false);
+        }
+      }
+    };
+
+    autoConnect();
+  }, [settings.fbAppId, settings.isConnected, settings.adAccountId, navigate, updateSettings]);
+
 
   const handleLogin = async () => {
     if (!appIdInput) {
@@ -34,12 +76,17 @@ const ConnectPage: React.FC = () => {
     // --- DUMMY LOGIN BACKDOOR ---
     if (appIdInput === '123456789') {
         setTimeout(() => {
+            const dummyAccounts = [
+                { id: 'act_dummy_123', name: 'Demo Store (Malaysia)', account_id: '123', currency: 'MYR' },
+                { id: 'act_dummy_456', name: 'Second Store', account_id: '456', currency: 'MYR' }
+            ];
             updateSettings({ 
                 fbAppId: '123456789', 
                 fbAccessToken: 'dummy_token',
                 isConnected: true,
                 businessName: 'Demo Store (Malaysia)',
-                adAccountId: 'act_dummy_123'
+                adAccountId: 'act_dummy_123',
+                availableAccounts: dummyAccounts
             });
             navigate('/');
         }, 800);
@@ -64,6 +111,7 @@ const ConnectPage: React.FC = () => {
       }
 
       setAccounts(adAccounts);
+      updateSettings({ availableAccounts: adAccounts }); // Save list for dashboard
       setStep(2);
       setLoading(false);
 
@@ -136,11 +184,14 @@ const ConnectPage: React.FC = () => {
                 }`}
               >
                 {loading ? (
-                  <span>Connecting...</span>
+                  <>
+                    <RefreshCw className="animate-spin" size={20} />
+                    <span>Connecting...</span>
+                  </>
                 ) : (
                   <>
                     <svg className="w-6 h-6 fill-current" viewBox="0 0 24 24">
-                      <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+                      <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
                     </svg>
                     Continue with Facebook
                   </>
