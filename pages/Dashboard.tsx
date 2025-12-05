@@ -225,18 +225,19 @@ const Dashboard: React.FC = () => {
   };
 
   // --- RENDER HELPERS ---
-
+  
+  // Explicit Widths: Name(35%), Spend(12%), ROAS(10%), CPA(12%), CTR(10%), Purchases(10%), AI(11%)
   const renderMetrics = (metrics: any) => (
       <>
-        <td className="p-3 text-right whitespace-nowrap">{formatMYR(metrics.spend)}</td>
-        <td className="p-3 text-right font-bold text-white whitespace-nowrap">
+        <td className="p-3 text-right whitespace-nowrap w-[12%]">{formatMYR(metrics.spend)}</td>
+        <td className="p-3 text-right font-bold text-white whitespace-nowrap w-[10%]">
             <span className={metrics.roas >= 2 ? 'text-green-400' : metrics.roas > 0 ? 'text-red-400' : 'text-slate-500'}>
                 {metrics.roas.toFixed(2)}x
             </span>
         </td>
-        <td className="p-3 text-right whitespace-nowrap">{formatMYR(metrics.costPerPurchase)}</td>
-        <td className="p-3 text-right whitespace-nowrap">{metrics.ctr.toFixed(2)}%</td>
-        <td className="p-3 text-right whitespace-nowrap">{metrics.purchases}</td>
+        <td className="p-3 text-right whitespace-nowrap w-[12%]">{formatMYR(metrics.costPerPurchase)}</td>
+        <td className="p-3 text-right whitespace-nowrap w-[10%]">{metrics.ctr.toFixed(2)}%</td>
+        <td className="p-3 text-right whitespace-nowrap w-[10%]">{metrics.purchases}</td>
       </>
   );
 
@@ -346,16 +347,16 @@ const Dashboard: React.FC = () => {
         <>
             {/* NESTED LIST VIEW */}
             <div className="bg-[#1e293b] rounded-xl border border-slate-700 overflow-x-auto">
-                <table className="w-full min-w-[1000px] text-left border-collapse">
+                <table className="w-full min-w-[1000px] text-left border-collapse table-fixed">
                     <thead>
                         <tr className="bg-slate-800/50 text-slate-400 text-xs uppercase border-b border-slate-700">
                             <th className="p-4 w-[35%]">Name</th>
-                            <th className="p-3 text-right">Spend</th>
-                            <th className="p-3 text-right">ROAS</th>
-                            <th className="p-3 text-right">CPA</th>
-                            <th className="p-3 text-right">CTR</th>
-                            <th className="p-3 text-right">Purchases</th>
-                            <th className="p-3 w-10">AI</th>
+                            <th className="p-3 text-right w-[12%]">Spend</th>
+                            <th className="p-3 text-right w-[10%]">ROAS</th>
+                            <th className="p-3 text-right w-[12%]">CPA</th>
+                            <th className="p-3 text-right w-[10%]">CTR</th>
+                            <th className="p-3 text-right w-[10%]">Purchases</th>
+                            <th className="p-3 w-[11%]">AI</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-700">
@@ -363,7 +364,7 @@ const Dashboard: React.FC = () => {
                             <React.Fragment key={camp.id}>
                                 {/* Level 1: Campaign */}
                                 <tr className="bg-[#1e293b] hover:bg-slate-800/30 text-sm transition-colors group">
-                                    <td className="p-4">
+                                    <td className="p-4 w-[35%]">
                                         <div className="flex items-center gap-3">
                                             <button 
                                                 onClick={() => toggleExpandCampaign(camp.id)}
@@ -376,7 +377,7 @@ const Dashboard: React.FC = () => {
                                                 loading={actionLoading === camp.id} 
                                                 onToggle={() => handleStatusToggle(camp.id, camp.status, 'campaign')} 
                                             />
-                                            <div className="min-w-0">
+                                            <div className="min-w-0 flex-1">
                                                 <div className="font-medium text-white truncate max-w-[200px] lg:max-w-xs" title={camp.name}>{camp.name}</div>
                                                 <div className="flex items-center gap-2 text-xs text-slate-500 mt-0.5 group-hover:opacity-100 transition-opacity">
                                                     <span>Budget: {formatMYR(camp.dailyBudget)}</span>
@@ -388,7 +389,7 @@ const Dashboard: React.FC = () => {
                                         </div>
                                     </td>
                                     {renderMetrics(camp.metrics)}
-                                    <td className="p-3">
+                                    <td className="p-3 w-[11%]">
                                         <button onClick={() => handleAnalyze(camp)} className="text-indigo-400 hover:text-white">
                                             <BrainCircuit size={16} />
                                         </button>
@@ -401,7 +402,7 @@ const Dashboard: React.FC = () => {
                                         {adSetsData[camp.id]?.map(adset => (
                                             <React.Fragment key={adset.id}>
                                                 <tr className="bg-slate-900/50 text-sm hover:bg-slate-800/20">
-                                                    <td className="p-4 pl-12 border-l-4 border-indigo-500/20">
+                                                    <td className="p-4 pl-12 border-l-4 border-indigo-500/20 w-[35%]">
                                                         <div className="flex items-center gap-3">
                                                             <button 
                                                                 onClick={() => toggleExpandAdSet(adset.id)}
@@ -414,7 +415,7 @@ const Dashboard: React.FC = () => {
                                                                 loading={actionLoading === adset.id}
                                                                 onToggle={() => handleStatusToggle(adset.id, adset.status, 'adset')} 
                                                             />
-                                                            <div className="min-w-0">
+                                                            <div className="min-w-0 flex-1">
                                                                 <div className="text-slate-300 truncate max-w-[180px]">{adset.name}</div>
                                                                 <div className="flex items-center gap-2 text-xs text-slate-600">
                                                                     <span>Ad Set Budget: {formatMYR(adset.dailyBudget)}</span>
@@ -426,7 +427,7 @@ const Dashboard: React.FC = () => {
                                                         </div>
                                                     </td>
                                                     {renderMetrics(adset.metrics)}
-                                                    <td></td>
+                                                    <td className="w-[11%]"></td>
                                                 </tr>
 
                                                 {/* Level 3: Ads Container */}
@@ -435,32 +436,34 @@ const Dashboard: React.FC = () => {
                                                         <td colSpan={7} className="p-0 border-b border-slate-800">
                                                             {/* SCROLLABLE ADS AREA */}
                                                             <div className="max-h-[350px] overflow-y-auto custom-scrollbar border-y border-slate-700/50 bg-slate-950/50">
-                                                                <table className="w-full">
+                                                                <table className="w-full table-fixed">
                                                                     <tbody>
                                                                     {adsData[adset.id] ? (
                                                                         adsData[adset.id].map(ad => (
                                                                             <tr key={ad.id} className="text-xs hover:bg-slate-900/50 border-b border-slate-800/50 last:border-0">
-                                                                                <td className="p-3 pl-20 w-[35%] flex items-center gap-3">
-                                                                                    <div className="w-10 h-10 bg-slate-800 rounded overflow-hidden flex-shrink-0 border border-slate-700">
-                                                                                        {ad.creative.thumbnail_url || ad.creative.image_url ? (
-                                                                                            <img src={ad.creative.thumbnail_url || ad.creative.image_url} className="w-full h-full object-cover" alt="" />
-                                                                                        ) : (
-                                                                                            <div className="w-full h-full flex items-center justify-center text-slate-600"><ImageIcon size={14} /></div>
-                                                                                        )}
-                                                                                    </div>
-                                                                                    <div className="min-w-0">
-                                                                                        <div className="flex items-center gap-2 mb-1">
-                                                                                            <StatusToggle 
-                                                                                                status={ad.status} 
-                                                                                                loading={actionLoading === ad.id}
-                                                                                                onToggle={() => handleStatusToggle(ad.id, ad.status, 'ad')} 
-                                                                                            />
-                                                                                            <span className="text-slate-400 truncate max-w-[150px]" title={ad.name}>{ad.name}</span>
+                                                                                <td className="p-3 pl-20 w-[35%]">
+                                                                                    <div className="flex items-center gap-3">
+                                                                                        <div className="w-10 h-10 bg-slate-800 rounded overflow-hidden flex-shrink-0 border border-slate-700">
+                                                                                            {ad.creative.thumbnail_url || ad.creative.image_url ? (
+                                                                                                <img src={ad.creative.thumbnail_url || ad.creative.image_url} className="w-full h-full object-cover" alt="" />
+                                                                                            ) : (
+                                                                                                <div className="w-full h-full flex items-center justify-center text-slate-600"><ImageIcon size={14} /></div>
+                                                                                            )}
+                                                                                        </div>
+                                                                                        <div className="min-w-0 flex-1">
+                                                                                            <div className="flex items-center gap-2 mb-1">
+                                                                                                <StatusToggle 
+                                                                                                    status={ad.status} 
+                                                                                                    loading={actionLoading === ad.id}
+                                                                                                    onToggle={() => handleStatusToggle(ad.id, ad.status, 'ad')} 
+                                                                                                />
+                                                                                                <span className="text-slate-400 truncate max-w-[150px]" title={ad.name}>{ad.name}</span>
+                                                                                            </div>
                                                                                         </div>
                                                                                     </div>
                                                                                 </td>
                                                                                 {renderMetrics(ad.metrics)}
-                                                                                <td className="p-3 w-10"></td>
+                                                                                <td className="p-3 w-[11%]"></td>
                                                                             </tr>
                                                                         ))
                                                                     ) : (
