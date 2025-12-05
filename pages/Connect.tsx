@@ -6,11 +6,8 @@ import { useSettings } from '../App';
 import { initFacebookSdk, loginWithFacebook, getAdAccounts, checkLoginStatus } from '../services/metaService';
 import { MetaAdAccount } from '../types';
 
-// --- CONFIGURATION ---
-// REPLACE THIS WITH YOUR ACTUAL META APP ID FROM developers.facebook.com
-// Users will not need to enter this manually.
-const SYSTEM_APP_ID = '123456789'; 
-// ---------------------
+// Default Demo ID
+const DEFAULT_APP_ID = '123456789'; 
 
 const ConnectPage: React.FC = () => {
   const navigate = useNavigate();
@@ -18,6 +15,9 @@ const ConnectPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   
+  // Local state for App ID input
+  const [inputAppId, setInputAppId] = useState(settings.fbAppId || DEFAULT_APP_ID);
+
   const [step, setStep] = useState<1 | 2>(1); // 1 = Login, 2 = Account Selection
   const [accounts, setAccounts] = useState<MetaAdAccount[]>([]);
 
@@ -29,51 +29,51 @@ const ConnectPage: React.FC = () => {
         navigate('/');
         return;
       }
+      
+      // Use stored ID if available, otherwise default
+      const appIdToUse = settings.fbAppId || DEFAULT_APP_ID;
+      if (appIdToUse === DEFAULT_APP_ID) return; // Don't auto-connect on default demo ID
 
       setLoading(true);
       try {
-        await initFacebookSdk(SYSTEM_APP_ID);
+        await initFacebookSdk(appIdToUse);
         const existingToken = await checkLoginStatus();
         
         if (existingToken) {
-          // Already connected to FB, fetch accounts automatically
-          updateSettings({ fbAccessToken: existingToken, fbAppId: SYSTEM_APP_ID });
+          updateSettings({ fbAccessToken: existingToken, fbAppId: appIdToUse });
           const adAccounts = await getAdAccounts(existingToken);
           
           if (adAccounts.length > 0) {
             setAccounts(adAccounts);
-            // Save all accounts to global state for switcher
             updateSettings({ availableAccounts: adAccounts });
             setStep(2);
             
-            // If we previously had an account ID and it's still valid, auto-redirect
             if (settings.adAccountId && adAccounts.find(a => a.id === settings.adAccountId)) {
-               updateSettings({ isConnected: true }); // Ensure connected flag is true
+               updateSettings({ isConnected: true }); 
                navigate('/');
             }
-          } else {
-             // Connected but no accounts, stay on step 1 but maybe show error
-             // Actually better to just let them try clicking button to see error
           }
         }
       } catch (e) {
         console.warn("Auto-connect failed or blocked", e);
-        // Do not show error on auto-connect, just stay on login screen
       } finally {
         setLoading(false);
       }
     };
 
     autoConnect();
-  }, [settings.isConnected, settings.adAccountId, navigate, updateSettings]);
+  }, [settings.isConnected, settings.adAccountId, navigate, updateSettings, settings.fbAppId]);
 
 
   const handleLogin = async () => {
     setLoading(true);
     setError('');
+    
+    // Determine which ID to use
+    const appIdToUse = inputAppId.trim() || DEFAULT_APP_ID;
 
     // --- DUMMY LOGIN BACKDOOR (For Demo/Dev) ---
-    if (SYSTEM_APP_ID === '123456789') {
+    if (appIdToUse === '123456789') {
         setTimeout(() => {
             const dummyAccounts = [
                 { id: 'act_dummy_123', name: 'Demo Store (Malaysia)', account_id: '123', currency: 'MYR' },
@@ -94,13 +94,12 @@ const ConnectPage: React.FC = () => {
     // ---------------------------
 
     try {
-      await initFacebookSdk(SYSTEM_APP_ID);
+      await initFacebookSdk(appIdToUse);
       const accessToken = await loginWithFacebook();
       
       // Save Token and App ID
-      updateSettings({ fbAppId: SYSTEM_APP_ID, fbAccessToken: accessToken });
+      updateSettings({ fbAppId: appIdToUse, fbAccessToken: accessToken });
       
-      // Fetch Accounts
       const adAccounts = await getAdAccounts(accessToken);
       
       if (adAccounts.length === 0) {
@@ -110,13 +109,13 @@ const ConnectPage: React.FC = () => {
       }
 
       setAccounts(adAccounts);
-      updateSettings({ availableAccounts: adAccounts }); // Save list for dashboard
+      updateSettings({ availableAccounts: adAccounts });
       setStep(2);
       setLoading(false);
 
     } catch (err: any) {
       console.error(err);
-      setError(typeof err === 'string' ? err : "Failed to connect to Facebook. Check your App ID and ensure your domain is allowed in Meta App Settings.");
+      setError(typeof err === 'string' ? err : "Failed to connect to Facebook. Check your App ID.");
       setLoading(false);
     }
   };
@@ -125,7 +124,7 @@ const ConnectPage: React.FC = () => {
     updateSettings({
       isConnected: true,
       businessName: account.name,
-      adAccountId: account.id // usually act_123123
+      adAccountId: account.id
     });
     navigate('/');
   };
@@ -150,14 +149,23 @@ const ConnectPage: React.FC = () => {
                  <span className="font-bold">Connection Failed</span>
               </div>
               <p>{error}</p>
-              <div className="mt-2 text-xs text-red-300 opacity-80 pl-6">
-                Tip: Disable AdBlocker or check "App Domains" in Meta.
-              </div>
             </div>
           )}
 
           {step === 1 && (
             <div className="space-y-4">
+              
+              <div>
+                  <label className="block text-xs text-slate-400 mb-1 ml-1">Meta App ID (Optional)</label>
+                  <input 
+                    type="text" 
+                    value={inputAppId}
+                    onChange={(e) => setInputAppId(e.target.value)}
+                    placeholder="Enter App ID"
+                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-indigo-500 transition-colors text-sm"
+                  />
+              </div>
+
               <button
                 onClick={handleLogin}
                 disabled={loading}
@@ -170,7 +178,7 @@ const ConnectPage: React.FC = () => {
                 {loading ? (
                   <>
                     <RefreshCw className="animate-spin" size={20} />
-                    <span>Connecting to Meta...</span>
+                    <span>Connecting...</span>
                   </>
                 ) : (
                   <>
@@ -210,9 +218,6 @@ const ConnectPage: React.FC = () => {
           <div className="text-xs text-slate-500 mt-6 flex flex-col gap-2">
             <div className="flex items-center justify-center gap-2">
                <CheckCircle size={14} className="text-green-500"/> Secure Official Meta API
-            </div>
-            <div className="flex items-center justify-center gap-2">
-               <Info size={14} className="text-blue-500"/> No Data Stored on Servers
             </div>
           </div>
         </div>

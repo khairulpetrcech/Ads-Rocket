@@ -34,13 +34,29 @@ export interface AdMetrics {
   costPerPurchase: number;
 }
 
-export interface AdCampaign {
+export interface BaseEntity {
   id: string;
   name: string;
-  status: 'ACTIVE' | 'PAUSED' | 'ARCHIVED' | 'WITH_ISSUES';
-  dailyBudget: number;
+  status: 'ACTIVE' | 'PAUSED' | 'ARCHIVED' | 'WITH_ISSUES' | 'IN_PROCESS';
   metrics: AdMetrics;
+}
+
+export interface AdCampaign extends BaseEntity {
+  dailyBudget: number;
   history: { date: string; roas: number; spend: number }[]; // For charts
+}
+
+export interface AdSet extends BaseEntity {
+  dailyBudget: number; // Ad Sets can also have budgets if CBO is off, or just for reference
+  campaign_id: string;
+}
+
+export interface Ad extends BaseEntity {
+  adset_id: string;
+  creative: {
+    thumbnail_url?: string;
+    image_url?: string;
+  };
 }
 
 export interface AiAnalysisResult {
