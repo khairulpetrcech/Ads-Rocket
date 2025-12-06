@@ -15,7 +15,7 @@ import { MOCK_CAMPAIGNS } from '../services/mockData';
 import { 
   TrendingUp, DollarSign, MousePointer, Eye, BrainCircuit, Loader2, RefreshCw, 
   Filter, ArrowUpDown, Calendar, Briefcase, ChevronDown, ChevronRight, Image as ImageIcon,
-  PlayCircle, PauseCircle, Edit2, ExternalLink
+  PlayCircle, PauseCircle, Edit2, ExternalLink, MessageCircle, ShoppingCart
 } from 'lucide-react';
 
 const formatMYR = (amount: number) => {
@@ -50,6 +50,7 @@ const LoadingSkeleton = () => (
 
 type DateRange = 'today' | 'yesterday' | 'last_3d' | 'last_4d' | 'last_7d' | 'maximum';
 type SortOption = 'status' | 'spend' | 'roas';
+type ViewMode = 'SALES' | 'TRAFFIC';
 
 const Dashboard: React.FC = () => {
   const { settings, updateSettings } = useSettings();
@@ -64,15 +65,29 @@ const Dashboard: React.FC = () => {
   const [expandedCampaigns, setExpandedCampaigns] = useState<Set<string>>(new Set());
   const [expandedAdSets, setExpandedAdSets] = useState<Set<string>>(new Set());
   const [showAllCampaigns, setShowAllCampaigns] = useState(false);
-  const [showHiddenAdSets, setShowHiddenAdSets] = useState<Set<string>>(new Set()); // Track which campaigns show secondary adsets
+  const [showHiddenAdSets, setShowHiddenAdSets] = useState<Set<string>>(new Set()); 
+  
+  // View Control
+  const [viewMode, setViewMode] = useState<ViewMode>('SALES');
   
   // Loading States for Actions
-  const [actionLoading, setActionLoading] = useState<string | null>(null); // ID of entity being acted upon
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   // Filters
   const [dateRange, setDateRange] = useState<DateRange>('today');
   const [sortBy, setSortBy] = useState<SortOption>('spend');
   const [fetchError, setFetchError] = useState('');
+
+  // Helper to detect objective type
+  const isTrafficOrLeads = (obj: string) => {
+      if (!obj) return false;
+      const upper = obj.toUpperCase();
+      const trafficLeadsTargets = [
+          'OUTCOME_TRAFFIC', 'OUTCOME_LEADS', 'OUTCOME_ENGAGEMENT', 'OUTCOME_AWARENESS',
+          'TRAFFIC', 'LEAD_GENERATION', 'MESSAGES', 'LINK_CLICKS', 'BRAND_AWARENESS', 'REACH', 'POST_ENGAGEMENT', 'VIDEO_VIEWS', 'APP_INSTALLS'
+      ];
+      return trafficLeadsTargets.includes(upper);
+  };
 
   // --- FETCH DATA ---
 
@@ -80,7 +95,6 @@ const Dashboard: React.FC = () => {
     const fetchData = async () => {
       setLoadingCampaigns(true);
       setFetchError('');
-      // Reset expansions on date change for cleaner view
       setExpandedCampaigns(new Set());
       setExpandedAdSets(new Set());
       setShowHiddenAdSets(new Set());
@@ -88,14 +102,33 @@ const Dashboard: React.FC = () => {
       
       try {
         if (settings.fbAccessToken === 'dummy_token' || (settings.fbAccessToken && settings.adAccountId)) {
+          let realData: AdCampaign[] = [];
           if (settings.fbAccessToken === 'dummy_token') {
              await new Promise(r => setTimeout(r, 600)); 
-             setCampaigns(MOCK_CAMPAIGNS);
+             realData = MOCK_CAMPAIGNS;
           } else {
              await initFacebookSdk(settings.fbAppId);
-             const realData = await getRealCampaigns(settings.adAccountId, settings.fbAccessToken, dateRange);
-             setCampaigns(realData);
+             realData = await getRealCampaigns(settings.adAccountId, settings.fbAccessToken, dateRange);
           }
+          setCampaigns(realData);
+
+          // AUTO-DETECT VIEW MODE
+          // Count how many are Sales vs Traffic/Leads
+          let trafficCount = 0;
+          let salesCount = 0;
+          realData.forEach(c => {
+              if (c.status === 'ACTIVE' || c.metrics.spend > 0) {
+                  if (isTrafficOrLeads(c.objective)) trafficCount++;
+                  else salesCount++;
+              }
+          });
+          // Default to Traffic view if traffic campaigns outnumber sales campaigns
+          if (trafficCount > salesCount) {
+              setViewMode('TRAFFIC');
+          } else {
+              setViewMode('SALES');
+          }
+
         } else {
           setCampaigns(MOCK_CAMPAIGNS);
         }
@@ -118,7 +151,6 @@ const Dashboard: React.FC = () => {
           newSet.delete(campaignId);
       } else {
           newSet.add(campaignId);
-          // Fetch Ad Sets if not present
           if (!adSetsData[campaignId] && settings.fbAccessToken !== 'dummy_token') {
               try {
                   const data = await getAdSets(campaignId, settings.fbAccessToken, dateRange);
@@ -135,7 +167,6 @@ const Dashboard: React.FC = () => {
           newSet.delete(adSetId);
       } else {
           newSet.add(adSetId);
-          // Fetch Ads if not present
           if (!adsData[adSetId] && settings.fbAccessToken !== 'dummy_token') {
               try {
                   const data = await getAds(adSetId, settings.fbAccessToken, dateRange);
@@ -164,7 +195,6 @@ const Dashboard: React.FC = () => {
       try {
           const success = await updateEntityStatus(id, newStatus, settings.fbAccessToken);
           if (success) {
-              // Update Local State
               if (type === 'campaign') {
                   setCampaigns(prev => prev.map(c => c.id === id ? { ...c, status: newStatus } : c));
               } else if (type === 'adset') {
@@ -223,20 +253,11 @@ const Dashboard: React.FC = () => {
       }
   };
 
-  // --- RENDER HELPERS ---
-  
-  const isTrafficOrLeads = (obj: string) => {
-      const trafficLeadsTargets = [
-          'OUTCOME_TRAFFIC', 'OUTCOME_LEADS', 'OUTCOME_ENGAGEMENT',
-          'TRAFFIC', 'LEAD_GENERATION', 'MESSAGES', 'LINK_CLICKS', 'BRAND_AWARENESS', 'REACH'
-      ];
-      return trafficLeadsTargets.includes(obj);
-  };
+  // --- RENDER HELPERS (VIEW MODE LOGIC) ---
 
-  const renderTableHeader = (campaign: AdCampaign) => {
-      const isAltView = isTrafficOrLeads(campaign.objective);
-      if (isAltView) {
-        // Traffic/Leads/Whatsapp Header (Unified to 7 columns to match Sales view)
+  const renderTableHeader = () => {
+      if (viewMode === 'TRAFFIC') {
+        // Traffic/Leads/Whatsapp Header (7 Columns)
         return (
             <tr className="bg-slate-800/50 text-slate-400 text-xs uppercase border-b border-slate-700">
                 <th className="p-4 w-[35%]">Name</th>
@@ -245,11 +266,11 @@ const Dashboard: React.FC = () => {
                 <th className="p-3 text-right w-[12%]">Cost/Res</th>
                 <th className="p-3 text-right w-[10%]">CTR (All)</th>
                 <th className="p-3 text-right w-[10%]">CTR (Link)</th>
-                <th className="p-3 text-right w-[9%]"></th> {/* Empty column for alignment */}
+                <th className="p-3 text-right w-[9%]"></th>
             </tr>
         );
       }
-      // Sales/Conversion Header (Default)
+      // Sales/Conversion Header (7 Columns)
       return (
         <tr className="bg-slate-800/50 text-slate-400 text-xs uppercase border-b border-slate-700">
             <th className="p-4 w-[35%]">Name</th>
@@ -263,11 +284,8 @@ const Dashboard: React.FC = () => {
       );
   };
 
-  const renderMetrics = (metrics: any, objective: string) => {
-      const isAltView = isTrafficOrLeads(objective);
-
-      if (isAltView) {
-          // Traffic/Leads/Whatsapp View
+  const renderMetrics = (metrics: any) => {
+      if (viewMode === 'TRAFFIC') {
           return (
             <>
                 <td className="p-3 text-right whitespace-nowrap w-[12%]">{formatMYR(metrics.spend)}</td>
@@ -277,12 +295,12 @@ const Dashboard: React.FC = () => {
                 <td className="p-3 text-right whitespace-nowrap w-[12%]">{formatMYR(metrics.costPerResult)}</td>
                 <td className="p-3 text-right whitespace-nowrap w-[10%]">{metrics.ctr.toFixed(2)}%</td>
                 <td className="p-3 text-right whitespace-nowrap w-[10%] text-indigo-300">{metrics.inline_link_click_ctr.toFixed(2)}%</td>
-                <td className="p-3 text-right whitespace-nowrap w-[9%]"></td> {/* Empty cell for alignment */}
+                <td className="p-3 text-right whitespace-nowrap w-[9%]"></td>
             </>
           );
       }
 
-      // Sales/Conversion View
+      // SALES View
       return (
         <>
             <td className="p-3 text-right whitespace-nowrap w-[12%]">{formatMYR(metrics.spend)}</td>
@@ -311,12 +329,10 @@ const Dashboard: React.FC = () => {
     return sorted;
   }, [campaigns, sortBy]);
 
-  // STRICT RULE: Active AND Spend > 0
   const primaryCampaigns = useMemo(() => {
       return sortedCampaigns.filter(c => c.status === 'ACTIVE' && c.metrics.spend > 0);
   }, [sortedCampaigns]);
 
-  // "Page 2" Campaigns: Inactive OR No Spend
   const secondaryCampaigns = useMemo(() => {
       return sortedCampaigns.filter(c => !(c.status === 'ACTIVE' && c.metrics.spend > 0));
   }, [sortedCampaigns]);
@@ -327,6 +343,7 @@ const Dashboard: React.FC = () => {
   const totalSpend = campaigns.reduce((acc, c) => acc + c.metrics.spend, 0);
   const totalRevenue = campaigns.reduce((acc, c) => acc + c.metrics.revenue, 0);
   const totalRoas = totalSpend > 0 ? totalRevenue / totalSpend : 0;
+  const totalResults = campaigns.reduce((acc, c) => acc + c.metrics.results, 0);
 
   return (
     <div className="space-y-6 pb-20 md:pb-0">
@@ -344,7 +361,7 @@ const Dashboard: React.FC = () => {
                             const acc = settings.availableAccounts.find(a => a.id === e.target.value);
                             if (acc) updateSettings({ adAccountId: acc.id, businessName: acc.name });
                         }}
-                        className="bg-transparent focus:outline-none cursor-pointer hover:text-indigo-300"
+                        className="bg-transparent focus:outline-none cursor-pointer hover:text-indigo-300 max-w-[200px] truncate"
                     >
                         {settings.availableAccounts.map(acc => (
                             <option key={acc.id} value={acc.id} className="bg-slate-800">{acc.name}</option>
@@ -355,6 +372,23 @@ const Dashboard: React.FC = () => {
         </div>
         
         <div className="flex flex-wrap items-center gap-2">
+            
+            {/* VIEW MODE TOGGLE */}
+            <div className="bg-slate-800 p-1 rounded-lg border border-slate-700 flex mr-2">
+                <button 
+                    onClick={() => setViewMode('SALES')}
+                    className={`px-3 py-1.5 rounded-md text-xs font-medium flex items-center gap-1 transition-all ${viewMode === 'SALES' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}
+                >
+                    <ShoppingCart size={12} /> Sales
+                </button>
+                <button 
+                    onClick={() => setViewMode('TRAFFIC')}
+                    className={`px-3 py-1.5 rounded-md text-xs font-medium flex items-center gap-1 transition-all ${viewMode === 'TRAFFIC' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}
+                >
+                    <MessageCircle size={12} /> Leads
+                </button>
+            </div>
+
             <div className="relative">
                 <Calendar className="absolute left-3 top-2.5 text-slate-400" size={14} />
                 <select 
@@ -386,20 +420,49 @@ const Dashboard: React.FC = () => {
 
       {/* Metric Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {[
-            { label: 'Spend', val: formatMYR(totalSpend), icon: DollarSign },
-            { label: 'ROAS', val: totalRoas.toFixed(2), icon: TrendingUp, color: totalRoas > 2 ? 'text-green-400' : 'text-slate-200' },
-            { label: 'Revenue', val: formatMYR(totalRevenue), icon: DollarSign },
-            { label: 'Purchases', val: campaigns.reduce((a, c) => a + c.metrics.purchases, 0), icon: MousePointer }
-        ].map((m, i) => (
-            <div key={i} className="bg-[#1e293b] p-4 rounded-xl border border-slate-700">
-                <div className="flex justify-between items-start mb-2">
-                    <span className="text-xs text-slate-400 uppercase">{m.label}</span>
-                    <m.icon size={16} className="text-slate-500" />
-                </div>
-                <div className={`text-xl font-bold ${m.color || 'text-white'}`}>{m.val}</div>
+        <div className="bg-[#1e293b] p-4 rounded-xl border border-slate-700">
+            <div className="flex justify-between items-start mb-2">
+                <span className="text-xs text-slate-400 uppercase">Spend</span>
+                <DollarSign size={16} className="text-slate-500" />
             </div>
-        ))}
+            <div className="text-xl font-bold text-white">{formatMYR(totalSpend)}</div>
+        </div>
+
+        <div className="bg-[#1e293b] p-4 rounded-xl border border-slate-700">
+             {viewMode === 'SALES' ? (
+                 <>
+                    <div className="flex justify-between items-start mb-2">
+                        <span className="text-xs text-slate-400 uppercase">ROAS</span>
+                        <TrendingUp size={16} className="text-slate-500" />
+                    </div>
+                    <div className={`text-xl font-bold ${totalRoas > 2 ? 'text-green-400' : 'text-slate-200'}`}>{totalRoas.toFixed(2)}x</div>
+                 </>
+             ) : (
+                 <>
+                    <div className="flex justify-between items-start mb-2">
+                        <span className="text-xs text-slate-400 uppercase">Results</span>
+                        <MessageCircle size={16} className="text-slate-500" />
+                    </div>
+                    <div className="text-xl font-bold text-white">{totalResults}</div>
+                 </>
+             )}
+        </div>
+
+        <div className="bg-[#1e293b] p-4 rounded-xl border border-slate-700">
+            <div className="flex justify-between items-start mb-2">
+                <span className="text-xs text-slate-400 uppercase">Revenue</span>
+                <DollarSign size={16} className="text-slate-500" />
+            </div>
+            <div className="text-xl font-bold text-white">{formatMYR(totalRevenue)}</div>
+        </div>
+
+        <div className="bg-[#1e293b] p-4 rounded-xl border border-slate-700">
+            <div className="flex justify-between items-start mb-2">
+                <span className="text-xs text-slate-400 uppercase">Purchases</span>
+                <MousePointer size={16} className="text-slate-500" />
+            </div>
+            <div className="text-xl font-bold text-white">{campaigns.reduce((a, c) => a + c.metrics.purchases, 0)}</div>
+        </div>
       </div>
 
       {loadingCampaigns && campaigns.length === 0 ? (
@@ -409,23 +472,14 @@ const Dashboard: React.FC = () => {
             {/* NESTED LIST VIEW */}
             <div className="bg-[#1e293b] rounded-xl border border-slate-700 overflow-x-auto">
                 <table className="w-full min-w-[1000px] text-left border-collapse table-fixed">
-                    {/* Render Header based on FIRST campaign objective or default if mixed. 
-                        Ideally headers should be per-campaign if structure differs, but typically dashboards align columns.
-                        Here we use the first visible campaign to decide header structure for simplicity, 
-                        or we can render headers dynamically per expanded section if needed. 
-                        Current implementation: Use First Campaign.
-                    */}
                     <thead>
-                        {campaignsToShow.length > 0 && renderTableHeader(campaignsToShow[0])}
+                        {renderTableHeader()}
                     </thead>
                     <tbody className="divide-y divide-slate-700">
                         {campaignsToShow.map(camp => {
-                            // Filter Ad Sets for this campaign
                             const allAdSets = adSetsData[camp.id] || [];
-                            // Rule: Active AND Spend > 0
                             const primaryAdSets = allAdSets.filter(a => a.status === 'ACTIVE' && a.metrics.spend > 0);
                             const secondaryAdSets = allAdSets.filter(a => !(a.status === 'ACTIVE' && a.metrics.spend > 0));
-
                             const showHidden = showHiddenAdSets.has(camp.id);
                             const adSetsToShow = showHidden ? allAdSets : primaryAdSets;
 
@@ -457,13 +511,12 @@ const Dashboard: React.FC = () => {
                                             </div>
                                         </div>
                                     </td>
-                                    {renderMetrics(camp.metrics, camp.objective)}
+                                    {renderMetrics(camp.metrics)}
                                 </tr>
 
                                 {/* Level 2: Ad Sets */}
                                 {expandedCampaigns.has(camp.id) && (
                                     <>
-                                        {/* Loading State for Ad Sets */}
                                         {!adSetsData[camp.id] && (
                                             <tr><td colSpan={7} className="text-center py-4 text-xs text-slate-500"><Loader2 className="animate-spin inline mr-2" size={14}/> Loading Ad Sets...</td></tr>
                                         )}
@@ -495,19 +548,17 @@ const Dashboard: React.FC = () => {
                                                             </div>
                                                         </div>
                                                     </td>
-                                                    {renderMetrics(adset.metrics, camp.objective)}
+                                                    {renderMetrics(adset.metrics)}
                                                 </tr>
 
-                                                {/* Level 3: Ads Container */}
+                                                {/* Level 3: Ads */}
                                                 {expandedAdSets.has(adset.id) && (
                                                     <tr className="bg-slate-950/30">
                                                         <td colSpan={7} className="p-0 border-b border-slate-800">
-                                                            {/* SCROLLABLE ADS AREA */}
                                                             <div className="max-h-[350px] overflow-y-auto custom-scrollbar border-y border-slate-700/50 bg-slate-950/50">
                                                                 <table className="w-full table-fixed">
                                                                     <tbody>
                                                                     {adsData[adset.id] ? (
-                                                                        // STRICT FILTER: Only Show ACTIVE Ads
                                                                         adsData[adset.id].filter(ad => ad.status === 'ACTIVE').length > 0 ? (
                                                                             adsData[adset.id].filter(ad => ad.status === 'ACTIVE').map(ad => (
                                                                                 <tr key={ad.id} className="text-xs hover:bg-slate-900/50 border-b border-slate-800/50 last:border-0 group/ad">
@@ -537,7 +588,6 @@ const Dashboard: React.FC = () => {
                                                                                                             target="_blank" 
                                                                                                             rel="noopener noreferrer"
                                                                                                             className="text-[10px] text-indigo-400 hover:text-indigo-300 mt-1 flex items-center gap-1 w-fit opacity-80 hover:opacity-100"
-                                                                                                            title="View Ad Post"
                                                                                                         >
                                                                                                             View Post <ExternalLink size={8} />
                                                                                                         </a>
@@ -546,7 +596,7 @@ const Dashboard: React.FC = () => {
                                                                                             </div>
                                                                                         </div>
                                                                                     </td>
-                                                                                    {renderMetrics(ad.metrics, camp.objective)}
+                                                                                    {renderMetrics(ad.metrics)}
                                                                                 </tr>
                                                                             ))
                                                                         ) : (
@@ -572,7 +622,6 @@ const Dashboard: React.FC = () => {
                                             </React.Fragment>
                                         ))}
 
-                                        {/* Show More Ad Sets Button */}
                                         {secondaryAdSets.length > 0 && (
                                             <tr className="bg-slate-900/30">
                                                 <td colSpan={7} className="text-center py-2 border-b border-slate-800">
