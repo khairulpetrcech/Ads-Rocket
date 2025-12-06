@@ -33,7 +33,7 @@ const invalidateCache = () => {
 
 const handleApiError = (data: any) => {
   if (data.error) {
-    console.error("Meta API Error Details:", JSON.stringify(data.error, null, 2));
+    console.error("Meta API FULL ERROR:", JSON.stringify(data, null, 2)); // DEBUGGING CRITICAL
     
     const code = data.error.code;
     if (code === 80004 || code === 17 || code === 613) {
@@ -42,16 +42,19 @@ const handleApiError = (data: any) => {
     
     // Provide more context for Invalid Parameter errors
     if (data.error.error_user_msg) {
-        throw new Error(data.error.error_user_msg);
+        throw new Error(`${data.error.error_user_title || 'Error'}: ${data.error.error_user_msg}`);
+    }
+
+    if (data.error.error_subcode === 1885316) {
+        throw new Error("Invalid Image Hash. Please re-upload the image.");
     }
     
-    throw new Error(data.error.message || "Unknown Meta API Error");
+    throw new Error(data.error.message || "Unknown Meta API Error. Check Console for details.");
   }
 };
 
 // --- SECURITY HELPER ---
 export const isSecureContext = (): boolean => {
-  // Relaxed check as per user request to allow testing on HTTP
   return true; 
 };
 
@@ -125,7 +128,6 @@ export const initFacebookSdk = (appId: string): Promise<void> => {
        document.body.appendChild(js);
     } else {
         // Resolve if script exists but didn't trigger yet (rare race condition fix)
-        // We rely on window.fbAsyncInit or the timeout
     }
   });
 };
@@ -135,8 +137,6 @@ export const checkLoginStatus = (): Promise<string | null> => {
     if (!window.FB) return resolve(null);
     
     // Skip status check on HTTP to prevent "method not supported" error in console
-    // But since user wants to force login, we just return null here if insecure 
-    // so the button appears.
     if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost') {
         return resolve(null);
     }
@@ -397,16 +397,17 @@ export const createMetaAdSet = async (
     const actId = accountId.startsWith('act_') ? accountId : `act_${accountId}`;
     const url = `https://graph.facebook.com/v19.0/${actId}/adsets`;
     
-    // Targeting (Hardcoded MY, 18-65+ for simplicity - In production, this should be dynamic)
+    // Targeting (Basic Setup)
     const targeting = {
         geo_locations: { countries: ['MY'] },
         age_min: 18,
         age_max: 65,
+        publisher_platforms: ['facebook', 'instagram'],
+        device_platforms: ['mobile', 'desktop']
     };
 
-    // VITAL: Start time must be at least 15 mins in future. 
-    // We use +60 mins to be absolutely safe from server drift/latency.
-    const startTime = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+    // START TIME FIX: Must be future (>15m). Remove MS.
+    const startTime = new Date(Date.now() + 60 * 60 * 1000).toISOString().split('.')[0]; 
 
     const body: any = {
         name,
@@ -417,7 +418,8 @@ export const createMetaAdSet = async (
         start_time: startTime,
         access_token: accessToken,
         optimization_goal: optimizationGoal,
-        billing_event: 'IMPRESSIONS' // Default safest option
+        bid_strategy: 'LOWEST_COST_WITHOUT_CAP', // Explicitly set bid strategy
+        billing_event: 'IMPRESSIONS'
     };
     
     // FIX: If Conversion, we need promoted_object (Pixel) and billing event
@@ -426,11 +428,11 @@ export const createMetaAdSet = async (
         body.destination_type = "WEBSITE";
         body.promoted_object = {
             pixel_id: pixelId,
-            custom_event_type: "PURCHASE" // Default to Purchase for Sales
+            custom_event_type: "PURCHASE" 
         };
+        // Some accounts require IMPRESSIONS for billing event on conversions
+        body.billing_event = 'IMPRESSIONS';
     } 
-    // For Link Clicks, optimization is LINK_CLICKS, billing is IMPRESSIONS (or LINK_CLICKS if eligible)
-    // We default to IMPRESSIONS to prevent eligibility errors on new accounts.
     
     const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const data = await response.json();
