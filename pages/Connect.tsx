@@ -159,7 +159,7 @@ const ConnectPage: React.FC = () => {
                       Ads <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-cyan-400">Rocket</span>
                   </h1>
                   <p className="text-lg animate-fade-in-up text-gold-glossy" style={{ animationDelay: '0.2s' }}>
-                      Scaling Ads Jadi Lebih Cepat
+                      Scaling Ads Lebih Cepat
                   </p>
                   
                   {/* Loading Bar */}
