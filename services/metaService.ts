@@ -499,6 +499,14 @@ export const createMetaCreative = async (
                 call_to_action: { type: "LEARN_MORE" }
             }
         },
+        // FIX: Opt-out of Standard Enhancements to prevent Dev Mode visibility errors
+        degrees_of_freedom_spec: {
+            creative_features_spec: {
+                standard_enhancements: {
+                    enroll_status: "OPT_OUT"
+                }
+            }
+        },
         access_token: accessToken
     };
     const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
