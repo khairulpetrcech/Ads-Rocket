@@ -51,7 +51,7 @@ const handleApiError = (data: any) => {
     
     // Catch specific CBO/Budget Sharing errors
     if (data.error.message && data.error.message.includes('is_adset_budget_sharing_enabled')) {
-        throw new Error("Budget Sharing Configuration Error. Retrying with explicit CBO flag...");
+        throw new Error("BUDGET_SHARING_ERROR"); // Caught by retry logic
     }
 
     // Catch Dev Mode Creative errors
@@ -384,29 +384,54 @@ export const getPixels = async (adAccountId: string, accessToken: string) => {
     return data.data || [];
 };
 
+// --- CAMPAIGN CREATION WITH RETRY LOGIC ---
+const tryCreateCampaign = async (url: string, body: any) => {
+    const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const data = await response.json();
+    handleApiError(data);
+    return data;
+};
+
 export const createMetaCampaign = async (accountId: string, name: string, objective: string, accessToken: string) => {
     const actId = accountId.startsWith('act_') ? accountId : `act_${accountId}`;
     const url = `https://graph.facebook.com/v19.0/${actId}/campaigns`;
     
-    // SECURITY: Sanitize Name
     const cleanName = sanitizeInput(name);
 
-    // FIXED PARAMETERS FOR API COMPATIBILITY
-    const body: any = {
-        name: cleanName,
-        objective, 
-        status: 'PAUSED',
-        special_ad_categories: [], // Required empty array for standard ads
-        buying_type: "AUCTION",    // Explicitly set buying type
-        is_adset_budget_sharing_enabled: false, // EXPLICITLY DISABLE CBO (Ad Set Budget Sharing) based on user error report
-        access_token: accessToken
-    };
-
-    const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-    const data = await response.json();
-    handleApiError(data);
-    invalidateCache();
-    return data; 
+    // ATTEMPT 1: With explicit CBO disabled flag (Standard for new accounts)
+    try {
+        const body1 = {
+            name: cleanName,
+            objective, 
+            status: 'PAUSED',
+            special_ad_categories: [],
+            buying_type: "AUCTION",
+            is_adset_budget_sharing_enabled: false, // Explicitly disable CBO
+            access_token: accessToken
+        };
+        const data = await tryCreateCampaign(url, body1);
+        invalidateCache();
+        return data;
+    } catch (error: any) {
+        // ATTEMPT 2: If attempt 1 fails with Budget Sharing error, try different payload for older/migrated accounts
+        if (error.message === "BUDGET_SHARING_ERROR" || error.message.includes("is_adset_budget_sharing_enabled")) {
+            console.warn("Retrying Campaign Creation with alternative parameters...");
+            const body2 = {
+                name: cleanName,
+                objective, 
+                status: 'PAUSED',
+                special_ad_categories: [],
+                buying_type: "AUCTION",
+                // Remove the flag, try sending Advantage+ config disabled
+                advantage_plus_create: { enabled: false },
+                access_token: accessToken
+            };
+            const data = await tryCreateCampaign(url, body2);
+            invalidateCache();
+            return data;
+        }
+        throw error;
+    }
 };
 
 export const createMetaAdSet = async (
@@ -465,6 +490,8 @@ export const createMetaAdSet = async (
     return data;
 };
 
+// --- ASSET UPLOAD (IMAGE & VIDEO) ---
+
 export const uploadAdImage = async (accountId: string, file: File, accessToken: string) => {
     const actId = accountId.startsWith('act_') ? accountId : `act_${accountId}`;
     const url = `https://graph.facebook.com/v19.0/${actId}/adimages`;
@@ -480,41 +507,87 @@ export const uploadAdImage = async (accountId: string, file: File, accessToken: 
     throw new Error("Image upload failed: No hash returned");
 };
 
+export const uploadAdVideo = async (accountId: string, file: File, accessToken: string) => {
+    const actId = accountId.startsWith('act_') ? accountId : `act_${accountId}`;
+    // Use advideos endpoint
+    const url = `https://graph-video.facebook.com/v19.0/${actId}/advideos`;
+    const formData = new FormData();
+    formData.append('access_token', accessToken);
+    formData.append('source', file);
+    
+    const response = await fetch(url, { method: 'POST', body: formData });
+    const data = await response.json();
+    handleApiError(data);
+    
+    if (data.id) { return data.id; }
+    throw new Error("Video upload failed: No ID returned");
+};
+
+// Polling to wait for video to be ready
+export const waitForVideoReady = async (videoId: string, accessToken: string, retries = 10): Promise<boolean> => {
+    const url = `https://graph.facebook.com/v19.0/${videoId}?fields=status&access_token=${accessToken}`;
+    for (let i = 0; i < retries; i++) {
+        try {
+            const res = await fetch(url);
+            const data = await res.json();
+            if (data.status && data.status.video_status === 'READY') {
+                return true;
+            }
+        } catch (e) { console.warn("Polling video status failed", e); }
+        // Wait 3 seconds
+        await new Promise(r => setTimeout(r, 3000));
+    }
+    return false;
+};
+
+
 export const createMetaCreative = async (
     accountId: string,
     name: string,
     pageId: string,
-    imageHash: string,
+    assetId: string, // hash for image, id for video
     message: string,
     headline: string,
     link: string,
-    accessToken: string
+    accessToken: string,
+    mediaType: 'image' | 'video' = 'image'
 ) => {
     const actId = accountId.startsWith('act_') ? accountId : `act_${accountId}`;
     const url = `https://graph.facebook.com/v19.0/${actId}/adcreatives`;
+    
     const body: any = {
         name: sanitizeInput(name) + " Creative",
-        object_story_spec: {
+        access_token: accessToken,
+        degrees_of_freedom_spec: {
+            creative_features_spec: { standard_enhancements: { enroll_status: "OPT_OUT" } }
+        },
+        published: false
+    };
+
+    if (mediaType === 'image') {
+        body.object_story_spec = {
             page_id: pageId,
             link_data: {
                 message: sanitizeInput(message),
                 link: link, 
-                image_hash: imageHash,
+                image_hash: assetId,
                 name: sanitizeInput(headline),
                 call_to_action: { type: "LEARN_MORE" }
             }
-        },
-        degrees_of_freedom_spec: {
-            creative_features_spec: {
-                standard_enhancements: {
-                    enroll_status: "OPT_OUT"
-                }
+        };
+    } else {
+        // VIDEO CREATIVE STRUCTURE
+        body.object_story_spec = {
+            page_id: pageId,
+            video_data: {
+                video_id: assetId,
+                message: sanitizeInput(message),
+                title: sanitizeInput(headline),
+                call_to_action: { type: "LEARN_MORE", value: { link: link } },
+                image_url: "https://via.placeholder.com/1200x628?text=Video+Ad" // Fallback thumbnail
             }
-        },
-        access_token: accessToken,
-        // EXPERIMENTAL FIX: Force unpublished state to prevent Dev Mode errors
-        published: false
-    };
+        };
+    }
     
     const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const data = await response.json();

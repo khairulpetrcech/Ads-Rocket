@@ -8,11 +8,13 @@ import {
     createMetaAdSet, 
     createMetaAd, 
     uploadAdImage,
+    uploadAdVideo, // New
+    waitForVideoReady, // New
     createMetaCreative,
     getPages,
-    getPixels // New Function
+    getPixels
 } from '../services/metaService';
-import { CheckCircle, Loader2, Upload, AlertTriangle, Save, FolderOpen, Trash2, ChevronDown } from 'lucide-react';
+import { CheckCircle, Loader2, Upload, AlertTriangle, Save, FolderOpen, Trash2, ChevronDown, Video, Image as ImageIcon } from 'lucide-react';
 
 interface Template {
     id: string;
@@ -31,7 +33,7 @@ const CreateCampaign: React.FC = () => {
     const [templateName, setTemplateName] = useState('');
     const [showSaveTemplate, setShowSaveTemplate] = useState(false);
     const [showTemplatesDropdown, setShowTemplatesDropdown] = useState(false);
-    const dropdownRef = useRef<HTMLDivElement>(null); // Ref for click-outside logic
+    const dropdownRef = useRef<HTMLDivElement>(null);
 
     // --- DATA STATE ---
     const [existingCampaigns, setExistingCampaigns] = useState<any[]>([]);
@@ -60,7 +62,11 @@ const CreateCampaign: React.FC = () => {
     const [primaryText, setPrimaryText] = useState('');
     const [headline, setHeadline] = useState('');
     const [destinationUrl, setDestinationUrl] = useState('');
-    const [imageFile, setImageFile] = useState<File | null>(null);
+    
+    // MEDIA STATE
+    const [mediaFile, setMediaFile] = useState<File | null>(null);
+    const [mediaType, setMediaType] = useState<'image' | 'video'>('image');
+    const [filePreview, setFilePreview] = useState<string | null>(null);
 
     // RATE LIMITING REF
     const lastPublishTime = useRef<number>(0);
@@ -69,25 +75,21 @@ const CreateCampaign: React.FC = () => {
     useEffect(() => {
         if (!settings.adAccountId || !settings.fbAccessToken) return;
 
-        // Load Templates
         const saved = localStorage.getItem('ar_templates');
         if (saved) setTemplates(JSON.parse(saved));
 
         const loadData = async () => {
-            // 1. Load Campaigns
             try {
                 const campaigns = await getRealCampaigns(settings.adAccountId, settings.fbAccessToken);
                 setExistingCampaigns(campaigns);
             } catch (e) { console.error(e); }
 
-            // 2. Load Pages
             try {
                 if (settings.fbAccessToken !== 'dummy_token') {
                     const pages = await getPages(settings.fbAccessToken);
                     setUserPages(pages);
                     if (pages.length > 0) setSelectedPageId(pages[0].id);
 
-                    // 3. Load Pixels
                     const pixels = await getPixels(settings.adAccountId, settings.fbAccessToken);
                     setUserPixels(pixels);
                     if (pixels.length > 0) setSelectedPixelId(pixels[0].id);
@@ -97,7 +99,6 @@ const CreateCampaign: React.FC = () => {
         loadData();
     }, [settings.adAccountId, settings.fbAccessToken]);
 
-    // Handle Click Outside to Close Dropdown
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
             if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
@@ -110,7 +111,6 @@ const CreateCampaign: React.FC = () => {
         };
     }, []);
 
-    // Update Optimization defaults based on Objective
     useEffect(() => {
         if (objective === 'OUTCOME_SALES') {
             setOptimizationGoal('OFFSITE_CONVERSIONS');
@@ -119,7 +119,6 @@ const CreateCampaign: React.FC = () => {
         }
     }, [objective]);
 
-    // Load AdSets when Campaign Changes
     useEffect(() => {
         if (selectedCampaignId && campaignMode === 'existing') {
             const loadAdSets = async () => {
@@ -132,18 +131,37 @@ const CreateCampaign: React.FC = () => {
         }
     }, [selectedCampaignId, campaignMode, settings.fbAccessToken]);
 
+    // Handle File Selection & Preview
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files[0]) {
+            const file = e.target.files[0];
+            setMediaFile(file);
+            
+            // Determine type
+            if (file.type.startsWith('video/')) {
+                setMediaType('video');
+            } else {
+                setMediaType('image');
+            }
+
+            // Create Preview
+            if (file.name.toLowerCase().endsWith('.heic')) {
+                setFilePreview(null); // No browser preview for HEIC
+            } else {
+                setFilePreview(URL.createObjectURL(file));
+            }
+        }
+    };
+
     // --- TEMPLATE HANDLERS ---
     const handleSaveTemplate = () => {
         if (!templateName) return alert("Enter a template name");
-        
-        // Handle Duplicates
         let finalName = templateName;
         let counter = 1;
         while (templates.some(t => t.name === finalName)) {
             finalName = `${templateName} (${counter})`;
             counter++;
         }
-
         const newTemplate: Template = {
             id: Date.now().toString(),
             name: finalName,
@@ -174,7 +192,7 @@ const CreateCampaign: React.FC = () => {
         if (d.primaryText) setPrimaryText(d.primaryText);
         if (d.headline) setHeadline(d.headline);
         if (d.destinationUrl) setDestinationUrl(d.destinationUrl);
-        setShowTemplatesDropdown(false); // Close dropdown
+        setShowTemplatesDropdown(false);
     };
 
     const deleteTemplate = (id: string, e: any) => {
@@ -194,9 +212,9 @@ const CreateCampaign: React.FC = () => {
         if (adSetMode === 'existing' && !selectedAdSetId) return setError("Select an Ad Set");
         if (!adName || !primaryText || !headline || !destinationUrl) return setError("Fill all ad details");
         if (!selectedPageId) return setError("Select a Facebook Page");
-        if (!imageFile) return setError("Upload an image");
+        if (!mediaFile) return setError("Upload an image or video");
 
-        // RATE LIMITING (5 seconds)
+        // RATE LIMITING
         const now = Date.now();
         if (now - lastPublishTime.current < 5000) {
             return setError("Please wait a few seconds before publishing again.");
@@ -218,7 +236,6 @@ const CreateCampaign: React.FC = () => {
             // 2. Resolve Ad Set ID
             let finalAdSetId = selectedAdSetId;
             if (adSetMode === 'new') {
-                // Determine Pixel for Sales
                 const pixelToUse = (objective === 'OUTCOME_SALES' && optimizationGoal === 'OFFSITE_CONVERSIONS') 
                     ? selectedPixelId 
                     : null;
@@ -235,19 +252,30 @@ const CreateCampaign: React.FC = () => {
                 finalAdSetId = res.id;
             }
 
-            // 3. Upload Image
-            const imageHash = await uploadAdImage(adAccountId, imageFile!, fbAccessToken);
+            // 3. Upload Asset (Image or Video)
+            let assetId = '';
+            if (mediaType === 'image') {
+                assetId = await uploadAdImage(adAccountId, mediaFile!, fbAccessToken);
+            } else {
+                // Video Process
+                const videoId = await uploadAdVideo(adAccountId, mediaFile!, fbAccessToken);
+                // Wait for processing
+                const isReady = await waitForVideoReady(videoId, fbAccessToken);
+                if (!isReady) throw new Error("Video processing timed out. Try smaller file.");
+                assetId = videoId;
+            }
 
             // 4. Create Creative
             const creativeId = await createMetaCreative(
                 adAccountId,
                 adName,
                 selectedPageId,
-                imageHash,
+                assetId,
                 primaryText,
                 headline,
                 destinationUrl,
-                fbAccessToken
+                fbAccessToken,
+                mediaType // 'image' or 'video'
             );
 
             // 5. Create Ad
@@ -270,7 +298,7 @@ const CreateCampaign: React.FC = () => {
                 <h1 className="text-2xl font-bold text-white">Create New Campaign</h1>
                 
                 <div className="flex gap-2 relative">
-                    {/* Load Template Dropdown (Click-based with outside close) */}
+                    {/* Load Template Dropdown */}
                     <div className="relative" ref={dropdownRef}>
                         <button 
                             onClick={() => setShowTemplatesDropdown(!showTemplatesDropdown)}
@@ -305,7 +333,7 @@ const CreateCampaign: React.FC = () => {
                 </div>
             </div>
 
-            {/* Save Template Modal/Input */}
+            {/* Save Template Modal */}
             {showSaveTemplate && (
                 <div className="mb-6 bg-slate-800 p-4 rounded-xl border border-indigo-500/30 flex gap-2 animate-fadeIn">
                     <input 
@@ -405,7 +433,6 @@ const CreateCampaign: React.FC = () => {
                                     </select>
                                 </div>
                                 
-                                {/* PIXEL SELECTOR FOR SALES */}
                                 {objective === 'OUTCOME_SALES' && (
                                     <div className="animate-fadeIn">
                                         <label className="block text-sm text-slate-400 mb-1 text-green-400 font-semibold">Pixel (Required for Sales)</label>
@@ -452,10 +479,37 @@ const CreateCampaign: React.FC = () => {
                         </div>
                         
                         <div className="md:col-span-2">
-                             <div className="border border-dashed border-slate-600 rounded-xl p-6 text-center hover:bg-slate-800 transition-colors cursor-pointer relative">
-                                 <input type="file" accept="image/*" onChange={(e) => setImageFile(e.target.files?.[0] || null)} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
-                                 <Upload className="mx-auto text-slate-400 mb-2" />
-                                 <p className="text-slate-300 text-sm font-medium">{imageFile ? imageFile.name : "Click to upload Image"}</p>
+                             <div className="border border-dashed border-slate-600 rounded-xl p-6 text-center hover:bg-slate-800 transition-colors cursor-pointer relative overflow-hidden group">
+                                 <input 
+                                    type="file" 
+                                    accept="image/*,video/mp4,video/x-m4v,video/*,.heic" 
+                                    onChange={handleFileChange} 
+                                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" 
+                                 />
+                                 
+                                 {mediaFile ? (
+                                     <div className="flex flex-col items-center justify-center">
+                                         {filePreview ? (
+                                             mediaType === 'image' ? (
+                                                <img src={filePreview} className="h-32 object-contain rounded-lg mb-2" alt="Preview" />
+                                             ) : (
+                                                <video src={filePreview} className="h-32 rounded-lg mb-2" controls muted />
+                                             )
+                                         ) : (
+                                             <div className="h-24 w-full flex items-center justify-center bg-slate-900 rounded-lg mb-2 border border-slate-700">
+                                                 {mediaType === 'image' ? <ImageIcon size={32} /> : <Video size={32} />}
+                                             </div>
+                                         )}
+                                         <p className="text-green-400 text-sm font-medium">{mediaFile.name}</p>
+                                         <p className="text-xs text-slate-500">{mediaType === 'video' ? 'Video File' : 'Image File'}</p>
+                                     </div>
+                                 ) : (
+                                     <>
+                                        <Upload className="mx-auto text-slate-400 mb-2 group-hover:text-white" />
+                                        <p className="text-slate-300 text-sm font-medium">Click to upload Media</p>
+                                        <p className="text-xs text-slate-500 mt-1">Supports Images (JPG, PNG, HEIC) & Videos (MP4, AVI)</p>
+                                     </>
+                                 )}
                             </div>
                         </div>
 
@@ -482,7 +536,7 @@ const CreateCampaign: React.FC = () => {
                         className="w-full bg-green-600 hover:bg-green-500 text-white text-lg font-bold py-4 rounded-xl shadow-lg shadow-green-900/30 flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed transition-all transform hover:scale-[1.01]"
                     >
                         {loading && <Loader2 className="animate-spin" size={24}/>}
-                        {loading ? 'Publishing to Meta...' : 'PUBLISH CAMPAIGN NOW'}
+                        {loading ? 'Publishing to Meta... (Video may take time)' : 'PUBLISH CAMPAIGN NOW'}
                     </button>
                     <p className="text-center text-xs text-slate-500 mt-3">This will create the campaign in your Ads Manager. Default status: PAUSED.</p>
                 </div>
