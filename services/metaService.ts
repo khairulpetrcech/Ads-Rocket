@@ -191,7 +191,8 @@ export const loginWithFacebook = (): Promise<string> => {
                 }
             }
         }, { 
-            scope: 'public_profile,ads_read,ads_management,pages_show_list,pages_read_engagement' 
+            // ADDED pages_manage_engagement to allow publishing comments
+            scope: 'public_profile,ads_read,ads_management,pages_show_list,pages_read_engagement,pages_manage_engagement' 
         });
     } catch (e) {
         reject("Failed to open Facebook Login dialog.");
@@ -652,21 +653,43 @@ export const updateEntityBudget = async (id: string, dailyBudget: number, access
 };
 
 // --- COMMENTING ---
+
+// Helper to get Page Access Token for a specific page
+const getPageAccessToken = async (pageId: string, userAccessToken: string) => {
+    try {
+        const response = await fetch(`https://graph.facebook.com/v19.0/${pageId}?fields=access_token&access_token=${userAccessToken}`);
+        const data = await response.json();
+        if (data.error) throw new Error(data.error.message);
+        return data.access_token;
+    } catch (e) {
+        console.error("Failed to fetch Page Access Token", e);
+        throw new Error("Could not retrieve permissions to comment as Page. Please reconnect your account.");
+    }
+};
+
 export const publishComment = async (
     effectiveObjectStoryId: string,
     message: string,
     imageBase64: string | undefined,
-    accessToken: string
+    userAccessToken: string
 ) => {
-    // effectiveObjectStoryId is typically PageID_PostID
-    // Graph API for comments: /{object-id}/comments
+    // effectiveObjectStoryId is typically PageID_PostID for Ad Posts
+    // We need to extract the Page ID to get the Page Access Token
+    const parts = effectiveObjectStoryId.split('_');
+    if (parts.length < 2) throw new Error("Invalid Post ID format. Cannot identify Page.");
     
+    const pageId = parts[0];
+    
+    // 1. Get Page Token (Swapping User Token)
+    const pageAccessToken = await getPageAccessToken(pageId, userAccessToken);
+    if (!pageAccessToken) throw new Error("Failed to authenticate as Page.");
+
     const url = `https://graph.facebook.com/v19.0/${effectiveObjectStoryId}/comments`;
     
     // If we have an image, we must use FormData
     if (imageBase64) {
         const formData = new FormData();
-        formData.append('access_token', accessToken);
+        formData.append('access_token', pageAccessToken); // Use Page Token
         formData.append('message', message);
         
         // Convert base64 to blob
@@ -694,7 +717,7 @@ export const publishComment = async (
         const response = await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message: message, access_token: accessToken })
+            body: JSON.stringify({ message: message, access_token: pageAccessToken }) // Use Page Token
         });
         const data = await response.json();
         handleApiError(data);
