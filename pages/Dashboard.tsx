@@ -236,15 +236,16 @@ const Dashboard: React.FC = () => {
   const renderTableHeader = (campaign: AdCampaign) => {
       const isAltView = isTrafficOrLeads(campaign.objective);
       if (isAltView) {
-        // Traffic/Leads/Whatsapp Header
+        // Traffic/Leads/Whatsapp Header (Unified to 7 columns to match Sales view)
         return (
             <tr className="bg-slate-800/50 text-slate-400 text-xs uppercase border-b border-slate-700">
                 <th className="p-4 w-[35%]">Name</th>
-                <th className="p-3 text-right w-[15%]">Spend</th>
-                <th className="p-3 text-right w-[15%]">Results (Msg/Leads)</th>
-                <th className="p-3 text-right w-[15%]">Cost / Result</th>
+                <th className="p-3 text-right w-[12%]">Spend</th>
+                <th className="p-3 text-right w-[12%]">Results</th>
+                <th className="p-3 text-right w-[12%]">Cost/Res</th>
                 <th className="p-3 text-right w-[10%]">CTR (All)</th>
                 <th className="p-3 text-right w-[10%]">CTR (Link)</th>
+                <th className="p-3 text-right w-[9%]"></th> {/* Empty column for alignment */}
             </tr>
         );
       }
@@ -269,13 +270,14 @@ const Dashboard: React.FC = () => {
           // Traffic/Leads/Whatsapp View
           return (
             <>
-                <td className="p-3 text-right whitespace-nowrap w-[15%]">{formatMYR(metrics.spend)}</td>
-                <td className="p-3 text-right font-bold text-white whitespace-nowrap w-[15%]">
+                <td className="p-3 text-right whitespace-nowrap w-[12%]">{formatMYR(metrics.spend)}</td>
+                <td className="p-3 text-right font-bold text-white whitespace-nowrap w-[12%]">
                     {metrics.results}
                 </td>
-                <td className="p-3 text-right whitespace-nowrap w-[15%]">{formatMYR(metrics.costPerResult)}</td>
+                <td className="p-3 text-right whitespace-nowrap w-[12%]">{formatMYR(metrics.costPerResult)}</td>
                 <td className="p-3 text-right whitespace-nowrap w-[10%]">{metrics.ctr.toFixed(2)}%</td>
                 <td className="p-3 text-right whitespace-nowrap w-[10%] text-indigo-300">{metrics.inline_link_click_ctr.toFixed(2)}%</td>
+                <td className="p-3 text-right whitespace-nowrap w-[9%]"></td> {/* Empty cell for alignment */}
             </>
           );
       }

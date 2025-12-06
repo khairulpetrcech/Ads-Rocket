@@ -575,15 +575,12 @@ export const createMetaCreative = async (
     const url = `https://graph.facebook.com/v19.0/${actId}/adcreatives`;
     
     // DEV MODE FIX: 
-    // 1. We strictly opt-out of "Standard Enhancements" (Advantage+) which triggers public validation.
-    // 2. We SET published: false to ensure it creates a Dark Post (Unpublished Page Post) which is allowed in Dev Mode.
+    // Removed degrees_of_freedom_spec. Including it (even OPT_OUT) can trigger "Standard Enhancements" checks
+    // which fail in Dev Mode if not Public. Default behavior creates a Dark Post.
     
     const body: any = {
         name: sanitizeInput(name) + " Creative",
         access_token: accessToken,
-        degrees_of_freedom_spec: {
-            creative_features_spec: { standard_enhancements: { enroll_status: "OPT_OUT" } }
-        }
     };
 
     if (mediaType === 'image') {
