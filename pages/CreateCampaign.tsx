@@ -138,15 +138,15 @@ const CreateCampaign: React.FC = () => {
             setMediaFile(file);
             
             // Determine type
-            if (file.type.startsWith('video/')) {
+            if (file.type.startsWith('video/') || file.name.endsWith('.avi')) {
                 setMediaType('video');
             } else {
                 setMediaType('image');
             }
 
             // Create Preview
-            if (file.name.toLowerCase().endsWith('.heic')) {
-                setFilePreview(null); // No browser preview for HEIC
+            if (file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.avi')) {
+                setFilePreview(null); // No browser preview for HEIC/AVI usually
             } else {
                 setFilePreview(URL.createObjectURL(file));
             }
@@ -482,7 +482,7 @@ const CreateCampaign: React.FC = () => {
                              <div className="border border-dashed border-slate-600 rounded-xl p-6 text-center hover:bg-slate-800 transition-colors cursor-pointer relative overflow-hidden group">
                                  <input 
                                     type="file" 
-                                    accept="image/*,video/mp4,video/x-m4v,video/*,.heic" 
+                                    accept="image/*,video/mp4,video/x-m4v,video/*,.heic,.avi" 
                                     onChange={handleFileChange} 
                                     className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" 
                                  />

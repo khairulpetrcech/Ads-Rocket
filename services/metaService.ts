@@ -560,8 +560,9 @@ export const createMetaCreative = async (
         access_token: accessToken,
         degrees_of_freedom_spec: {
             creative_features_spec: { standard_enhancements: { enroll_status: "OPT_OUT" } }
-        },
-        published: false
+        }
+        // NOTE: 'published: false' removed to fix Dev Mode error where dark posts validation fails if explicit flag is sent.
+        // Default behavior of object_story_spec creates an unpublished post.
     };
 
     if (mediaType === 'image') {
