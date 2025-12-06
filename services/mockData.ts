@@ -14,6 +14,7 @@ export const MOCK_CAMPAIGNS: AdCampaign[] = [
     name: 'Top Funnel - Broad - Interests',
     status: 'ACTIVE',
     dailyBudget: 100,
+    objective: 'OUTCOME_SALES',
     metrics: {
       spend: 1250.00,
       revenue: 3125.00,
@@ -25,7 +26,10 @@ export const MOCK_CAMPAIGNS: AdCampaign[] = [
       landingPageViews: 650,
       costPerLandingPageView: 1.92,
       purchases: 50,
-      costPerPurchase: 25.00
+      costPerPurchase: 25.00,
+      results: 50,
+      costPerResult: 25.00,
+      inline_link_click_ctr: 1.5
     },
     history: generateHistory(2.5, 7)
   },
@@ -34,6 +38,7 @@ export const MOCK_CAMPAIGNS: AdCampaign[] = [
     name: 'Retargeting - ATC 30 Days',
     status: 'ACTIVE',
     dailyBudget: 50,
+    objective: 'OUTCOME_SALES',
     metrics: {
       spend: 400.00,
       revenue: 1600.00,
@@ -45,7 +50,10 @@ export const MOCK_CAMPAIGNS: AdCampaign[] = [
       landingPageViews: 350,
       costPerLandingPageView: 1.14,
       purchases: 32,
-      costPerPurchase: 12.50
+      costPerPurchase: 12.50,
+      results: 32,
+      costPerResult: 12.50,
+      inline_link_click_ctr: 2.5
     },
     history: generateHistory(4.0, 7)
   },
@@ -54,6 +62,7 @@ export const MOCK_CAMPAIGNS: AdCampaign[] = [
     name: 'Scale - Lookalike 1%',
     status: 'ACTIVE',
     dailyBudget: 200,
+    objective: 'OUTCOME_SALES',
     metrics: {
       spend: 1400.00,
       revenue: 1540.00,
@@ -65,7 +74,10 @@ export const MOCK_CAMPAIGNS: AdCampaign[] = [
       landingPageViews: 400,
       costPerLandingPageView: 3.50,
       purchases: 22,
-      costPerPurchase: 63.63
+      costPerPurchase: 63.63,
+      results: 22,
+      costPerResult: 63.63,
+      inline_link_click_ctr: 1.0
     },
     history: generateHistory(1.1, 7)
   },
@@ -74,6 +86,7 @@ export const MOCK_CAMPAIGNS: AdCampaign[] = [
     name: 'Creative Test - UGC Video',
     status: 'PAUSED',
     dailyBudget: 50,
+    objective: 'OUTCOME_SALES',
     metrics: {
       spend: 150.00,
       revenue: 75.00,
@@ -85,7 +98,10 @@ export const MOCK_CAMPAIGNS: AdCampaign[] = [
       landingPageViews: 20,
       costPerLandingPageView: 7.50,
       purchases: 1,
-      costPerPurchase: 150.00
+      costPerPurchase: 150.00,
+      results: 1,
+      costPerResult: 150.00,
+      inline_link_click_ctr: 0.8
     },
     history: generateHistory(0.5, 7)
   }

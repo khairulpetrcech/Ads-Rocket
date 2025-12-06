@@ -32,6 +32,10 @@ export interface AdMetrics {
   costPerLandingPageView: number;
   purchases: number;
   costPerPurchase: number;
+  // New Metrics for Traffic/Leads
+  results: number; // Messaging conversations, Leads, or Link Clicks
+  costPerResult: number;
+  inline_link_click_ctr: number; // CTR (Link Click-through)
 }
 
 export interface BaseEntity {
@@ -42,6 +46,7 @@ export interface BaseEntity {
 }
 
 export interface AdCampaign extends BaseEntity {
+  objective: string; // OUTCOME_SALES, OUTCOME_TRAFFIC, etc.
   dailyBudget: number;
   history: { date: string; roas: number; spend: number }[]; // For charts
 }
@@ -56,6 +61,7 @@ export interface Ad extends BaseEntity {
   creative: {
     thumbnail_url?: string;
     image_url?: string;
+    effective_object_story_id?: string; // For linking to the post
   };
 }
 

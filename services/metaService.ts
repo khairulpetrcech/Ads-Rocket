@@ -56,7 +56,7 @@ const handleApiError = (data: any) => {
 
     // Catch Dev Mode Creative errors
     if (data.error.message && data.error.message.includes('development mode')) {
-        throw new Error("Dev Mode Error: The App is in Development Mode. Please switch to Live Mode in Meta Developers or ensure you are an Admin.");
+        throw new Error("Dev Mode Error: Your App is in Development Mode. Only Admins can see/create ads. Try switching your Meta App to Live Mode.");
     }
     
     throw new Error(data.error.message || "Unknown Meta API Error. Check Console for details.");
@@ -220,11 +220,24 @@ export const getAdAccounts = async (accessToken: string): Promise<MetaAdAccount[
 
 const mapInsightsToMetrics = (data: any) => {
   const insights = data.insights?.data?.[0] || {};
+  
+  // Existing Metrics
   const purchaseAction = insights.actions?.find((a: any) => a.action_type === 'purchase')?.value || 0;
   const purchaseValue = insights.action_values?.find((a: any) => a.action_type === 'purchase')?.value || 0;
   const landingPageViews = insights.actions?.find((a: any) => a.action_type === 'landing_page_view')?.value || 0;
   const spend = parseFloat(insights.spend || '0');
   const revenue = parseFloat(purchaseValue || '0');
+
+  // New Metrics for Whatsapp/Leads
+  // Result calculation: Looks for Leads OR Messaging Conversations OR Link Clicks (Fallback)
+  const leads = insights.actions?.find((a: any) => a.action_type === 'lead')?.value || 0;
+  const messagingStarted = insights.actions?.find((a: any) => a.action_type === 'onsite_conversion.messaging_conversation_started_7d')?.value || 0;
+  const messagingInitiated = insights.actions?.find((a: any) => a.action_type === 'onsite_conversion.messaging_initiated')?.value || 0;
+  const linkClicks = insights.actions?.find((a: any) => a.action_type === 'link_click')?.value || 0;
+
+  // Heuristic for "Results" based on common objectives
+  const results = parseInt(leads) + parseInt(messagingStarted) + parseInt(messagingInitiated);
+  const finalResults = results > 0 ? results : parseInt(linkClicks); // Fallback to link clicks if no leads/messages
 
   return {
     spend: spend,
@@ -232,12 +245,16 @@ const mapInsightsToMetrics = (data: any) => {
     roas: spend > 0 ? parseFloat((revenue / spend).toFixed(2)) : 0,
     impressions: parseInt(insights.impressions || '0'),
     clicks: parseInt(insights.clicks || '0'),
-    ctr: parseFloat(insights.ctr || '0'),
+    ctr: parseFloat(insights.ctr || '0'), // CTR (All)
+    inline_link_click_ctr: parseFloat(insights.inline_link_click_ctr || '0'), // CTR (Link Click-Through)
     cpc: parseFloat(insights.cpc || '0'),
     landingPageViews: parseInt(landingPageViews),
     costPerLandingPageView: landingPageViews > 0 ? parseFloat((spend / landingPageViews).toFixed(2)) : 0,
     purchases: parseInt(purchaseAction),
-    costPerPurchase: purchaseAction > 0 ? parseFloat((spend / purchaseAction).toFixed(2)) : 0
+    costPerPurchase: purchaseAction > 0 ? parseFloat((spend / purchaseAction).toFixed(2)) : 0,
+    // Whatsapp/Leads specific
+    results: finalResults,
+    costPerResult: finalResults > 0 ? parseFloat((spend / finalResults).toFixed(2)) : 0
   };
 };
 
@@ -249,10 +266,10 @@ export const getRealCampaigns = async (adAccountId: string, accessToken: string,
 
   const { date_preset, time_range } = getDateRangeParams(datePreset);
   const insightsQuery = time_range 
-    ? `insights.time_range(${time_range}){spend,impressions,clicks,cpc,ctr,actions,action_values}`
-    : `insights.date_preset(${date_preset}){spend,impressions,clicks,cpc,ctr,actions,action_values}`;
+    ? `insights.time_range(${time_range}){spend,impressions,clicks,cpc,ctr,inline_link_click_ctr,actions,action_values}`
+    : `insights.date_preset(${date_preset}){spend,impressions,clicks,cpc,ctr,inline_link_click_ctr,actions,action_values}`;
 
-  const fields = ['id', 'name', 'status', 'daily_budget', 'effective_status', insightsQuery].join(',');
+  const fields = ['id', 'name', 'status', 'objective', 'daily_budget', 'effective_status', insightsQuery].join(',');
   const filtering = `[{field:"effective_status",operator:"IN",value:["ACTIVE","PAUSED","IN_PROCESS","WITH_ISSUES"]}]`;
 
   try {
@@ -265,6 +282,7 @@ export const getRealCampaigns = async (adAccountId: string, accessToken: string,
         id: camp.id,
         name: camp.name,
         status: camp.effective_status || camp.status,
+        objective: camp.objective,
         dailyBudget: parseInt(camp.daily_budget || '0') / 100, 
         metrics: mapInsightsToMetrics(camp),
         history: [] 
@@ -284,8 +302,8 @@ export const getAdSets = async (campaignId: string, accessToken: string, datePre
 
     const { date_preset, time_range } = getDateRangeParams(datePreset);
     const insightsQuery = time_range 
-      ? `insights.time_range(${time_range}){spend,impressions,clicks,cpc,ctr,actions,action_values}`
-      : `insights.date_preset(${date_preset}){spend,impressions,clicks,cpc,ctr,actions,action_values}`;
+      ? `insights.time_range(${time_range}){spend,impressions,clicks,cpc,ctr,inline_link_click_ctr,actions,action_values}`
+      : `insights.date_preset(${date_preset}){spend,impressions,clicks,cpc,ctr,inline_link_click_ctr,actions,action_values}`;
 
     const fields = ['id', 'name', 'status', 'daily_budget', 'effective_status', 'campaign_id', insightsQuery].join(',');
 
@@ -314,10 +332,11 @@ export const getAds = async (adSetId: string, accessToken: string, datePreset: s
 
     const { date_preset, time_range } = getDateRangeParams(datePreset);
     const insightsQuery = time_range 
-      ? `insights.time_range(${time_range}){spend,impressions,clicks,cpc,ctr,actions,action_values}`
-      : `insights.date_preset(${date_preset}){spend,impressions,clicks,cpc,ctr,actions,action_values}`;
+      ? `insights.time_range(${time_range}){spend,impressions,clicks,cpc,ctr,inline_link_click_ctr,actions,action_values}`
+      : `insights.date_preset(${date_preset}){spend,impressions,clicks,cpc,ctr,inline_link_click_ctr,actions,action_values}`;
 
-    const fields = ['id', 'name', 'status', 'effective_status', 'adset_id', 'creative{thumbnail_url,image_url}', insightsQuery].join(',');
+    // Added effective_object_story_id to fetch the post ID for linking
+    const fields = ['id', 'name', 'status', 'effective_status', 'adset_id', 'creative{thumbnail_url,image_url,effective_object_story_id}', insightsQuery].join(',');
 
     try {
         const url = `https://graph.facebook.com/v19.0/${adSetId}/ads?fields=${fields}&access_token=${accessToken}&limit=50`;
@@ -555,14 +574,17 @@ export const createMetaCreative = async (
     const actId = accountId.startsWith('act_') ? accountId : `act_${accountId}`;
     const url = `https://graph.facebook.com/v19.0/${actId}/adcreatives`;
     
+    // DEV MODE FIX: 
+    // 1. We strictly opt-out of "Standard Enhancements" (Advantage+) which triggers public validation.
+    // 2. We do NOT explicitly set 'published: false' at top level as it conflicts in newer API versions.
+    // 3. We rely on object_story_spec default "Dark Post" behavior.
+    
     const body: any = {
         name: sanitizeInput(name) + " Creative",
         access_token: accessToken,
         degrees_of_freedom_spec: {
             creative_features_spec: { standard_enhancements: { enroll_status: "OPT_OUT" } }
         }
-        // NOTE: 'published: false' removed to fix Dev Mode error where dark posts validation fails if explicit flag is sent.
-        // Default behavior of object_story_spec creates an unpublished post.
     };
 
     if (mediaType === 'image') {

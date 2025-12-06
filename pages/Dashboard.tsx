@@ -15,7 +15,7 @@ import { MOCK_CAMPAIGNS } from '../services/mockData';
 import { 
   TrendingUp, DollarSign, MousePointer, Eye, BrainCircuit, Loader2, RefreshCw, 
   Filter, ArrowUpDown, Calendar, Briefcase, ChevronDown, ChevronRight, Image as ImageIcon,
-  PlayCircle, PauseCircle, Edit2
+  PlayCircle, PauseCircle, Edit2, ExternalLink
 } from 'lucide-react';
 
 const formatMYR = (amount: number) => {
@@ -225,24 +225,76 @@ const Dashboard: React.FC = () => {
 
   // --- RENDER HELPERS ---
   
-  // Adjusted Widths: Name(25%), Spend(12%), ROAS(10%), CPA(12%), CTR(10%), LPV(18%), Purchases(13%)
-  const renderMetrics = (metrics: any) => (
-      <>
-        <td className="p-3 text-right whitespace-nowrap w-[12%]">{formatMYR(metrics.spend)}</td>
-        <td className="p-3 text-right font-bold text-white whitespace-nowrap w-[10%]">
-            <span className={metrics.roas >= 2 ? 'text-green-400' : metrics.roas > 0 ? 'text-red-400' : 'text-slate-500'}>
-                {metrics.roas.toFixed(2)}x
-            </span>
-        </td>
-        <td className="p-3 text-right whitespace-nowrap w-[12%]">{formatMYR(metrics.costPerPurchase)}</td>
-        <td className="p-3 text-right whitespace-nowrap w-[10%]">{metrics.ctr.toFixed(2)}%</td>
-        <td className="p-3 text-right whitespace-nowrap w-[18%]">
-            <span className="text-white">{metrics.landingPageViews}</span>
-            <span className="text-xs text-slate-400 ml-1">({formatMYR(metrics.costPerLandingPageView)})</span>
-        </td>
-        <td className="p-3 text-right whitespace-nowrap w-[13%]">{metrics.purchases}</td>
-      </>
-  );
+  const isTrafficOrLeads = (obj: string) => {
+      return ['OUTCOME_TRAFFIC', 'OUTCOME_LEADS', 'OUTCOME_ENGAGEMENT'].includes(obj);
+  };
+
+  const renderTableHeader = (campaign: AdCampaign) => {
+      const isAltView = isTrafficOrLeads(campaign.objective);
+      if (isAltView) {
+        // Traffic/Leads/Whatsapp Header
+        return (
+            <tr className="bg-slate-800/50 text-slate-400 text-xs uppercase border-b border-slate-700">
+                <th className="p-4 w-[35%]">Name</th>
+                <th className="p-3 text-right w-[15%]">Spend</th>
+                <th className="p-3 text-right w-[15%]">Results (Msg/Leads)</th>
+                <th className="p-3 text-right w-[15%]">Cost / Result</th>
+                <th className="p-3 text-right w-[10%]">CTR (All)</th>
+                <th className="p-3 text-right w-[10%]">CTR (Link)</th>
+            </tr>
+        );
+      }
+      // Sales/Conversion Header (Default)
+      return (
+        <tr className="bg-slate-800/50 text-slate-400 text-xs uppercase border-b border-slate-700">
+            <th className="p-4 w-[35%]">Name</th>
+            <th className="p-3 text-right w-[12%]">Spend</th>
+            <th className="p-3 text-right w-[10%]">ROAS</th>
+            <th className="p-3 text-right w-[12%]">CPA</th>
+            <th className="p-3 text-right w-[10%]">CTR</th>
+            <th className="p-3 text-right w-[11%]">LPV/(CPLV)</th>
+            <th className="p-3 text-right w-[10%]">Purchases</th>
+        </tr>
+      );
+  };
+
+  const renderMetrics = (metrics: any, objective: string) => {
+      const isAltView = isTrafficOrLeads(objective);
+
+      if (isAltView) {
+          // Traffic/Leads/Whatsapp View
+          return (
+            <>
+                <td className="p-3 text-right whitespace-nowrap w-[15%]">{formatMYR(metrics.spend)}</td>
+                <td className="p-3 text-right font-bold text-white whitespace-nowrap w-[15%]">
+                    {metrics.results}
+                </td>
+                <td className="p-3 text-right whitespace-nowrap w-[15%]">{formatMYR(metrics.costPerResult)}</td>
+                <td className="p-3 text-right whitespace-nowrap w-[10%]">{metrics.ctr.toFixed(2)}%</td>
+                <td className="p-3 text-right whitespace-nowrap w-[10%] text-indigo-300">{metrics.inline_link_click_ctr.toFixed(2)}%</td>
+            </>
+          );
+      }
+
+      // Sales/Conversion View
+      return (
+        <>
+            <td className="p-3 text-right whitespace-nowrap w-[12%]">{formatMYR(metrics.spend)}</td>
+            <td className="p-3 text-right font-bold text-white whitespace-nowrap w-[10%]">
+                <span className={metrics.roas >= 2 ? 'text-green-400' : metrics.roas > 0 ? 'text-red-400' : 'text-slate-500'}>
+                    {metrics.roas.toFixed(2)}x
+                </span>
+            </td>
+            <td className="p-3 text-right whitespace-nowrap w-[12%]">{formatMYR(metrics.costPerPurchase)}</td>
+            <td className="p-3 text-right whitespace-nowrap w-[10%]">{metrics.ctr.toFixed(2)}%</td>
+            <td className="p-3 text-right whitespace-nowrap w-[11%]">
+                <span className="text-white">{metrics.landingPageViews}</span>
+                <span className="text-xs text-slate-400 ml-1">({formatMYR(metrics.costPerLandingPageView)})</span>
+            </td>
+            <td className="p-3 text-right whitespace-nowrap w-[10%]">{metrics.purchases}</td>
+        </>
+      );
+  };
 
   // --- SORTING & FILTERING ---
   const sortedCampaigns = useMemo(() => {
@@ -351,16 +403,14 @@ const Dashboard: React.FC = () => {
             {/* NESTED LIST VIEW */}
             <div className="bg-[#1e293b] rounded-xl border border-slate-700 overflow-x-auto">
                 <table className="w-full min-w-[1000px] text-left border-collapse table-fixed">
+                    {/* Render Header based on FIRST campaign objective or default if mixed. 
+                        Ideally headers should be per-campaign if structure differs, but typically dashboards align columns.
+                        Here we use the first visible campaign to decide header structure for simplicity, 
+                        or we can render headers dynamically per expanded section if needed. 
+                        Current implementation: Use First Campaign.
+                    */}
                     <thead>
-                        <tr className="bg-slate-800/50 text-slate-400 text-xs uppercase border-b border-slate-700">
-                            <th className="p-4 w-[25%]">Name</th>
-                            <th className="p-3 text-right w-[12%]">Spend</th>
-                            <th className="p-3 text-right w-[10%]">ROAS</th>
-                            <th className="p-3 text-right w-[12%]">CPA</th>
-                            <th className="p-3 text-right w-[10%]">CTR</th>
-                            <th className="p-3 text-right w-[18%]">LPV/(CPLV)</th>
-                            <th className="p-3 text-right w-[13%]">Purchases</th>
-                        </tr>
+                        {campaignsToShow.length > 0 && renderTableHeader(campaignsToShow[0])}
                     </thead>
                     <tbody className="divide-y divide-slate-700">
                         {campaignsToShow.map(camp => {
@@ -377,7 +427,7 @@ const Dashboard: React.FC = () => {
                             <React.Fragment key={camp.id}>
                                 {/* Level 1: Campaign */}
                                 <tr className="bg-[#1e293b] hover:bg-slate-800/30 text-sm transition-colors group">
-                                    <td className="p-4 w-[25%]">
+                                    <td className="p-4 w-[35%]">
                                         <div className="flex items-center gap-3">
                                             <button 
                                                 onClick={() => toggleExpandCampaign(camp.id)}
@@ -401,7 +451,7 @@ const Dashboard: React.FC = () => {
                                             </div>
                                         </div>
                                     </td>
-                                    {renderMetrics(camp.metrics)}
+                                    {renderMetrics(camp.metrics, camp.objective)}
                                 </tr>
 
                                 {/* Level 2: Ad Sets */}
@@ -415,7 +465,7 @@ const Dashboard: React.FC = () => {
                                         {adSetsToShow.map(adset => (
                                             <React.Fragment key={adset.id}>
                                                 <tr className="bg-slate-900/50 text-sm hover:bg-slate-800/20">
-                                                    <td className="p-4 pl-12 border-l-4 border-indigo-500/20 w-[25%]">
+                                                    <td className="p-4 pl-12 border-l-4 border-indigo-500/20 w-[35%]">
                                                         <div className="flex items-center gap-3">
                                                             <button 
                                                                 onClick={() => toggleExpandAdSet(adset.id)}
@@ -439,7 +489,7 @@ const Dashboard: React.FC = () => {
                                                             </div>
                                                         </div>
                                                     </td>
-                                                    {renderMetrics(adset.metrics)}
+                                                    {renderMetrics(adset.metrics, camp.objective)}
                                                 </tr>
 
                                                 {/* Level 3: Ads Container */}
@@ -454,8 +504,8 @@ const Dashboard: React.FC = () => {
                                                                         // STRICT FILTER: Only Show ACTIVE Ads
                                                                         adsData[adset.id].filter(ad => ad.status === 'ACTIVE').length > 0 ? (
                                                                             adsData[adset.id].filter(ad => ad.status === 'ACTIVE').map(ad => (
-                                                                                <tr key={ad.id} className="text-xs hover:bg-slate-900/50 border-b border-slate-800/50 last:border-0">
-                                                                                    <td className="p-3 pl-20 w-[25%]">
+                                                                                <tr key={ad.id} className="text-xs hover:bg-slate-900/50 border-b border-slate-800/50 last:border-0 group/ad">
+                                                                                    <td className="p-3 pl-20 w-[35%]">
                                                                                         <div className="flex items-center gap-3">
                                                                                             <div className="w-10 h-10 bg-slate-800 rounded overflow-hidden flex-shrink-0 border border-slate-700">
                                                                                                 {ad.creative.thumbnail_url || ad.creative.image_url ? (
@@ -472,11 +522,22 @@ const Dashboard: React.FC = () => {
                                                                                                         onToggle={() => handleStatusToggle(ad.id, ad.status, 'ad')} 
                                                                                                     />
                                                                                                     <span className="text-slate-400 truncate max-w-[150px]" title={ad.name}>{ad.name}</span>
+                                                                                                    {ad.creative.effective_object_story_id && (
+                                                                                                        <a 
+                                                                                                            href={`https://facebook.com/${ad.creative.effective_object_story_id}`} 
+                                                                                                            target="_blank" 
+                                                                                                            rel="noopener noreferrer"
+                                                                                                            className="text-slate-600 hover:text-indigo-400 opacity-0 group-hover/ad:opacity-100 transition-opacity"
+                                                                                                            title="View Ad Post"
+                                                                                                        >
+                                                                                                            <ExternalLink size={12} />
+                                                                                                        </a>
+                                                                                                    )}
                                                                                                 </div>
                                                                                             </div>
                                                                                         </div>
                                                                                     </td>
-                                                                                    {renderMetrics(ad.metrics)}
+                                                                                    {renderMetrics(ad.metrics, camp.objective)}
                                                                                 </tr>
                                                                             ))
                                                                         ) : (
