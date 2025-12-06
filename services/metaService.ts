@@ -191,8 +191,8 @@ export const loginWithFacebook = (): Promise<string> => {
                 }
             }
         }, { 
-            // REMOVED pages_manage_engagement to fix Invalid Scope error
-            scope: 'public_profile,ads_read,ads_management,pages_show_list,pages_read_engagement' 
+            // Added pages_manage_engagement back as user has enabled Use Case in Meta Dashboard
+            scope: 'public_profile,ads_read,ads_management,pages_show_list,pages_read_engagement,pages_manage_engagement' 
         });
     } catch (e) {
         reject("Failed to open Facebook Login dialog.");
