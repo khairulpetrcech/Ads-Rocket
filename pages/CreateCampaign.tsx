@@ -30,7 +30,8 @@ const CreateCampaign: React.FC = () => {
     const [templates, setTemplates] = useState<Template[]>([]);
     const [templateName, setTemplateName] = useState('');
     const [showSaveTemplate, setShowSaveTemplate] = useState(false);
-    const [showTemplatesDropdown, setShowTemplatesDropdown] = useState(false); // New State for UI stability
+    const [showTemplatesDropdown, setShowTemplatesDropdown] = useState(false);
+    const dropdownRef = useRef<HTMLDivElement>(null); // Ref for click-outside logic
 
     // --- DATA STATE ---
     const [existingCampaigns, setExistingCampaigns] = useState<any[]>([]);
@@ -95,6 +96,19 @@ const CreateCampaign: React.FC = () => {
         };
         loadData();
     }, [settings.adAccountId, settings.fbAccessToken]);
+
+    // Handle Click Outside to Close Dropdown
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+                setShowTemplatesDropdown(false);
+            }
+        };
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => {
+            document.removeEventListener("mousedown", handleClickOutside);
+        };
+    }, []);
 
     // Update Optimization defaults based on Objective
     useEffect(() => {
@@ -256,8 +270,8 @@ const CreateCampaign: React.FC = () => {
                 <h1 className="text-2xl font-bold text-white">Create New Campaign</h1>
                 
                 <div className="flex gap-2 relative">
-                    {/* Load Template Dropdown (Click-based) */}
-                    <div className="relative">
+                    {/* Load Template Dropdown (Click-based with outside close) */}
+                    <div className="relative" ref={dropdownRef}>
                         <button 
                             onClick={() => setShowTemplatesDropdown(!showTemplatesDropdown)}
                             className="flex items-center gap-2 bg-slate-800 text-slate-300 px-3 py-2 rounded-lg hover:bg-slate-700"
