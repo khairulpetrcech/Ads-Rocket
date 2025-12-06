@@ -22,11 +22,16 @@ export interface UserSettings {
   dashboardViewMode?: 'SALES' | 'TRAFFIC';
 }
 
+export interface CommentItem {
+  id: string;
+  message: string;
+  imageBase64?: string;
+}
+
 export interface CommentTemplate {
   id: string;
   name: string;
-  message: string;
-  imageBase64?: string;
+  items: CommentItem[]; // Array of comments (up to 10)
 }
 
 export interface AdMetrics {

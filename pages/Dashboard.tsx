@@ -15,7 +15,7 @@ import { MOCK_CAMPAIGNS } from '../services/mockData';
 import { 
   TrendingUp, DollarSign, MousePointer, Loader2, RefreshCw, 
   Filter, Calendar, Briefcase, ChevronDown, ChevronRight, Image as ImageIcon,
-  Edit2, ExternalLink, MessageCircle, ShoppingCart, MessageSquarePlus, Send, X, Check
+  Edit2, ExternalLink, MessageCircle, ShoppingCart, MessageSquarePlus, Send, X, Check, Layers
 } from 'lucide-react';
 
 const formatMYR = (amount: number) => {
@@ -83,6 +83,7 @@ const Dashboard: React.FC = () => {
   const [selectedAdForComment, setSelectedAdForComment] = useState<Ad | null>(null);
   const [templates, setTemplates] = useState<CommentTemplate[]>([]);
   const [sendingComment, setSendingComment] = useState(false);
+  const [progressText, setProgressText] = useState('');
   
   // Track published comments (Ad IDs)
   const [publishedComments, setPublishedComments] = useState<Set<string>>(() => {
@@ -278,6 +279,7 @@ const Dashboard: React.FC = () => {
 
   const openCommentModal = (ad: Ad) => {
       setSelectedAdForComment(ad);
+      setProgressText('');
       setCommentModalOpen(true);
   };
 
@@ -285,15 +287,30 @@ const Dashboard: React.FC = () => {
       if (!selectedAdForComment?.creative?.effective_object_story_id) return alert("No valid post found for this ad.");
       
       setSendingComment(true);
+      
       try {
-          await publishComment(
-              selectedAdForComment.creative.effective_object_story_id,
-              template.message,
-              template.imageBase64,
-              settings.fbAccessToken
-          );
+          // Iterate through all items in the template
+          const items = template.items || [];
+          if(items.length === 0) throw new Error("This template is empty.");
+
+          for (let i = 0; i < items.length; i++) {
+              const item = items[i];
+              setProgressText(`Posting comment ${i + 1} of ${items.length}...`);
+              
+              await publishComment(
+                  selectedAdForComment.creative.effective_object_story_id,
+                  item.message,
+                  item.imageBase64,
+                  settings.fbAccessToken
+              );
+              
+              // Small delay between posts to be safe
+              if (i < items.length - 1) {
+                  await new Promise(r => setTimeout(r, 500)); 
+              }
+          }
           
-          // Mark as published
+          // Mark as published after ALL are done
           if (selectedAdForComment) {
               const newSet = new Set(publishedComments);
               newSet.add(selectedAdForComment.id);
@@ -301,12 +318,13 @@ const Dashboard: React.FC = () => {
               localStorage.setItem('ar_published_comments', JSON.stringify(Array.from(newSet)));
           }
 
-          alert("Comment Posted Successfully!");
+          alert(`Successfully posted ${items.length} comments!`);
           setCommentModalOpen(false);
       } catch (e: any) {
-          alert("Failed to post comment: " + e.message);
+          alert("Failed to post: " + e.message);
       } finally {
           setSendingComment(false);
+          setProgressText('');
       }
   };
 
@@ -750,18 +768,29 @@ const Dashboard: React.FC = () => {
                               >
                                   <div className="flex justify-between items-start">
                                       <div className="flex-1">
-                                          <h3 className="text-white font-medium mb-1 flex items-center gap-2">
-                                              {t.name}
-                                              {t.imageBase64 && <ImageIcon size={14} className="text-green-400"/>}
-                                          </h3>
-                                          <p className="text-xs text-slate-400 line-clamp-2">{t.message}</p>
+                                          <div className="flex justify-between items-center mb-1">
+                                            <h3 className="text-white font-medium flex items-center gap-2">
+                                                {t.name}
+                                            </h3>
+                                            <span className="text-xs bg-slate-900 px-2 py-0.5 rounded text-slate-400 border border-slate-800 flex items-center gap-1">
+                                                <Layers size={10} /> {t.items.length}
+                                            </span>
+                                          </div>
+                                          <p className="text-xs text-slate-400 line-clamp-1">{t.items[0]?.message}</p>
+                                          {t.items.length > 1 && <p className="text-[10px] text-slate-500 mt-0.5">+{t.items.length - 1} more comments</p>}
                                       </div>
-                                      <div className="text-indigo-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                                      <div className="text-indigo-400 opacity-0 group-hover:opacity-100 transition-opacity pl-3">
                                           {sendingComment ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
                                       </div>
                                   </div>
                               </button>
                           ))}
+                      </div>
+                  )}
+
+                  {sendingComment && progressText && (
+                      <div className="mt-4 text-center">
+                          <p className="text-xs text-indigo-300 animate-pulse">{progressText}</p>
                       </div>
                   )}
               </div>
