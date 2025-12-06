@@ -226,7 +226,11 @@ const Dashboard: React.FC = () => {
   // --- RENDER HELPERS ---
   
   const isTrafficOrLeads = (obj: string) => {
-      return ['OUTCOME_TRAFFIC', 'OUTCOME_LEADS', 'OUTCOME_ENGAGEMENT'].includes(obj);
+      const trafficLeadsTargets = [
+          'OUTCOME_TRAFFIC', 'OUTCOME_LEADS', 'OUTCOME_ENGAGEMENT',
+          'TRAFFIC', 'LEAD_GENERATION', 'MESSAGES', 'LINK_CLICKS', 'BRAND_AWARENESS', 'REACH'
+      ];
+      return trafficLeadsTargets.includes(obj);
   };
 
   const renderTableHeader = (campaign: AdCampaign) => {
@@ -515,22 +519,25 @@ const Dashboard: React.FC = () => {
                                                                                                 )}
                                                                                             </div>
                                                                                             <div className="min-w-0 flex-1">
-                                                                                                <div className="flex items-center gap-2 mb-1">
-                                                                                                    <StatusToggle 
-                                                                                                        status={ad.status} 
-                                                                                                        loading={actionLoading === ad.id}
-                                                                                                        onToggle={() => handleStatusToggle(ad.id, ad.status, 'ad')} 
-                                                                                                    />
-                                                                                                    <span className="text-slate-400 truncate max-w-[150px]" title={ad.name}>{ad.name}</span>
+                                                                                                <div className="flex flex-col mb-1">
+                                                                                                    <div className="flex items-center gap-2">
+                                                                                                        <StatusToggle 
+                                                                                                            status={ad.status} 
+                                                                                                            loading={actionLoading === ad.id}
+                                                                                                            onToggle={() => handleStatusToggle(ad.id, ad.status, 'ad')} 
+                                                                                                        />
+                                                                                                        <span className="text-slate-400 truncate max-w-[150px]" title={ad.name}>{ad.name}</span>
+                                                                                                    </div>
+                                                                                                    
                                                                                                     {ad.creative.effective_object_story_id && (
                                                                                                         <a 
                                                                                                             href={`https://facebook.com/${ad.creative.effective_object_story_id}`} 
                                                                                                             target="_blank" 
                                                                                                             rel="noopener noreferrer"
-                                                                                                            className="text-slate-600 hover:text-indigo-400 opacity-0 group-hover/ad:opacity-100 transition-opacity"
+                                                                                                            className="text-[10px] text-indigo-400 hover:text-indigo-300 mt-1 flex items-center gap-1 w-fit opacity-80 hover:opacity-100"
                                                                                                             title="View Ad Post"
                                                                                                         >
-                                                                                                            <ExternalLink size={12} />
+                                                                                                            View Post <ExternalLink size={8} />
                                                                                                         </a>
                                                                                                     )}
                                                                                                 </div>

@@ -543,7 +543,7 @@ export const uploadAdVideo = async (accountId: string, file: File, accessToken: 
 };
 
 // Polling to wait for video to be ready
-export const waitForVideoReady = async (videoId: string, accessToken: string, retries = 10): Promise<boolean> => {
+export const waitForVideoReady = async (videoId: string, accessToken: string, retries = 20): Promise<boolean> => {
     const url = `https://graph.facebook.com/v19.0/${videoId}?fields=status&access_token=${accessToken}`;
     for (let i = 0; i < retries; i++) {
         try {
@@ -576,8 +576,7 @@ export const createMetaCreative = async (
     
     // DEV MODE FIX: 
     // 1. We strictly opt-out of "Standard Enhancements" (Advantage+) which triggers public validation.
-    // 2. We do NOT explicitly set 'published: false' at top level as it conflicts in newer API versions.
-    // 3. We rely on object_story_spec default "Dark Post" behavior.
+    // 2. We SET published: false to ensure it creates a Dark Post (Unpublished Page Post) which is allowed in Dev Mode.
     
     const body: any = {
         name: sanitizeInput(name) + " Creative",
