@@ -6,6 +6,7 @@ import ConnectPage from './pages/Connect';
 import Dashboard from './pages/Dashboard';
 import SettingsPage from './pages/Settings';
 import CreateCampaign from './pages/CreateCampaign';
+import CommentTemplates from './pages/CommentTemplates'; // Import
 import { UserSettings, AiProvider } from './types';
 import { initFacebookSdk, isSecureContext } from './services/metaService';
 
@@ -136,6 +137,7 @@ const App: React.FC = () => {
           }>
             <Route index element={<Dashboard />} />
             <Route path="create-campaign" element={<CreateCampaign />} />
+            <Route path="comment-templates" element={<CommentTemplates />} />
             <Route path="settings" element={<SettingsPage />} />
           </Route>
 

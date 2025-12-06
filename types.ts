@@ -18,6 +18,15 @@ export interface UserSettings {
   fbAccessToken: string;
   adAccountId: string;
   availableAccounts: MetaAdAccount[]; // List of all accounts user can access
+  // UI Preferences
+  dashboardViewMode?: 'SALES' | 'TRAFFIC';
+}
+
+export interface CommentTemplate {
+  id: string;
+  name: string;
+  message: string;
+  imageBase64?: string;
 }
 
 export interface AdMetrics {

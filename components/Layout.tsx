@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Settings, LogOut, Zap, Loader2, ChevronDown, ChevronUp, Play, PlusCircle } from 'lucide-react';
+import { LayoutDashboard, Settings, LogOut, Zap, Loader2, ChevronDown, ChevronUp, Play, PlusCircle, MessageSquareText } from 'lucide-react';
 import { useSettings } from '../App';
 import { getTopAdsForAccount } from '../services/metaService';
 import { analyzeAccountPerformance } from '../services/aiService';
@@ -99,6 +99,20 @@ const Layout: React.FC = () => {
             <PlusCircle size={20} />
             <span>Buat Campaign</span>
           </NavLink>
+          
+          <NavLink
+            to="/comment-templates"
+            className={({ isActive }) =>
+              `flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 ${
+                isActive 
+                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-900/50' 
+                  : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+              }`
+            }
+          >
+            <MessageSquareText size={20} />
+            <span>Comment Templates</span>
+          </NavLink>
 
           <NavLink
             to="/settings"
@@ -179,8 +193,8 @@ const Layout: React.FC = () => {
       <div className="md:hidden fixed bottom-0 w-full bg-[#1e293b] border-t border-slate-700 flex justify-around p-3 z-50">
         <NavLink to="/" className={({isActive}) => isActive ? 'text-indigo-400' : 'text-slate-500'}><LayoutDashboard /></NavLink>
         <NavLink to="/create-campaign" className={({isActive}) => isActive ? 'text-indigo-400' : 'text-slate-500'}><PlusCircle /></NavLink>
+        <NavLink to="/comment-templates" className={({isActive}) => isActive ? 'text-indigo-400' : 'text-slate-500'}><MessageSquareText /></NavLink>
         <NavLink to="/settings" className={({isActive}) => isActive ? 'text-indigo-400' : 'text-slate-500'}><Settings /></NavLink>
-        <button onClick={handleLogout} className="text-slate-500"><LogOut /></button>
       </div>
     </div>
   );

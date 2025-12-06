@@ -581,6 +581,7 @@ export const createMetaCreative = async (
     const body: any = {
         name: sanitizeInput(name) + " Creative",
         access_token: accessToken,
+        published: false // Force Dark Post
     };
 
     if (mediaType === 'image') {
@@ -648,4 +649,55 @@ export const updateEntityBudget = async (id: string, dailyBudget: number, access
     handleApiError(data);
     if (data.success) { invalidateCache(); return true; }
     return false;
+};
+
+// --- COMMENTING ---
+export const publishComment = async (
+    effectiveObjectStoryId: string,
+    message: string,
+    imageBase64: string | undefined,
+    accessToken: string
+) => {
+    // effectiveObjectStoryId is typically PageID_PostID
+    // Graph API for comments: /{object-id}/comments
+    
+    const url = `https://graph.facebook.com/v19.0/${effectiveObjectStoryId}/comments`;
+    
+    // If we have an image, we must use FormData
+    if (imageBase64) {
+        const formData = new FormData();
+        formData.append('access_token', accessToken);
+        formData.append('message', message);
+        
+        // Convert base64 to blob
+        try {
+            const byteString = atob(imageBase64.split(',')[1]);
+            const mimeString = imageBase64.split(',')[0].split(':')[1].split(';')[0];
+            const ab = new ArrayBuffer(byteString.length);
+            const ia = new Uint8Array(ab);
+            for (let i = 0; i < byteString.length; i++) {
+                ia[i] = byteString.charCodeAt(i);
+            }
+            const blob = new Blob([ab], { type: mimeString });
+            formData.append('source', blob, 'comment_image.png');
+            
+            const response = await fetch(url, { method: 'POST', body: formData });
+            const data = await response.json();
+            handleApiError(data);
+            return data.id;
+        } catch (e) {
+            console.error("Image conversion failed", e);
+            throw new Error("Failed to process image for comment.");
+        }
+    } else {
+        // Text only
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message: message, access_token: accessToken })
+        });
+        const data = await response.json();
+        handleApiError(data);
+        return data.id;
+    }
 };

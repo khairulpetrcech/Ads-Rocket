@@ -1,7 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { AdCampaign, AiAnalysisResult, AdSet, Ad } from '../types';
-import { analyzeCampaign } from '../services/aiService';
+import { AdCampaign, AdSet, Ad, CommentTemplate } from '../types';
 import { useSettings } from '../App';
 import { 
     getRealCampaigns, 
@@ -9,13 +8,14 @@ import {
     getAdSets, 
     getAds, 
     updateEntityStatus,
-    updateEntityBudget
+    updateEntityBudget,
+    publishComment
 } from '../services/metaService';
 import { MOCK_CAMPAIGNS } from '../services/mockData';
 import { 
-  TrendingUp, DollarSign, MousePointer, Eye, BrainCircuit, Loader2, RefreshCw, 
-  Filter, ArrowUpDown, Calendar, Briefcase, ChevronDown, ChevronRight, Image as ImageIcon,
-  PlayCircle, PauseCircle, Edit2, ExternalLink, MessageCircle, ShoppingCart
+  TrendingUp, DollarSign, MousePointer, Loader2, RefreshCw, 
+  Filter, Calendar, Briefcase, ChevronDown, ChevronRight, Image as ImageIcon,
+  Edit2, ExternalLink, MessageCircle, ShoppingCart, MessageSquarePlus, Send, X, Check
 } from 'lucide-react';
 
 const formatMYR = (amount: number) => {
@@ -68,7 +68,7 @@ const Dashboard: React.FC = () => {
   const [showHiddenAdSets, setShowHiddenAdSets] = useState<Set<string>>(new Set()); 
   
   // View Control
-  const [viewMode, setViewMode] = useState<ViewMode>('SALES');
+  const [viewMode, setViewMode] = useState<ViewMode>(settings.dashboardViewMode || 'SALES');
   
   // Loading States for Actions
   const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -77,6 +77,18 @@ const Dashboard: React.FC = () => {
   const [dateRange, setDateRange] = useState<DateRange>('today');
   const [sortBy, setSortBy] = useState<SortOption>('spend');
   const [fetchError, setFetchError] = useState('');
+
+  // Comment Modal State
+  const [commentModalOpen, setCommentModalOpen] = useState(false);
+  const [selectedAdForComment, setSelectedAdForComment] = useState<Ad | null>(null);
+  const [templates, setTemplates] = useState<CommentTemplate[]>([]);
+  const [sendingComment, setSendingComment] = useState(false);
+  
+  // Track published comments (Ad IDs)
+  const [publishedComments, setPublishedComments] = useState<Set<string>>(() => {
+      const saved = localStorage.getItem('ar_published_comments');
+      return saved ? new Set(JSON.parse(saved)) : new Set();
+  });
 
   // Helper to detect objective type
   const isTrafficOrLeads = (obj: string) => {
@@ -112,21 +124,21 @@ const Dashboard: React.FC = () => {
           }
           setCampaigns(realData);
 
-          // AUTO-DETECT VIEW MODE
-          // Count how many are Sales vs Traffic/Leads
-          let trafficCount = 0;
-          let salesCount = 0;
-          realData.forEach(c => {
-              if (c.status === 'ACTIVE' || c.metrics.spend > 0) {
-                  if (isTrafficOrLeads(c.objective)) trafficCount++;
-                  else salesCount++;
-              }
-          });
-          // Default to Traffic view if traffic campaigns outnumber sales campaigns
-          if (trafficCount > salesCount) {
-              setViewMode('TRAFFIC');
+          // AUTO-DETECT VIEW MODE if not set in settings
+          if (!settings.dashboardViewMode) {
+              let trafficCount = 0;
+              let salesCount = 0;
+              realData.forEach(c => {
+                  if (c.status === 'ACTIVE' || c.metrics.spend > 0) {
+                      if (isTrafficOrLeads(c.objective)) trafficCount++;
+                      else salesCount++;
+                  }
+              });
+              const detectedMode = trafficCount > salesCount ? 'TRAFFIC' : 'SALES';
+              setViewMode(detectedMode);
+              updateSettings({ dashboardViewMode: detectedMode });
           } else {
-              setViewMode('SALES');
+              setViewMode(settings.dashboardViewMode);
           }
 
         } else {
@@ -143,7 +155,18 @@ const Dashboard: React.FC = () => {
     fetchData();
   }, [settings.fbAccessToken, settings.adAccountId, settings.fbAppId, dateRange]);
 
+  // Load Templates for Modal
+  useEffect(() => {
+      const saved = localStorage.getItem('ar_comment_templates');
+      if (saved) setTemplates(JSON.parse(saved));
+  }, [commentModalOpen]);
+
   // --- ACTIONS ---
+
+  const handleViewModeToggle = (mode: ViewMode) => {
+      setViewMode(mode);
+      updateSettings({ dashboardViewMode: mode });
+  };
 
   const toggleExpandCampaign = async (campaignId: string) => {
       const newSet = new Set(expandedCampaigns);
@@ -253,11 +276,44 @@ const Dashboard: React.FC = () => {
       }
   };
 
-  // --- RENDER HELPERS (VIEW MODE LOGIC) ---
+  const openCommentModal = (ad: Ad) => {
+      setSelectedAdForComment(ad);
+      setCommentModalOpen(true);
+  };
+
+  const handleLaunchComment = async (template: CommentTemplate) => {
+      if (!selectedAdForComment?.creative?.effective_object_story_id) return alert("No valid post found for this ad.");
+      
+      setSendingComment(true);
+      try {
+          await publishComment(
+              selectedAdForComment.creative.effective_object_story_id,
+              template.message,
+              template.imageBase64,
+              settings.fbAccessToken
+          );
+          
+          // Mark as published
+          if (selectedAdForComment) {
+              const newSet = new Set(publishedComments);
+              newSet.add(selectedAdForComment.id);
+              setPublishedComments(newSet);
+              localStorage.setItem('ar_published_comments', JSON.stringify(Array.from(newSet)));
+          }
+
+          alert("Comment Posted Successfully!");
+          setCommentModalOpen(false);
+      } catch (e: any) {
+          alert("Failed to post comment: " + e.message);
+      } finally {
+          setSendingComment(false);
+      }
+  };
+
+  // --- RENDER HELPERS ---
 
   const renderTableHeader = () => {
       if (viewMode === 'TRAFFIC') {
-        // Traffic/Leads/Whatsapp Header (7 Columns)
         return (
             <tr className="bg-slate-800/50 text-slate-400 text-xs uppercase border-b border-slate-700">
                 <th className="p-4 w-[35%]">Name</th>
@@ -270,7 +326,6 @@ const Dashboard: React.FC = () => {
             </tr>
         );
       }
-      // Sales/Conversion Header (7 Columns)
       return (
         <tr className="bg-slate-800/50 text-slate-400 text-xs uppercase border-b border-slate-700">
             <th className="p-4 w-[35%]">Name</th>
@@ -299,8 +354,6 @@ const Dashboard: React.FC = () => {
             </>
           );
       }
-
-      // SALES View
       return (
         <>
             <td className="p-3 text-right whitespace-nowrap w-[12%]">{formatMYR(metrics.spend)}</td>
@@ -346,7 +399,7 @@ const Dashboard: React.FC = () => {
   const totalResults = campaigns.reduce((acc, c) => acc + c.metrics.results, 0);
 
   return (
-    <div className="space-y-6 pb-20 md:pb-0">
+    <div className="space-y-6 pb-20 md:pb-0 relative">
       
       {/* Header & Controls */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
@@ -372,17 +425,16 @@ const Dashboard: React.FC = () => {
         </div>
         
         <div className="flex flex-wrap items-center gap-2">
-            
             {/* VIEW MODE TOGGLE */}
             <div className="bg-slate-800 p-1 rounded-lg border border-slate-700 flex mr-2">
                 <button 
-                    onClick={() => setViewMode('SALES')}
+                    onClick={() => handleViewModeToggle('SALES')}
                     className={`px-3 py-1.5 rounded-md text-xs font-medium flex items-center gap-1 transition-all ${viewMode === 'SALES' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}
                 >
                     <ShoppingCart size={12} /> Sales
                 </button>
                 <button 
-                    onClick={() => setViewMode('TRAFFIC')}
+                    onClick={() => handleViewModeToggle('TRAFFIC')}
                     className={`px-3 py-1.5 rounded-md text-xs font-medium flex items-center gap-1 transition-all ${viewMode === 'TRAFFIC' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}
                 >
                     <MessageCircle size={12} /> Leads
@@ -560,7 +612,9 @@ const Dashboard: React.FC = () => {
                                                                     <tbody>
                                                                     {adsData[adset.id] ? (
                                                                         adsData[adset.id].filter(ad => ad.status === 'ACTIVE').length > 0 ? (
-                                                                            adsData[adset.id].filter(ad => ad.status === 'ACTIVE').map(ad => (
+                                                                            adsData[adset.id].filter(ad => ad.status === 'ACTIVE').map(ad => {
+                                                                                const isCommented = publishedComments.has(ad.id);
+                                                                                return (
                                                                                 <tr key={ad.id} className="text-xs hover:bg-slate-900/50 border-b border-slate-800/50 last:border-0 group/ad">
                                                                                     <td className="p-3 pl-20 w-[35%]">
                                                                                         <div className="flex items-center gap-3">
@@ -582,23 +636,40 @@ const Dashboard: React.FC = () => {
                                                                                                         <span className="text-slate-400 truncate max-w-[150px]" title={ad.name}>{ad.name}</span>
                                                                                                     </div>
                                                                                                     
-                                                                                                    {ad.creative.effective_object_story_id && (
-                                                                                                        <a 
-                                                                                                            href={`https://facebook.com/${ad.creative.effective_object_story_id}`} 
-                                                                                                            target="_blank" 
-                                                                                                            rel="noopener noreferrer"
-                                                                                                            className="text-[10px] text-indigo-400 hover:text-indigo-300 mt-1 flex items-center gap-1 w-fit opacity-80 hover:opacity-100"
-                                                                                                        >
-                                                                                                            View Post <ExternalLink size={8} />
-                                                                                                        </a>
-                                                                                                    )}
+                                                                                                    <div className="flex items-center gap-3 mt-1">
+                                                                                                        {ad.creative.effective_object_story_id && (
+                                                                                                            <a 
+                                                                                                                href={`https://facebook.com/${ad.creative.effective_object_story_id}`} 
+                                                                                                                target="_blank" 
+                                                                                                                rel="noopener noreferrer"
+                                                                                                                className="text-[10px] text-indigo-400 hover:text-indigo-300 flex items-center gap-1 opacity-80 hover:opacity-100"
+                                                                                                            >
+                                                                                                                View Post <ExternalLink size={8} />
+                                                                                                            </a>
+                                                                                                        )}
+
+                                                                                                        {/* LAUNCH COMMENT BUTTON */}
+                                                                                                        {ad.creative.effective_object_story_id && (
+                                                                                                            <button 
+                                                                                                                onClick={() => openCommentModal(ad)}
+                                                                                                                disabled={isCommented}
+                                                                                                                className={isCommented
+                                                                                                                    ? "text-[10px] text-slate-600 flex items-center gap-1 cursor-not-allowed border border-slate-700/50 px-1.5 py-0.5 rounded bg-slate-800/50"
+                                                                                                                    : "text-[10px] text-green-400 hover:text-green-300 flex items-center gap-1 opacity-80 hover:opacity-100 border border-green-500/30 px-1.5 py-0.5 rounded"
+                                                                                                                }
+                                                                                                            >
+                                                                                                                {isCommented ? <Check size={10} /> : <MessageSquarePlus size={10} />}
+                                                                                                                {isCommented ? 'Sent' : 'Message'}
+                                                                                                            </button>
+                                                                                                        )}
+                                                                                                    </div>
                                                                                                 </div>
                                                                                             </div>
                                                                                         </div>
                                                                                     </td>
                                                                                     {renderMetrics(ad.metrics)}
                                                                                 </tr>
-                                                                            ))
+                                                                            )})
                                                                         ) : (
                                                                              <tr>
                                                                                 <td colSpan={7} className="text-center py-8 text-xs text-slate-500">
@@ -654,6 +725,47 @@ const Dashboard: React.FC = () => {
                 </div>
             )}
         </>
+      )}
+
+      {/* COMMENT MODAL */}
+      {commentModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+              <div className="bg-slate-800 w-full max-w-lg rounded-xl border border-slate-700 shadow-2xl p-6 relative">
+                  <button onClick={() => setCommentModalOpen(false)} className="absolute top-4 right-4 text-slate-500 hover:text-white"><X size={20} /></button>
+                  <h2 className="text-lg font-bold text-white mb-2">Launch Comment</h2>
+                  <p className="text-sm text-slate-400 mb-6">Posting to: <span className="text-indigo-400 font-medium">{selectedAdForComment?.name}</span></p>
+
+                  {templates.length === 0 ? (
+                      <div className="text-center py-8 text-slate-500">
+                          No templates found. <br/> Go to "Comment Templates" to create one.
+                      </div>
+                  ) : (
+                      <div className="space-y-2 max-h-[60vh] overflow-y-auto custom-scrollbar">
+                          {templates.map(t => (
+                              <button 
+                                key={t.id}
+                                onClick={() => handleLaunchComment(t)}
+                                disabled={sendingComment}
+                                className="w-full text-left bg-slate-700 hover:bg-slate-600 p-4 rounded-lg border border-slate-600 hover:border-indigo-500 transition-all group"
+                              >
+                                  <div className="flex justify-between items-start">
+                                      <div className="flex-1">
+                                          <h3 className="text-white font-medium mb-1 flex items-center gap-2">
+                                              {t.name}
+                                              {t.imageBase64 && <ImageIcon size={14} className="text-green-400"/>}
+                                          </h3>
+                                          <p className="text-xs text-slate-400 line-clamp-2">{t.message}</p>
+                                      </div>
+                                      <div className="text-indigo-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                                          {sendingComment ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
+                                      </div>
+                                  </div>
+                              </button>
+                          ))}
+                      </div>
+                  )}
+              </div>
+          </div>
       )}
 
     </div>
