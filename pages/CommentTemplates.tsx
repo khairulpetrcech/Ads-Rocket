@@ -20,7 +20,39 @@ const CommentTemplates: React.FC = () => {
 
     useEffect(() => {
         const saved = localStorage.getItem('ar_comment_templates');
-        if (saved) setTemplates(JSON.parse(saved));
+        if (saved) {
+            try {
+                let parsed = JSON.parse(saved);
+                
+                // MIGRATION LOGIC: Check if data is in old format (missing 'items' array)
+                if (Array.isArray(parsed)) {
+                    const migrated = parsed.map((t: any) => {
+                        // If 'items' is missing, likely old format with 'message' property
+                        if (!t.items || !Array.isArray(t.items)) {
+                            const newItems: CommentItem[] = [];
+                            // Recover old data if present
+                            if (t.message) {
+                                newItems.push({
+                                    id: Date.now().toString() + Math.random().toString(),
+                                    message: t.message,
+                                    imageBase64: t.imageBase64
+                                });
+                            }
+                            return { ...t, items: newItems };
+                        }
+                        return t;
+                    });
+                    setTemplates(migrated);
+                    // Save back the migrated version to fix storage permanently
+                    localStorage.setItem('ar_comment_templates', JSON.stringify(migrated));
+                } else {
+                    setTemplates([]);
+                }
+            } catch (e) {
+                console.error("Failed to load/migrate templates", e);
+                setTemplates([]);
+            }
+        }
     }, []);
 
     const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -206,15 +238,15 @@ const CommentTemplates: React.FC = () => {
                                         </button>
                                     </div>
                                     <div className="bg-slate-900/50 rounded p-2 text-xs text-slate-400 mb-2 flex items-center gap-2">
-                                        <Layers size={12} /> {t.items.length} Comments in sequence
+                                        <Layers size={12} /> {(t.items || []).length} Comments in sequence
                                     </div>
                                     <div className="space-y-1">
-                                        {t.items.slice(0, 2).map((item, i) => (
+                                        {(t.items || []).slice(0, 2).map((item, i) => (
                                             <p key={i} className="text-xs text-slate-500 truncate border-l-2 border-slate-700 pl-2">
                                                 {item.message}
                                             </p>
                                         ))}
-                                        {t.items.length > 2 && <p className="text-[10px] text-slate-600 pl-2">+{t.items.length - 2} more...</p>}
+                                        {(t.items || []).length > 2 && <p className="text-[10px] text-slate-600 pl-2">+{t.items.length - 2} more...</p>}
                                     </div>
                                 </div>
                             ))}

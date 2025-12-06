@@ -125,22 +125,8 @@ const Dashboard: React.FC = () => {
           }
           setCampaigns(realData);
 
-          // AUTO-DETECT VIEW MODE if not set in settings
-          if (!settings.dashboardViewMode) {
-              let trafficCount = 0;
-              let salesCount = 0;
-              realData.forEach(c => {
-                  if (c.status === 'ACTIVE' || c.metrics.spend > 0) {
-                      if (isTrafficOrLeads(c.objective)) trafficCount++;
-                      else salesCount++;
-                  }
-              });
-              const detectedMode = trafficCount > salesCount ? 'TRAFFIC' : 'SALES';
-              setViewMode(detectedMode);
-              updateSettings({ dashboardViewMode: detectedMode });
-          } else {
-              setViewMode(settings.dashboardViewMode);
-          }
+          // Note: View Mode detection is now handled in a separate useEffect below
+          // to prevent state update loops inside the fetch cycle.
 
         } else {
           setCampaigns(MOCK_CAMPAIGNS);
@@ -156,10 +142,40 @@ const Dashboard: React.FC = () => {
     fetchData();
   }, [settings.fbAccessToken, settings.adAccountId, settings.fbAppId, dateRange]);
 
+  // --- SEPARATE EFFECT FOR VIEW MODE DETECTION ---
+  useEffect(() => {
+    if (campaigns.length > 0 && !settings.dashboardViewMode) {
+        let trafficCount = 0;
+        let salesCount = 0;
+        campaigns.forEach(c => {
+            if (c.status === 'ACTIVE' || c.metrics.spend > 0) {
+                if (isTrafficOrLeads(c.objective)) trafficCount++;
+                else salesCount++;
+            }
+        });
+        const detectedMode = trafficCount > salesCount ? 'TRAFFIC' : 'SALES';
+        
+        // Only update if different
+        if (viewMode !== detectedMode) {
+             setViewMode(detectedMode);
+             // Update settings asynchronously to avoid render interrupt
+             setTimeout(() => updateSettings({ dashboardViewMode: detectedMode }), 0);
+        }
+    } else if (settings.dashboardViewMode && viewMode !== settings.dashboardViewMode) {
+        // Sync local state with settings if settings exist
+        setViewMode(settings.dashboardViewMode);
+    }
+  }, [campaigns, settings.dashboardViewMode]);
+
+
   // Load Templates for Modal
   useEffect(() => {
       const saved = localStorage.getItem('ar_comment_templates');
-      if (saved) setTemplates(JSON.parse(saved));
+      if (saved) {
+          try {
+             setTemplates(JSON.parse(saved));
+          } catch(e) { setTemplates([]); }
+      }
   }, [commentModalOpen]);
 
   // --- ACTIONS ---
@@ -773,11 +789,11 @@ const Dashboard: React.FC = () => {
                                                 {t.name}
                                             </h3>
                                             <span className="text-xs bg-slate-900 px-2 py-0.5 rounded text-slate-400 border border-slate-800 flex items-center gap-1">
-                                                <Layers size={10} /> {t.items.length}
+                                                <Layers size={10} /> {(t.items || []).length}
                                             </span>
                                           </div>
-                                          <p className="text-xs text-slate-400 line-clamp-1">{t.items[0]?.message}</p>
-                                          {t.items.length > 1 && <p className="text-[10px] text-slate-500 mt-0.5">+{t.items.length - 1} more comments</p>}
+                                          <p className="text-xs text-slate-400 line-clamp-1">{(t.items || [])[0]?.message}</p>
+                                          {(t.items || []).length > 1 && <p className="text-[10px] text-slate-500 mt-0.5">+{(t.items || []).length - 1} more comments</p>}
                                       </div>
                                       <div className="text-indigo-400 opacity-0 group-hover:opacity-100 transition-opacity pl-3">
                                           {sendingComment ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
