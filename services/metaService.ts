@@ -53,6 +53,11 @@ const handleApiError = (data: any) => {
     if (data.error.message && data.error.message.includes('is_adset_budget_sharing_enabled')) {
         throw new Error("Budget Sharing Configuration Error. Retrying with explicit CBO flag...");
     }
+
+    // Catch Dev Mode Creative errors
+    if (data.error.message && data.error.message.includes('development mode')) {
+        throw new Error("Dev Mode Error: The App is in Development Mode. Please switch to Live Mode in Meta Developers or ensure you are an Admin.");
+    }
     
     throw new Error(data.error.message || "Unknown Meta API Error. Check Console for details.");
   }
@@ -487,19 +492,18 @@ export const createMetaCreative = async (
 ) => {
     const actId = accountId.startsWith('act_') ? accountId : `act_${accountId}`;
     const url = `https://graph.facebook.com/v19.0/${actId}/adcreatives`;
-    const body = {
+    const body: any = {
         name: sanitizeInput(name) + " Creative",
         object_story_spec: {
             page_id: pageId,
             link_data: {
                 message: sanitizeInput(message),
-                link: link, // Do not sanitize URL, it might break it
+                link: link, 
                 image_hash: imageHash,
                 name: sanitizeInput(headline),
                 call_to_action: { type: "LEARN_MORE" }
             }
         },
-        // FIX: Opt-out of Standard Enhancements to prevent Dev Mode visibility errors
         degrees_of_freedom_spec: {
             creative_features_spec: {
                 standard_enhancements: {
@@ -507,8 +511,11 @@ export const createMetaCreative = async (
                 }
             }
         },
-        access_token: accessToken
+        access_token: accessToken,
+        // EXPERIMENTAL FIX: Force unpublished state to prevent Dev Mode errors
+        published: false
     };
+    
     const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const data = await response.json();
     handleApiError(data);
