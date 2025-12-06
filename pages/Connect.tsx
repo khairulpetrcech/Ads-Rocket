@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CheckCircle, AlertTriangle, RefreshCw, Rocket } from 'lucide-react';
@@ -17,8 +18,6 @@ const ConnectPage: React.FC = () => {
   const [step, setStep] = useState<1 | 2>(1); // 1 = Login, 2 = Account Selection
   const [accounts, setAccounts] = useState<MetaAdAccount[]>([]);
   const appIdToUse = SYSTEM_APP_ID;
-
-  const isSecure = isSecureContext();
 
   // Splash Screen State
   const [showSplash, setShowSplash] = useState(true);
@@ -45,9 +44,6 @@ const ConnectPage: React.FC = () => {
         return;
       }
 
-      // Skip auto-connect on insecure protocols to avoid console errors
-      if (!isSecureContext()) return;
-      
       const currentAppId = settings.fbAppId || appIdToUse;
       
       setLoading(true);
@@ -126,7 +122,6 @@ const ConnectPage: React.FC = () => {
 
     } catch (err: any) {
       console.error(err);
-      // Extract meaningful error message
       let msg = "Failed to connect to Facebook.";
       if (typeof err === 'string') {
         msg = err;
@@ -188,19 +183,9 @@ const ConnectPage: React.FC = () => {
           </div>
           
           <h1 className="text-2xl md:text-3xl font-bold text-white mb-3 text-center">Ads Rocket</h1>
-          <p className="text-indigo-200 mb-8 text-center text-sm md:text-base font-medium leading-relaxed">
-            Buat 100 Ads Sehari? Kacang. Jom Cuba Ads Rocket.
+          <p className="text-indigo-200 mb-8 text-center text-sm md:text-base font-medium leading-relaxed text-gold-glossy">
+            Buat 100 Ads Sehari? Kacang.
           </p>
-
-          {!isSecure && (
-             <div className="bg-yellow-900/20 border border-yellow-800 p-3 rounded-lg mb-4 text-yellow-400 text-sm animate-fadeIn">
-               <div className="flex items-center gap-2 mb-1">
-                 <AlertTriangle size={16} />
-                 <span className="font-bold">HTTPS Required</span>
-               </div>
-               <p>Facebook Login does not work on HTTP. Please access this site via <b>HTTPS</b>.</p>
-             </div>
-          )}
 
           {error && (
             <div className="bg-red-900/20 border border-red-800 p-3 rounded-lg mb-4 text-red-400 text-sm animate-fadeIn">
@@ -217,9 +202,9 @@ const ConnectPage: React.FC = () => {
               
               <button
                 onClick={handleLogin}
-                disabled={loading || !isSecure}
+                disabled={loading}
                 className={`w-full py-4 px-6 rounded-xl font-bold tracking-wide flex items-center justify-center gap-3 transition-all duration-300 transform ${
-                  loading || !isSecure
+                  loading 
                     ? 'bg-slate-700 text-slate-400 cursor-not-allowed'
                     : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-lg shadow-indigo-500/50 hover:scale-[1.02] hover:shadow-indigo-500/70 animate-pulse-glow'
                 }`}

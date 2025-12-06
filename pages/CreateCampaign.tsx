@@ -9,38 +9,50 @@ import {
     createMetaAd, 
     uploadAdImage,
     createMetaCreative,
-    getPages
+    getPages,
+    getPixels // New Function
 } from '../services/metaService';
-import { CheckCircle, Circle, ChevronRight, Loader2, Upload, AlertTriangle, RefreshCw } from 'lucide-react';
+import { CheckCircle, Loader2, Upload, AlertTriangle, Save, FolderOpen, Trash2 } from 'lucide-react';
+
+interface Template {
+    id: string;
+    name: string;
+    data: any;
+}
 
 const CreateCampaign: React.FC = () => {
     const { settings } = useSettings();
-    const [step, setStep] = useState(1);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [successMsg, setSuccessMsg] = useState('');
+
+    // --- TEMPLATES ---
+    const [templates, setTemplates] = useState<Template[]>([]);
+    const [templateName, setTemplateName] = useState('');
+    const [showSaveTemplate, setShowSaveTemplate] = useState(false);
 
     // --- DATA STATE ---
     const [existingCampaigns, setExistingCampaigns] = useState<any[]>([]);
     const [existingAdSets, setExistingAdSets] = useState<any[]>([]);
     const [userPages, setUserPages] = useState<any[]>([]);
-    const [pageFetchError, setPageFetchError] = useState(false);
+    const [userPixels, setUserPixels] = useState<any[]>([]); // New Pixel State
 
     // --- FORM STATE ---
-    // Step 1: Campaign
+    // Campaign
     const [campaignMode, setCampaignMode] = useState<'new' | 'existing'>('new');
     const [selectedCampaignId, setSelectedCampaignId] = useState('');
     const [newCampaignName, setNewCampaignName] = useState('');
-    const [objective, setObjective] = useState('OUTCOME_TRAFFIC'); // Default to safer option without pixel
+    const [objective, setObjective] = useState('OUTCOME_TRAFFIC');
 
-    // Step 2: Ad Set
+    // Ad Set
     const [adSetMode, setAdSetMode] = useState<'new' | 'existing'>('new');
     const [selectedAdSetId, setSelectedAdSetId] = useState('');
     const [newAdSetName, setNewAdSetName] = useState('');
     const [dailyBudget, setDailyBudget] = useState(50);
     const [optimizationGoal, setOptimizationGoal] = useState('LINK_CLICKS');
+    const [selectedPixelId, setSelectedPixelId] = useState(''); // New Pixel Selection
 
-    // Step 3: Ad Creative
+    // Creative
     const [selectedPageId, setSelectedPageId] = useState('');
     const [adName, setAdName] = useState('');
     const [primaryText, setPrimaryText] = useState('');
@@ -52,34 +64,42 @@ const CreateCampaign: React.FC = () => {
     useEffect(() => {
         if (!settings.adAccountId || !settings.fbAccessToken) return;
 
+        // Load Templates
+        const saved = localStorage.getItem('ar_templates');
+        if (saved) setTemplates(JSON.parse(saved));
+
         const loadData = async () => {
             // 1. Load Campaigns
             try {
                 const campaigns = await getRealCampaigns(settings.adAccountId, settings.fbAccessToken);
                 setExistingCampaigns(campaigns);
-            } catch (e) {
-                console.error("Failed to load campaigns", e);
-            }
+            } catch (e) { console.error(e); }
 
-            // 2. Load Pages (Independent try/catch so campaign failure doesn't block pages)
+            // 2. Load Pages
             try {
-                setPageFetchError(false);
                 if (settings.fbAccessToken !== 'dummy_token') {
                     const pages = await getPages(settings.fbAccessToken);
                     setUserPages(pages);
                     if (pages.length > 0) setSelectedPageId(pages[0].id);
-                } else {
-                    // Dummy Pages
-                    setUserPages([{id: 'p1', name: 'Demo Page'}]);
-                    setSelectedPageId('p1');
+
+                    // 3. Load Pixels
+                    const pixels = await getPixels(settings.adAccountId, settings.fbAccessToken);
+                    setUserPixels(pixels);
+                    if (pixels.length > 0) setSelectedPixelId(pixels[0].id);
                 }
-            } catch (e) {
-                console.error("Failed to load pages", e);
-                setPageFetchError(true);
-            }
+            } catch (e) { console.error(e); }
         };
         loadData();
     }, [settings.adAccountId, settings.fbAccessToken]);
+
+    // Update Optimization defaults based on Objective
+    useEffect(() => {
+        if (objective === 'OUTCOME_SALES') {
+            setOptimizationGoal('OFFSITE_CONVERSIONS');
+        } else if (objective === 'OUTCOME_TRAFFIC') {
+            setOptimizationGoal('LINK_CLICKS');
+        }
+    }, [objective]);
 
     // Load AdSets when Campaign Changes
     useEffect(() => {
@@ -94,31 +114,60 @@ const CreateCampaign: React.FC = () => {
         }
     }, [selectedCampaignId, campaignMode, settings.fbAccessToken]);
 
-    // --- HANDLERS ---
-
-    const handleNext = () => {
-        if (step === 1) {
-            if (campaignMode === 'new' && !newCampaignName) return setError("Enter campaign name");
-            if (campaignMode === 'existing' && !selectedCampaignId) return setError("Select a campaign");
-        }
-        if (step === 2) {
-             if (adSetMode === 'new') {
-                 if (!newAdSetName) return setError("Enter Ad Set Name");
-                 if (dailyBudget < 5) return setError("Min Budget is RM 5");
-             }
-             if (adSetMode === 'existing' && !selectedAdSetId) return setError("Select an Ad Set");
-        }
-        if (step === 3) {
-            if (!adName || !primaryText || !headline || !destinationUrl) return setError("Fill all ad details");
-            if (!selectedPageId) return setError("Select a Facebook Page");
-            if (!imageFile) return setError("Upload an image");
-        }
-
-        setError('');
-        setStep(prev => prev + 1);
+    // --- TEMPLATE HANDLERS ---
+    const handleSaveTemplate = () => {
+        if (!templateName) return alert("Enter a template name");
+        const newTemplate: Template = {
+            id: Date.now().toString(),
+            name: templateName,
+            data: {
+                campaignMode, newCampaignName, objective,
+                adSetMode, newAdSetName, dailyBudget, optimizationGoal, selectedPixelId,
+                selectedPageId, primaryText, headline, destinationUrl
+            }
+        };
+        const updated = [...templates, newTemplate];
+        setTemplates(updated);
+        localStorage.setItem('ar_templates', JSON.stringify(updated));
+        setShowSaveTemplate(false);
+        setTemplateName('');
     };
 
+    const handleLoadTemplate = (t: Template) => {
+        const d = t.data;
+        if (d.campaignMode) setCampaignMode(d.campaignMode);
+        if (d.newCampaignName) setNewCampaignName(d.newCampaignName);
+        if (d.objective) setObjective(d.objective);
+        if (d.adSetMode) setAdSetMode(d.adSetMode);
+        if (d.newAdSetName) setNewAdSetName(d.newAdSetName);
+        if (d.dailyBudget) setDailyBudget(d.dailyBudget);
+        if (d.optimizationGoal) setOptimizationGoal(d.optimizationGoal);
+        if (d.selectedPixelId) setSelectedPixelId(d.selectedPixelId);
+        if (d.selectedPageId) setSelectedPageId(d.selectedPageId);
+        if (d.primaryText) setPrimaryText(d.primaryText);
+        if (d.headline) setHeadline(d.headline);
+        if (d.destinationUrl) setDestinationUrl(d.destinationUrl);
+    };
+
+    const deleteTemplate = (id: string, e: any) => {
+        e.stopPropagation();
+        const updated = templates.filter(t => t.id !== id);
+        setTemplates(updated);
+        localStorage.setItem('ar_templates', JSON.stringify(updated));
+    };
+
+    // --- SUBMIT HANDLER ---
+
     const handleSubmit = async () => {
+        // Validation
+        if (campaignMode === 'new' && !newCampaignName) return setError("Enter campaign name");
+        if (campaignMode === 'existing' && !selectedCampaignId) return setError("Select a campaign");
+        if (adSetMode === 'new' && !newAdSetName) return setError("Enter Ad Set Name");
+        if (adSetMode === 'existing' && !selectedAdSetId) return setError("Select an Ad Set");
+        if (!adName || !primaryText || !headline || !destinationUrl) return setError("Fill all ad details");
+        if (!selectedPageId) return setError("Select a Facebook Page");
+        if (!imageFile) return setError("Upload an image");
+
         setLoading(true);
         setError('');
         try {
@@ -134,7 +183,20 @@ const CreateCampaign: React.FC = () => {
             // 2. Resolve Ad Set ID
             let finalAdSetId = selectedAdSetId;
             if (adSetMode === 'new') {
-                const res = await createMetaAdSet(adAccountId, finalCampaignId, newAdSetName, dailyBudget, optimizationGoal, fbAccessToken);
+                // Determine Pixel for Sales
+                const pixelToUse = (objective === 'OUTCOME_SALES' && optimizationGoal === 'OFFSITE_CONVERSIONS') 
+                    ? selectedPixelId 
+                    : null;
+
+                const res = await createMetaAdSet(
+                    adAccountId, 
+                    finalCampaignId, 
+                    newAdSetName, 
+                    dailyBudget, 
+                    optimizationGoal, 
+                    pixelToUse,
+                    fbAccessToken
+                );
                 finalAdSetId = res.id;
             }
 
@@ -157,314 +219,230 @@ const CreateCampaign: React.FC = () => {
             await createMetaAd(adAccountId, finalAdSetId, adName, creativeId, fbAccessToken);
 
             setSuccessMsg("Campaign Created Successfully! Check your Dashboard.");
-            setStep(1); // Reset or stay
+            window.scrollTo(0, 0);
             
         } catch (e: any) {
             console.error(e);
-            setError(e.message || "Failed to create campaign");
+            setError(e.message || "Failed to create campaign. Check parameters.");
         } finally {
             setLoading(false);
         }
     };
 
-    // --- RENDER HELPERS ---
-
-    const renderStepIndicator = () => (
-        <div className="flex items-center justify-center gap-4 mb-8">
-            {[1, 2, 3, 4].map(s => (
-                <div key={s} className="flex items-center gap-2">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${step >= s ? 'bg-indigo-600 text-white' : 'bg-slate-700 text-slate-400'}`}>
-                        {step > s ? <CheckCircle size={16}/> : s}
-                    </div>
-                    {s < 4 && <div className={`w-8 h-0.5 ${step > s ? 'bg-indigo-600' : 'bg-slate-700'}`}></div>}
-                </div>
-            ))}
-        </div>
-    );
-
     return (
-        <div className="max-w-3xl mx-auto">
-            <h1 className="text-2xl font-bold text-white mb-6">Create New Campaign</h1>
-            
-            {renderStepIndicator()}
-
-            <div className="bg-[#1e293b] rounded-xl border border-slate-700 p-6 shadow-xl">
+        <div className="max-w-4xl mx-auto pb-20">
+            <div className="flex justify-between items-center mb-6">
+                <h1 className="text-2xl font-bold text-white">Create New Campaign</h1>
                 
-                {error && (
-                    <div className="mb-4 p-3 bg-red-900/20 border border-red-800 rounded-lg text-red-400 flex items-center gap-2 text-sm">
-                        <AlertTriangle size={16}/> {error}
-                    </div>
-                )}
-                
-                {successMsg && (
-                    <div className="mb-4 p-3 bg-green-900/20 border border-green-800 rounded-lg text-green-400 flex items-center gap-2 text-sm">
-                        <CheckCircle size={16}/> {successMsg}
-                    </div>
-                )}
-
-                {/* STEP 1: CAMPAIGN */}
-                {step === 1 && (
-                    <div className="space-y-6 animate-fadeIn">
-                        <h2 className="text-xl font-semibold text-white">Step 1: Campaign Details</h2>
-                        
-                        <div className="flex gap-4">
-                            <button 
-                                onClick={() => setCampaignMode('new')}
-                                className={`flex-1 py-3 rounded-lg border text-sm font-medium ${campaignMode === 'new' ? 'bg-indigo-600 border-indigo-500 text-white' : 'bg-slate-800 border-slate-700 text-slate-400'}`}
-                            >
-                                Create New
-                            </button>
-                            <button 
-                                onClick={() => setCampaignMode('existing')}
-                                className={`flex-1 py-3 rounded-lg border text-sm font-medium ${campaignMode === 'existing' ? 'bg-indigo-600 border-indigo-500 text-white' : 'bg-slate-800 border-slate-700 text-slate-400'}`}
-                            >
-                                Use Existing
-                            </button>
+                <div className="flex gap-2 relative">
+                    {/* Load Template Dropdown */}
+                    <div className="group relative">
+                        <button className="flex items-center gap-2 bg-slate-800 text-slate-300 px-3 py-2 rounded-lg hover:bg-slate-700">
+                            <FolderOpen size={16} /> Templates
+                        </button>
+                        <div className="absolute right-0 top-full mt-2 w-48 bg-slate-800 border border-slate-700 rounded-lg shadow-xl hidden group-hover:block z-50">
+                            {templates.length === 0 ? (
+                                <div className="p-3 text-xs text-slate-500">No templates saved.</div>
+                            ) : (
+                                templates.map(t => (
+                                    <div key={t.id} onClick={() => handleLoadTemplate(t)} className="px-3 py-2 hover:bg-slate-700 text-sm cursor-pointer flex justify-between items-center text-slate-300">
+                                        {t.name}
+                                        <Trash2 size={12} className="hover:text-red-400" onClick={(e) => deleteTemplate(t.id, e)} />
+                                    </div>
+                                ))
+                            )}
                         </div>
+                    </div>
 
-                        {campaignMode === 'new' ? (
-                            <>
+                    <button 
+                        onClick={() => setShowSaveTemplate(!showSaveTemplate)}
+                        className="flex items-center gap-2 bg-indigo-600/20 text-indigo-300 px-3 py-2 rounded-lg hover:bg-indigo-600/30 border border-indigo-500/30"
+                    >
+                        <Save size={16} /> Save Config
+                    </button>
+                </div>
+            </div>
+
+            {/* Save Template Modal/Input */}
+            {showSaveTemplate && (
+                <div className="mb-6 bg-slate-800 p-4 rounded-xl border border-indigo-500/30 flex gap-2 animate-fadeIn">
+                    <input 
+                        type="text" 
+                        value={templateName}
+                        onChange={(e) => setTemplateName(e.target.value)}
+                        placeholder="Template Name (e.g. Winning Scale Setup)"
+                        className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none"
+                    />
+                    <button onClick={handleSaveTemplate} className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm">Save</button>
+                    <button onClick={() => setShowSaveTemplate(false)} className="text-slate-400 px-2">Cancel</button>
+                </div>
+            )}
+
+            {/* Error / Success Messages */}
+            {error && (
+                <div className="mb-6 p-4 bg-red-900/20 border border-red-800 rounded-xl text-red-400 flex items-center gap-2">
+                    <AlertTriangle size={20}/> {error}
+                </div>
+            )}
+            
+            {successMsg && (
+                <div className="mb-6 p-4 bg-green-900/20 border border-green-800 rounded-xl text-green-400 flex items-center gap-2">
+                    <CheckCircle size={20}/> {successMsg}
+                </div>
+            )}
+
+            <div className="space-y-6">
+                
+                {/* --- SECTION 1: CAMPAIGN --- */}
+                <div className="bg-[#1e293b] rounded-xl border border-slate-700 p-6 shadow-sm">
+                    <h2 className="text-lg font-bold text-white mb-4 border-b border-slate-700 pb-2">1. Campaign Settings</h2>
+                    <div className="grid md:grid-cols-2 gap-6">
+                         <div className="space-y-4">
+                            <label className="text-sm text-slate-400">Campaign Mode</label>
+                            <div className="flex bg-slate-900 rounded-lg p-1 border border-slate-700">
+                                <button onClick={() => setCampaignMode('new')} className={`flex-1 py-2 text-sm rounded-md transition-colors ${campaignMode === 'new' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}>Create New</button>
+                                <button onClick={() => setCampaignMode('existing')} className={`flex-1 py-2 text-sm rounded-md transition-colors ${campaignMode === 'existing' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}>Use Existing</button>
+                            </div>
+                         </div>
+
+                         {campaignMode === 'new' ? (
+                             <>
                                 <div>
                                     <label className="block text-sm text-slate-400 mb-1">Campaign Name</label>
-                                    <input 
-                                        type="text" 
-                                        value={newCampaignName}
-                                        onChange={(e) => setNewCampaignName(e.target.value)}
-                                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-3 text-white focus:border-indigo-500 outline-none"
-                                        placeholder="e.g. Raya Sale 2024"
-                                    />
+                                    <input type="text" value={newCampaignName} onChange={(e) => setNewCampaignName(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-white focus:border-indigo-500 outline-none" placeholder="e.g. Raya Promo"/>
                                 </div>
                                 <div>
                                     <label className="block text-sm text-slate-400 mb-1">Objective</label>
-                                    <select 
-                                        value={objective}
-                                        onChange={(e) => setObjective(e.target.value)}
-                                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-3 text-white outline-none"
-                                    >
+                                    <select value={objective} onChange={(e) => setObjective(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-white outline-none">
                                         <option value="OUTCOME_TRAFFIC">Traffic (Link Clicks)</option>
-                                        <option value="OUTCOME_SALES">Sales (Conversions - Requires Pixel)</option>
+                                        <option value="OUTCOME_SALES">Sales (Conversions)</option>
                                         <option value="OUTCOME_AWARENESS">Awareness</option>
                                     </select>
                                 </div>
-                            </>
-                        ) : (
-                            <div>
+                             </>
+                         ) : (
+                             <div className="md:col-span-2">
                                 <label className="block text-sm text-slate-400 mb-1">Select Campaign</label>
-                                <select 
-                                    value={selectedCampaignId}
-                                    onChange={(e) => setSelectedCampaignId(e.target.value)}
-                                    className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-3 text-white outline-none"
-                                >
+                                <select value={selectedCampaignId} onChange={(e) => setSelectedCampaignId(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-white outline-none">
                                     <option value="">-- Select Campaign --</option>
                                     {existingCampaigns.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                                 </select>
-                            </div>
-                        )}
+                             </div>
+                         )}
                     </div>
-                )}
+                </div>
 
-                {/* STEP 2: AD SET */}
-                {step === 2 && (
-                    <div className="space-y-6 animate-fadeIn">
-                        <h2 className="text-xl font-semibold text-white">Step 2: Ad Set</h2>
-                        
-                        <div className="flex gap-4">
-                            <button 
-                                onClick={() => setAdSetMode('new')}
-                                className={`flex-1 py-3 rounded-lg border text-sm font-medium ${adSetMode === 'new' ? 'bg-indigo-600 border-indigo-500 text-white' : 'bg-slate-800 border-slate-700 text-slate-400'}`}
-                            >
-                                Create New
-                            </button>
-                            <button 
-                                onClick={() => setAdSetMode('existing')}
-                                className={`flex-1 py-3 rounded-lg border text-sm font-medium ${adSetMode === 'existing' ? 'bg-indigo-600 border-indigo-500 text-white' : 'bg-slate-800 border-slate-700 text-slate-400'}`}
-                            >
-                                Use Existing
-                            </button>
-                        </div>
+                {/* --- SECTION 2: AD SET --- */}
+                <div className="bg-[#1e293b] rounded-xl border border-slate-700 p-6 shadow-sm">
+                    <h2 className="text-lg font-bold text-white mb-4 border-b border-slate-700 pb-2">2. Ad Set Settings</h2>
+                    <div className="grid md:grid-cols-2 gap-6">
+                        <div className="space-y-4">
+                            <label className="text-sm text-slate-400">Ad Set Mode</label>
+                            <div className="flex bg-slate-900 rounded-lg p-1 border border-slate-700">
+                                <button onClick={() => setAdSetMode('new')} className={`flex-1 py-2 text-sm rounded-md transition-colors ${adSetMode === 'new' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}>Create New</button>
+                                <button onClick={() => setAdSetMode('existing')} className={`flex-1 py-2 text-sm rounded-md transition-colors ${adSetMode === 'existing' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}>Use Existing</button>
+                            </div>
+                         </div>
 
-                        {adSetMode === 'new' ? (
-                            <>
+                         {adSetMode === 'new' ? (
+                             <>
                                 <div>
                                     <label className="block text-sm text-slate-400 mb-1">Ad Set Name</label>
-                                    <input 
-                                        type="text" 
-                                        value={newAdSetName}
-                                        onChange={(e) => setNewAdSetName(e.target.value)}
-                                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-3 text-white focus:border-indigo-500 outline-none"
-                                        placeholder="e.g. Broad Audience - MY"
-                                    />
+                                    <input type="text" value={newAdSetName} onChange={(e) => setNewAdSetName(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-white focus:border-indigo-500 outline-none" placeholder="e.g. Broad Targeting"/>
                                 </div>
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block text-sm text-slate-400 mb-1">Daily Budget (RM)</label>
-                                        <input 
-                                            type="number" 
-                                            value={dailyBudget}
-                                            onChange={(e) => setDailyBudget(parseFloat(e.target.value))}
-                                            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-3 text-white focus:border-indigo-500 outline-none"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm text-slate-400 mb-1">Optimization</label>
-                                        <select 
-                                            value={optimizationGoal}
-                                            onChange={(e) => setOptimizationGoal(e.target.value)}
-                                            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-3 text-white outline-none"
-                                        >
-                                            <option value="LINK_CLICKS">Link Clicks</option>
-                                            <option value="OFFSITE_CONVERSIONS">Conversions (Sales)</option>
-                                            <option value="IMPRESSIONS">Impressions</option>
-                                            <option value="REACH">Reach</option>
-                                        </select>
-                                    </div>
+                                <div>
+                                    <label className="block text-sm text-slate-400 mb-1">Daily Budget (RM)</label>
+                                    <input type="number" value={dailyBudget} onChange={(e) => setDailyBudget(parseFloat(e.target.value))} className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-white focus:border-indigo-500 outline-none"/>
                                 </div>
-                                <p className="text-xs text-slate-500 italic">Targeting set to: Malaysia, Age 18-65+</p>
-                            </>
-                        ) : (
-                            <div>
+                                <div>
+                                    <label className="block text-sm text-slate-400 mb-1">Optimization</label>
+                                    <select value={optimizationGoal} onChange={(e) => setOptimizationGoal(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-white outline-none">
+                                        <option value="LINK_CLICKS">Link Clicks</option>
+                                        <option value="OFFSITE_CONVERSIONS">Conversions (Sales)</option>
+                                        <option value="IMPRESSIONS">Impressions</option>
+                                    </select>
+                                </div>
+                                
+                                {/* PIXEL SELECTOR FOR SALES */}
+                                {objective === 'OUTCOME_SALES' && (
+                                    <div className="animate-fadeIn">
+                                        <label className="block text-sm text-slate-400 mb-1 text-green-400 font-semibold">Pixel (Required for Sales)</label>
+                                        {userPixels.length > 0 ? (
+                                            <select value={selectedPixelId} onChange={(e) => setSelectedPixelId(e.target.value)} className="w-full bg-slate-900 border border-green-800 rounded-lg px-4 py-2 text-white outline-none focus:ring-1 focus:ring-green-500">
+                                                {userPixels.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                                            </select>
+                                        ) : (
+                                            <p className="text-xs text-red-400 bg-red-900/10 p-2 rounded">No Pixels found. Please create one in Events Manager.</p>
+                                        )}
+                                    </div>
+                                )}
+                             </>
+                         ) : (
+                             <div className="md:col-span-2">
                                 <label className="block text-sm text-slate-400 mb-1">Select Ad Set</label>
-                                <select 
-                                    value={selectedAdSetId}
-                                    onChange={(e) => setSelectedAdSetId(e.target.value)}
-                                    className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-3 text-white outline-none"
-                                >
+                                <select value={selectedAdSetId} onChange={(e) => setSelectedAdSetId(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-white outline-none">
                                     <option value="">-- Select Ad Set --</option>
                                     {existingAdSets.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
                                 </select>
-                            </div>
-                        )}
+                             </div>
+                         )}
                     </div>
-                )}
+                </div>
 
-                {/* STEP 3: CREATIVE */}
-                {step === 3 && (
-                    <div className="space-y-6 animate-fadeIn">
-                        <h2 className="text-xl font-semibold text-white">Step 3: Ad Creative</h2>
-                        
+                {/* --- SECTION 3: CREATIVE --- */}
+                <div className="bg-[#1e293b] rounded-xl border border-slate-700 p-6 shadow-sm">
+                    <h2 className="text-lg font-bold text-white mb-4 border-b border-slate-700 pb-2">3. Ad Creative</h2>
+                    <div className="grid md:grid-cols-2 gap-6">
                         <div>
                             <label className="block text-sm text-slate-400 mb-1">Facebook Page</label>
                             {userPages.length > 0 ? (
-                                <select 
-                                    value={selectedPageId}
-                                    onChange={(e) => setSelectedPageId(e.target.value)}
-                                    className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-3 text-white outline-none"
-                                >
+                                <select value={selectedPageId} onChange={(e) => setSelectedPageId(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-white outline-none">
                                     <option value="">-- Select Page --</option>
                                     {userPages.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                                 </select>
                             ) : (
-                                <div className="p-3 bg-yellow-900/20 border border-yellow-800 rounded-lg text-yellow-500 text-sm">
-                                    <div className="flex items-center gap-2 mb-1">
-                                        <AlertTriangle size={14} /> No Pages Found
-                                    </div>
-                                    <p className="text-xs text-slate-400">
-                                        {pageFetchError ? 
-                                            "Permission Error. Please Disconnect and Reconnect, ensuring you accept 'Manage Pages' permissions." :
-                                            "We couldn't find any Facebook Pages you manage. Please create a Page on Facebook first."
-                                        }
-                                    </p>
-                                </div>
+                                <p className="text-xs text-yellow-500">No Pages found. Re-login with 'Manage Pages' access.</p>
                             )}
                         </div>
-
                         <div>
                             <label className="block text-sm text-slate-400 mb-1">Ad Name</label>
-                            <input 
-                                type="text" 
-                                value={adName}
-                                onChange={(e) => setAdName(e.target.value)}
-                                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-3 text-white focus:border-indigo-500 outline-none"
-                                placeholder="e.g. Image Ad V1"
-                            />
+                            <input type="text" value={adName} onChange={(e) => setAdName(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-white outline-none" placeholder="Ad Name"/>
+                        </div>
+                        
+                        <div className="md:col-span-2">
+                             <div className="border border-dashed border-slate-600 rounded-xl p-6 text-center hover:bg-slate-800 transition-colors cursor-pointer relative">
+                                 <input type="file" accept="image/*" onChange={(e) => setImageFile(e.target.files?.[0] || null)} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+                                 <Upload className="mx-auto text-slate-400 mb-2" />
+                                 <p className="text-slate-300 text-sm font-medium">{imageFile ? imageFile.name : "Click to upload Image"}</p>
+                            </div>
                         </div>
 
-                        <div className="border border-dashed border-slate-600 rounded-xl p-6 text-center hover:bg-slate-800 transition-colors cursor-pointer relative">
-                             <input 
-                                type="file" 
-                                accept="image/*"
-                                onChange={(e) => setImageFile(e.target.files?.[0] || null)}
-                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                             />
-                             <Upload className="mx-auto text-slate-400 mb-2" />
-                             <p className="text-slate-300 text-sm font-medium">{imageFile ? imageFile.name : "Click to upload Image"}</p>
-                             <p className="text-slate-500 text-xs">JPG, PNG (Max 5MB)</p>
-                        </div>
-
-                        <div>
+                        <div className="md:col-span-2">
                             <label className="block text-sm text-slate-400 mb-1">Primary Text</label>
-                            <textarea 
-                                value={primaryText}
-                                onChange={(e) => setPrimaryText(e.target.value)}
-                                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-3 text-white focus:border-indigo-500 outline-none h-24"
-                                placeholder="Main ad copy..."
-                            />
+                            <textarea value={primaryText} onChange={(e) => setPrimaryText(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-white h-24 outline-none" placeholder="Main Copy..."/>
                         </div>
-
                         <div>
                             <label className="block text-sm text-slate-400 mb-1">Headline</label>
-                            <input 
-                                type="text" 
-                                value={headline}
-                                onChange={(e) => setHeadline(e.target.value)}
-                                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-3 text-white focus:border-indigo-500 outline-none"
-                                placeholder="Bold Headline"
-                            />
+                            <input type="text" value={headline} onChange={(e) => setHeadline(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-white outline-none" placeholder="Bold Headline"/>
                         </div>
-
                         <div>
-                            <label className="block text-sm text-slate-400 mb-1">Website URL</label>
-                            <input 
-                                type="text" 
-                                value={destinationUrl}
-                                onChange={(e) => setDestinationUrl(e.target.value)}
-                                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-3 text-white focus:border-indigo-500 outline-none"
-                                placeholder="https://..."
-                            />
+                            <label className="block text-sm text-slate-400 mb-1">Destination URL</label>
+                            <input type="text" value={destinationUrl} onChange={(e) => setDestinationUrl(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-white outline-none" placeholder="https://..."/>
                         </div>
                     </div>
-                )}
+                </div>
 
-                {/* STEP 4: REVIEW */}
-                {step === 4 && (
-                    <div className="space-y-6 animate-fadeIn text-center">
-                         <h2 className="text-xl font-semibold text-white">Review & Publish</h2>
-                         <div className="bg-slate-800 p-4 rounded-lg text-left text-sm space-y-2 border border-slate-700">
-                             <p><span className="text-slate-400">Campaign:</span> {campaignMode === 'new' ? newCampaignName : 'Existing'}</p>
-                             <p><span className="text-slate-400">Ad Set:</span> {adSetMode === 'new' ? `${newAdSetName} (RM${dailyBudget})` : 'Existing'}</p>
-                             <p><span className="text-slate-400">Ad:</span> {adName}</p>
-                             <p><span className="text-slate-400">Headline:</span> {headline}</p>
-                         </div>
-                         <p className="text-slate-400 text-xs">By clicking Publish, this ad will be created in your account as PAUSED.</p>
-                    </div>
-                )}
-
-                <div className="flex justify-between mt-8 pt-6 border-t border-slate-700">
-                    <button 
-                        disabled={step === 1 || loading}
-                        onClick={() => setStep(s => s - 1)}
-                        className="px-6 py-2 text-slate-400 hover:text-white disabled:opacity-50"
+                {/* PUBLISH BUTTON */}
+                <div className="pt-6 border-t border-slate-700">
+                     <button 
+                        onClick={handleSubmit}
+                        disabled={loading}
+                        className="w-full bg-green-600 hover:bg-green-500 text-white text-lg font-bold py-4 rounded-xl shadow-lg shadow-green-900/30 flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed transition-all transform hover:scale-[1.01]"
                     >
-                        Back
+                        {loading && <Loader2 className="animate-spin" size={24}/>}
+                        {loading ? 'Publishing to Meta...' : 'PUBLISH CAMPAIGN NOW'}
                     </button>
-                    
-                    {step < 4 ? (
-                        <button 
-                            onClick={handleNext}
-                            className="bg-indigo-600 hover:bg-indigo-500 text-white px-8 py-2 rounded-lg font-medium flex items-center gap-2"
-                        >
-                            Next <ChevronRight size={16}/>
-                        </button>
-                    ) : (
-                        <button 
-                            onClick={handleSubmit}
-                            disabled={loading}
-                            className="bg-green-600 hover:bg-green-500 text-white px-8 py-2 rounded-lg font-medium flex items-center gap-2 disabled:opacity-50"
-                        >
-                            {loading && <Loader2 className="animate-spin" size={16}/>}
-                            {loading ? 'Publishing...' : 'Publish Campaign'}
-                        </button>
-                    )}
+                    <p className="text-center text-xs text-slate-500 mt-3">This will create the campaign in your Ads Manager. Default status: PAUSED.</p>
                 </div>
 
             </div>
