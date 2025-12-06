@@ -33,11 +33,18 @@ const invalidateCache = () => {
 
 const handleApiError = (data: any) => {
   if (data.error) {
+    console.error("Meta API Error Details:", JSON.stringify(data.error, null, 2));
+    
     const code = data.error.code;
     if (code === 80004 || code === 17 || code === 613) {
       throw new Error("Meta API Rate Limit Exceeded. Please wait 1-2 minutes before refreshing.");
     }
-    // Specific error for missing params
+    
+    // Provide more context for Invalid Parameter errors
+    if (data.error.error_user_msg) {
+        throw new Error(data.error.error_user_msg);
+    }
+    
     throw new Error(data.error.message || "Unknown Meta API Error");
   }
 };
@@ -384,18 +391,22 @@ export const createMetaAdSet = async (
     name: string, 
     dailyBudget: number, 
     optimizationGoal: string, 
-    pixelId: string | null, // Added Pixel ID
+    pixelId: string | null, 
     accessToken: string
 ) => {
     const actId = accountId.startsWith('act_') ? accountId : `act_${accountId}`;
     const url = `https://graph.facebook.com/v19.0/${actId}/adsets`;
     
-    // Targeting (Hardcoded MY, 18-65+ for simplicity)
+    // Targeting (Hardcoded MY, 18-65+ for simplicity - In production, this should be dynamic)
     const targeting = {
         geo_locations: { countries: ['MY'] },
         age_min: 18,
         age_max: 65,
     };
+
+    // VITAL: Start time must be at least 15 mins in future. 
+    // We use +60 mins to be absolutely safe from server drift/latency.
+    const startTime = new Date(Date.now() + 60 * 60 * 1000).toISOString();
 
     const body: any = {
         name,
@@ -403,10 +414,10 @@ export const createMetaAdSet = async (
         daily_budget: Math.floor(dailyBudget * 100),
         targeting: targeting,
         status: 'PAUSED',
-        start_time: new Date().toISOString(),
+        start_time: startTime,
         access_token: accessToken,
         optimization_goal: optimizationGoal,
-        billing_event: 'IMPRESSIONS'
+        billing_event: 'IMPRESSIONS' // Default safest option
     };
     
     // FIX: If Conversion, we need promoted_object (Pixel) and billing event
@@ -417,11 +428,9 @@ export const createMetaAdSet = async (
             pixel_id: pixelId,
             custom_event_type: "PURCHASE" // Default to Purchase for Sales
         };
-    } else {
-        // Traffic/Link Clicks usually just needs billing event
-        body.billing_event = 'IMPRESSIONS'; 
-        // Note: For Link Clicks, billing_event can be LINK_CLICKS or IMPRESSIONS depending on account eligibility
-    }
+    } 
+    // For Link Clicks, optimization is LINK_CLICKS, billing is IMPRESSIONS (or LINK_CLICKS if eligible)
+    // We default to IMPRESSIONS to prevent eligibility errors on new accounts.
     
     const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const data = await response.json();
