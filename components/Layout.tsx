@@ -16,13 +16,14 @@ const Layout: React.FC = () => {
   const [isAiExpanded, setIsAiExpanded] = useState(true);
 
   const handleLogout = () => {
-    // Clear credentials and connection state but KEEP the App ID
+    // Security: Clear credentials and connection state
+    // We KEEP the fbAppId so the user doesn't have to re-enter it (User Convenience)
     updateSettings({
       isConnected: false,
       fbAccessToken: '',
       adAccountId: '',
       businessName: '',
-      // We do NOT clear fbAppId so the user doesn't have to type it again
+      apiKey: '' // Clear AI API Key on logout for safety
     });
     navigate('/connect');
   };

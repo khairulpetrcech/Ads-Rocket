@@ -49,6 +49,11 @@ const handleApiError = (data: any) => {
         throw new Error("Invalid Image Hash. Please re-upload the image.");
     }
     
+    // Catch specific CBO/Budget Sharing errors
+    if (data.error.message && data.error.message.includes('is_adset_budget_sharing_enabled')) {
+        throw new Error("Budget Sharing Configuration Error. Retrying with explicit CBO flag...");
+    }
+    
     throw new Error(data.error.message || "Unknown Meta API Error. Check Console for details.");
   }
 };
@@ -56,6 +61,12 @@ const handleApiError = (data: any) => {
 // --- SECURITY HELPER ---
 export const isSecureContext = (): boolean => {
   return true; 
+};
+
+// Input Sanitization to prevent XSS/Injection
+const sanitizeInput = (input: string) => {
+  if (!input) return "";
+  return input.replace(/<[^>]*>?/gm, "").trim();
 };
 
 // --- HELPER: DATE RANGE PARAMS ---
@@ -371,13 +382,21 @@ export const getPixels = async (adAccountId: string, accessToken: string) => {
 export const createMetaCampaign = async (accountId: string, name: string, objective: string, accessToken: string) => {
     const actId = accountId.startsWith('act_') ? accountId : `act_${accountId}`;
     const url = `https://graph.facebook.com/v19.0/${actId}/campaigns`;
-    const body = {
-        name,
+    
+    // SECURITY: Sanitize Name
+    const cleanName = sanitizeInput(name);
+
+    // FIXED PARAMETERS FOR API COMPATIBILITY
+    const body: any = {
+        name: cleanName,
         objective, 
         status: 'PAUSED',
-        special_ad_categories: [],
+        special_ad_categories: [], // Required empty array for standard ads
+        buying_type: "AUCTION",    // Explicitly set buying type
+        is_adset_budget_sharing_enabled: false, // EXPLICITLY DISABLE CBO (Ad Set Budget Sharing) based on user error report
         access_token: accessToken
     };
+
     const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const data = await response.json();
     handleApiError(data);
@@ -410,7 +429,7 @@ export const createMetaAdSet = async (
     const startTime = new Date(Date.now() + 60 * 60 * 1000).toISOString().split('.')[0]; 
 
     const body: any = {
-        name,
+        name: sanitizeInput(name),
         campaign_id: campaignId,
         daily_budget: Math.floor(dailyBudget * 100),
         targeting: targeting,
@@ -469,14 +488,14 @@ export const createMetaCreative = async (
     const actId = accountId.startsWith('act_') ? accountId : `act_${accountId}`;
     const url = `https://graph.facebook.com/v19.0/${actId}/adcreatives`;
     const body = {
-        name: name + " Creative",
+        name: sanitizeInput(name) + " Creative",
         object_story_spec: {
             page_id: pageId,
             link_data: {
-                message: message,
-                link: link,
+                message: sanitizeInput(message),
+                link: link, // Do not sanitize URL, it might break it
                 image_hash: imageHash,
-                name: headline,
+                name: sanitizeInput(headline),
                 call_to_action: { type: "LEARN_MORE" }
             }
         },
@@ -492,7 +511,7 @@ export const createMetaAd = async (accountId: string, adSetId: string, name: str
     const actId = accountId.startsWith('act_') ? accountId : `act_${accountId}`;
     const url = `https://graph.facebook.com/v19.0/${actId}/ads`;
     const body = {
-        name,
+        name: sanitizeInput(name),
         adset_id: adSetId,
         creative: { creative_id: creativeId },
         status: 'PAUSED',

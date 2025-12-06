@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useSettings } from '../App';
 import { 
     getRealCampaigns, 
@@ -12,7 +12,7 @@ import {
     getPages,
     getPixels // New Function
 } from '../services/metaService';
-import { CheckCircle, Loader2, Upload, AlertTriangle, Save, FolderOpen, Trash2 } from 'lucide-react';
+import { CheckCircle, Loader2, Upload, AlertTriangle, Save, FolderOpen, Trash2, ChevronDown } from 'lucide-react';
 
 interface Template {
     id: string;
@@ -30,12 +30,13 @@ const CreateCampaign: React.FC = () => {
     const [templates, setTemplates] = useState<Template[]>([]);
     const [templateName, setTemplateName] = useState('');
     const [showSaveTemplate, setShowSaveTemplate] = useState(false);
+    const [showTemplatesDropdown, setShowTemplatesDropdown] = useState(false); // New State for UI stability
 
     // --- DATA STATE ---
     const [existingCampaigns, setExistingCampaigns] = useState<any[]>([]);
     const [existingAdSets, setExistingAdSets] = useState<any[]>([]);
     const [userPages, setUserPages] = useState<any[]>([]);
-    const [userPixels, setUserPixels] = useState<any[]>([]); // New Pixel State
+    const [userPixels, setUserPixels] = useState<any[]>([]);
 
     // --- FORM STATE ---
     // Campaign
@@ -50,7 +51,7 @@ const CreateCampaign: React.FC = () => {
     const [newAdSetName, setNewAdSetName] = useState('');
     const [dailyBudget, setDailyBudget] = useState(50);
     const [optimizationGoal, setOptimizationGoal] = useState('LINK_CLICKS');
-    const [selectedPixelId, setSelectedPixelId] = useState(''); // New Pixel Selection
+    const [selectedPixelId, setSelectedPixelId] = useState('');
 
     // Creative
     const [selectedPageId, setSelectedPageId] = useState('');
@@ -59,6 +60,9 @@ const CreateCampaign: React.FC = () => {
     const [headline, setHeadline] = useState('');
     const [destinationUrl, setDestinationUrl] = useState('');
     const [imageFile, setImageFile] = useState<File | null>(null);
+
+    // RATE LIMITING REF
+    const lastPublishTime = useRef<number>(0);
 
     // Initial Data Load
     useEffect(() => {
@@ -117,9 +121,18 @@ const CreateCampaign: React.FC = () => {
     // --- TEMPLATE HANDLERS ---
     const handleSaveTemplate = () => {
         if (!templateName) return alert("Enter a template name");
+        
+        // Handle Duplicates
+        let finalName = templateName;
+        let counter = 1;
+        while (templates.some(t => t.name === finalName)) {
+            finalName = `${templateName} (${counter})`;
+            counter++;
+        }
+
         const newTemplate: Template = {
             id: Date.now().toString(),
-            name: templateName,
+            name: finalName,
             data: {
                 campaignMode, newCampaignName, objective,
                 adSetMode, newAdSetName, dailyBudget, optimizationGoal, selectedPixelId,
@@ -147,6 +160,7 @@ const CreateCampaign: React.FC = () => {
         if (d.primaryText) setPrimaryText(d.primaryText);
         if (d.headline) setHeadline(d.headline);
         if (d.destinationUrl) setDestinationUrl(d.destinationUrl);
+        setShowTemplatesDropdown(false); // Close dropdown
     };
 
     const deleteTemplate = (id: string, e: any) => {
@@ -167,6 +181,13 @@ const CreateCampaign: React.FC = () => {
         if (!adName || !primaryText || !headline || !destinationUrl) return setError("Fill all ad details");
         if (!selectedPageId) return setError("Select a Facebook Page");
         if (!imageFile) return setError("Upload an image");
+
+        // RATE LIMITING (5 seconds)
+        const now = Date.now();
+        if (now - lastPublishTime.current < 5000) {
+            return setError("Please wait a few seconds before publishing again.");
+        }
+        lastPublishTime.current = now;
 
         setLoading(true);
         setError('');
@@ -235,23 +256,30 @@ const CreateCampaign: React.FC = () => {
                 <h1 className="text-2xl font-bold text-white">Create New Campaign</h1>
                 
                 <div className="flex gap-2 relative">
-                    {/* Load Template Dropdown */}
-                    <div className="group relative">
-                        <button className="flex items-center gap-2 bg-slate-800 text-slate-300 px-3 py-2 rounded-lg hover:bg-slate-700">
-                            <FolderOpen size={16} /> Templates
+                    {/* Load Template Dropdown (Click-based) */}
+                    <div className="relative">
+                        <button 
+                            onClick={() => setShowTemplatesDropdown(!showTemplatesDropdown)}
+                            className="flex items-center gap-2 bg-slate-800 text-slate-300 px-3 py-2 rounded-lg hover:bg-slate-700"
+                        >
+                            <FolderOpen size={16} /> Templates <ChevronDown size={14} />
                         </button>
-                        <div className="absolute right-0 top-full mt-2 w-48 bg-slate-800 border border-slate-700 rounded-lg shadow-xl hidden group-hover:block z-50">
-                            {templates.length === 0 ? (
-                                <div className="p-3 text-xs text-slate-500">No templates saved.</div>
-                            ) : (
-                                templates.map(t => (
-                                    <div key={t.id} onClick={() => handleLoadTemplate(t)} className="px-3 py-2 hover:bg-slate-700 text-sm cursor-pointer flex justify-between items-center text-slate-300">
-                                        {t.name}
-                                        <Trash2 size={12} className="hover:text-red-400" onClick={(e) => deleteTemplate(t.id, e)} />
+                        {showTemplatesDropdown && (
+                            <div className="absolute right-0 top-full mt-2 w-56 bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-50 animate-fadeIn">
+                                {templates.length === 0 ? (
+                                    <div className="p-3 text-xs text-slate-500">No templates saved.</div>
+                                ) : (
+                                    <div className="max-h-60 overflow-y-auto custom-scrollbar">
+                                        {templates.map(t => (
+                                            <div key={t.id} onClick={() => handleLoadTemplate(t)} className="px-4 py-3 hover:bg-slate-700 text-sm cursor-pointer flex justify-between items-center text-slate-300 border-b border-slate-700 last:border-0">
+                                                <span className="truncate max-w-[140px]">{t.name}</span>
+                                                <Trash2 size={14} className="hover:text-red-400 text-slate-600" onClick={(e) => deleteTemplate(t.id, e)} />
+                                            </div>
+                                        ))}
                                     </div>
-                                ))
-                            )}
-                        </div>
+                                )}
+                            </div>
+                        )}
                     </div>
 
                     <button 
