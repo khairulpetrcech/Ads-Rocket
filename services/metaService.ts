@@ -191,8 +191,8 @@ export const loginWithFacebook = (): Promise<string> => {
                 }
             }
         }, { 
-            // ADDED pages_manage_engagement to allow publishing comments
-            scope: 'public_profile,ads_read,ads_management,pages_show_list,pages_read_engagement,pages_manage_engagement' 
+            // REMOVED pages_manage_engagement to fix Invalid Scope error
+            scope: 'public_profile,ads_read,ads_management,pages_show_list,pages_read_engagement' 
         });
     } catch (e) {
         reject("Failed to open Facebook Login dialog.");
@@ -706,11 +706,16 @@ export const publishComment = async (
             
             const response = await fetch(url, { method: 'POST', body: formData });
             const data = await response.json();
+            
+            // Custom error handling for missing permission
+            if (data.error && data.error.code === 200) {
+                throw new Error("Permission Error: Your App needs 'pages_manage_engagement' to post comments. Add it in Meta Developer Portal.");
+            }
             handleApiError(data);
             return data.id;
-        } catch (e) {
+        } catch (e: any) {
             console.error("Image conversion failed", e);
-            throw new Error("Failed to process image for comment.");
+            throw new Error(e.message || "Failed to process image for comment.");
         }
     } else {
         // Text only
@@ -720,6 +725,12 @@ export const publishComment = async (
             body: JSON.stringify({ message: message, access_token: pageAccessToken }) // Use Page Token
         });
         const data = await response.json();
+        
+        // Custom error handling for missing permission
+        if (data.error && data.error.code === 200) {
+            throw new Error("Permission Error: Your App needs 'pages_manage_engagement' to post comments. Add it in Meta Developer Portal.");
+        }
+
         handleApiError(data);
         return data.id;
     }
