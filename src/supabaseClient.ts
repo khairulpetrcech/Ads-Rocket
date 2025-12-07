@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 
-// Hardcoded Credentials to ensure immediate connection and avoid runtime errors
+// Hardcoded Credentials as requested to ensure immediate connection and avoid runtime errors
 const supabaseUrl = "https://ztpedgagubjoiluagqzd.supabase.co";
 const supabaseAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp0cGVkZ2FndWJqb2lsdWFncXpkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUwODgxNDgsImV4cCI6MjA4MDY2NDE0OH0.02A3J4zzTetBmLFUtEXngdkTV1NARHFczvHAg6IVFjQ";
 
