@@ -17,7 +17,7 @@ interface AppContextType {
   settings: UserSettings;
   updateSettings: (newSettings: Partial<UserSettings>) => void;
   loading: boolean;
-  session: null; 
+  session: null; // Kept null for type compatibility if needed during transition
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -51,8 +51,9 @@ const App: React.FC = () => {
         const saved = localStorage.getItem('ar_settings');
         if (saved) {
             const parsed = JSON.parse(saved);
-            // Reset encrypted keys if present from failed Supabase migration
+            // Ensure encoded fields are handled if moving from old version
             if (parsed.apiKey && parsed.apiKey.startsWith('ENC')) {
+                // Legacy support or reset
                 parsed.apiKey = ''; 
             }
             setSettings({ ...DEFAULT_SETTINGS, ...parsed });
