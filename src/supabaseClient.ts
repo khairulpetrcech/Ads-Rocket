@@ -1,12 +1,24 @@
 import { createClient } from '@supabase/supabase-js';
 
-// Access Environment Variables (Vite uses import.meta.env)
-// For Vercel, ensure these are set in Project Settings > Environment Variables
-const supabaseUrl = (import.meta as any).env.VITE_SUPABASE_URL;
-const supabaseAnonKey = (import.meta as any).env.VITE_SUPABASE_ANON_KEY;
+// Helper to safely access Environment Variables
+// Handles cases where import.meta.env might be undefined during certain build steps
+const getEnv = (key: string) => {
+    try {
+        // Check if import.meta exists and has .env property
+        if (import.meta && (import.meta as any).env) {
+            return (import.meta as any).env[key];
+        }
+    } catch (e) {
+        // Ignore errors
+    }
+    return undefined;
+};
+
+const supabaseUrl = getEnv('VITE_SUPABASE_URL');
+const supabaseAnonKey = getEnv('VITE_SUPABASE_ANON_KEY');
 
 if (!supabaseUrl || !supabaseAnonKey) {
-  console.warn("Missing Supabase Credentials! App will not function correctly.");
+  console.warn("Missing Supabase Credentials! App will not function correctly. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.");
 }
 
 export const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '');
