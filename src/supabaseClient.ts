@@ -1,5 +1,4 @@
 
-// This file is deprecated.
+// This file is deprecated and can be safely deleted.
+// No other files should import from here.
 export const supabase = null;
-export const encryptKey = (t: string) => t;
-export const decryptKey = (t: string) => t;
