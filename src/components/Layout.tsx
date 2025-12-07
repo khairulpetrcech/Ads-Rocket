@@ -5,7 +5,6 @@ import { useSettings } from '../App';
 import { getTopAdsForAccount } from '../services/metaService';
 import { analyzeAccountPerformance } from '../services/aiService';
 import Chatbot from './Chatbot';
-import { supabase } from '../supabaseClient';
 
 const Layout: React.FC = () => {
   const navigate = useNavigate();
@@ -16,9 +15,7 @@ const Layout: React.FC = () => {
   const [isAiExpanded, setIsAiExpanded] = useState(true);
 
   const handleLogout = async () => {
-    // Sign out from Supabase SaaS
-    await supabase.auth.signOut();
-    // Clear local settings context
+    // Clear local settings context and LocalStorage
     updateSettings({
       isConnected: false,
       fbAccessToken: '',
@@ -26,7 +23,8 @@ const Layout: React.FC = () => {
       businessName: '',
       apiKey: '' 
     });
-    navigate('/login');
+    localStorage.removeItem('ar_settings'); // Explicit clear
+    navigate('/connect');
   };
 
   // Manual Trigger AI Analysis
@@ -111,7 +109,7 @@ const Layout: React.FC = () => {
                 )}
             </div>
             <button onClick={handleLogout} className="flex items-center gap-3 px-4 py-3 w-full text-slate-400 hover:text-red-400 hover:bg-red-900/20 rounded-lg transition-colors">
-                <LogOut size={20} /><span>Sign Out</span>
+                <LogOut size={20} /><span>Disconnect</span>
             </button>
         </div>
       </aside>

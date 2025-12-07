@@ -1,11 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useSettings } from '../App';
 import { CommentTemplate, CommentItem } from '../types';
-import { supabase } from '../supabaseClient';
 import { PlusCircle, Trash2, Image as ImageIcon, Save, AlertTriangle, Layers, X, Loader2 } from 'lucide-react';
 
 const CommentTemplates: React.FC = () => {
-    const { session } = useSettings();
     const [templates, setTemplates] = useState<CommentTemplate[]>([]);
     const [loading, setLoading] = useState(false);
     
@@ -18,21 +16,25 @@ const CommentTemplates: React.FC = () => {
     const [currentImage, setCurrentImage] = useState<string>('');
     const [error, setError] = useState('');
 
-    // Load from Supabase
+    // Load from LocalStorage
     useEffect(() => {
-        if (session?.user.id) fetchTemplates();
-    }, [session]);
+        fetchTemplates();
+    }, []);
 
-    const fetchTemplates = async () => {
+    const fetchTemplates = () => {
         setLoading(true);
-        const { data, error } = await supabase
-            .from('comment_templates')
-            .select('*')
-            .order('created_at', { ascending: false });
-        
-        if (!error && data) {
-            setTemplates(data as CommentTemplate[]);
-        }
+        try {
+            const saved = localStorage.getItem('ar_comment_templates');
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                // Migration Logic if needed
+                const validated = parsed.map((t: any) => ({
+                    ...t,
+                    items: t.items || (t.message ? [{ id: 'legacy', message: t.message, imageBase64: t.imageBase64 }] : [])
+                }));
+                setTemplates(validated);
+            }
+        } catch (e) { console.error(e); }
         setLoading(false);
     };
 
@@ -42,7 +44,7 @@ const CommentTemplates: React.FC = () => {
             const reader = new FileReader();
             reader.onloadend = () => {
                 const base64 = reader.result as string;
-                if (base64.length > 2000000) { // 2MB Check (Postgres can handle jsonb but let's be reasonable)
+                if (base64.length > 2000000) { 
                     setError("Image is too large. Please use a smaller image (< 2MB).");
                     return;
                 }
@@ -74,42 +76,38 @@ const CommentTemplates: React.FC = () => {
         setDraftItems(newDraft);
     };
 
-    const handleSaveTemplate = async () => {
+    const handleSaveTemplate = () => {
         if (!templateName.trim()) return setError("Template Name is required.");
         if (draftItems.length === 0) return setError("Add at least one comment.");
-        if (!session?.user) return;
 
         setLoading(true);
-        const { data, error } = await supabase
-            .from('comment_templates')
-            .insert([{
-                user_id: session.user.id,
-                name: templateName,
-                items: draftItems
-            }])
-            .select();
+        
+        const newTemplate: CommentTemplate = {
+            id: Date.now().toString(),
+            name: templateName,
+            items: draftItems,
+            created_at: new Date().toISOString()
+        };
 
-        if (error) {
-            setError("Failed to save to database.");
-        } else if (data) {
-            setTemplates([data[0] as CommentTemplate, ...templates]);
-            setTemplateName('');
-            setDraftItems([]);
-            setError('');
-        }
+        const updated = [newTemplate, ...templates];
+        setTemplates(updated);
+        localStorage.setItem('ar_comment_templates', JSON.stringify(updated));
+        
+        setTemplateName('');
+        setDraftItems([]);
+        setError('');
         setLoading(false);
     };
 
-    const handleDeleteTemplate = async (id: string) => {
-        const { error } = await supabase.from('comment_templates').delete().eq('id', id);
-        if (!error) {
-            setTemplates(templates.filter(t => t.id !== id));
-        }
+    const handleDeleteTemplate = (id: string) => {
+        const updated = templates.filter(t => t.id !== id);
+        setTemplates(updated);
+        localStorage.setItem('ar_comment_templates', JSON.stringify(updated));
     };
 
     return (
         <div className="max-w-5xl mx-auto pb-20">
-            <h1 className="text-2xl font-bold text-white mb-6">Comment Templates (Cloud Saved)</h1>
+            <h1 className="text-2xl font-bold text-white mb-6">Comment Templates (Local Saved)</h1>
             
             <div className="grid md:grid-cols-12 gap-8">
                 {/* BUILDER */}
@@ -156,15 +154,14 @@ const CommentTemplates: React.FC = () => {
                     </div>
 
                     <button onClick={handleSaveTemplate} disabled={loading} className="w-full bg-green-600 hover:bg-green-500 text-white py-3 rounded-lg font-bold flex items-center justify-center gap-2">
-                        {loading ? <Loader2 className="animate-spin"/> : <><Save size={18} /> Save to Cloud</>}
+                        {loading ? <Loader2 className="animate-spin"/> : <><Save size={18} /> Save to Local</>}
                     </button>
                 </div>
 
                 {/* SAVED LIST */}
                 <div className="md:col-span-5 space-y-4">
                     <h2 className="text-lg font-bold text-white">Saved Templates</h2>
-                    {loading && templates.length === 0 ? <Loader2 className="animate-spin text-white"/> : 
-                     templates.length === 0 ? <p className="text-slate-500">No templates found.</p> : (
+                    {templates.length === 0 ? <p className="text-slate-500">No templates found.</p> : (
                         <div className="space-y-3">
                             {templates.map(t => (
                                 <div key={t.id} className="bg-slate-800 p-4 rounded-xl border border-slate-700">

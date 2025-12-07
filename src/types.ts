@@ -7,12 +7,7 @@ export enum AiProvider {
   OPENROUTER = 'OPENROUTER', // OpenRouter
 }
 
-// Mirrors the 'profiles' table in Supabase
 export interface UserSettings {
-  // Auth Info
-  userId?: string;
-  email?: string;
-  
   // App State
   isConnected: boolean;
   businessName: string;
@@ -20,7 +15,7 @@ export interface UserSettings {
   // AI Config
   selectedAiProvider: AiProvider;
   selectedModel: string;
-  apiKey: string; // Will be decrypted on load
+  apiKey: string; 
   
   // Meta Config
   fbAppId: string;
@@ -30,7 +25,7 @@ export interface UserSettings {
   // UI Preferences
   dashboardViewMode?: 'SALES' | 'TRAFFIC';
   
-  // Runtime Only (Not stored in DB profile usually, fetched fresh)
+  // Runtime Only 
   availableAccounts: MetaAdAccount[]; 
 }
 
@@ -41,10 +36,9 @@ export interface CommentItem {
 }
 
 export interface CommentTemplate {
-  id: string; // UUID from Supabase
-  user_id?: string;
+  id: string; 
   name: string;
-  items: CommentItem[]; // Stored as JSONB
+  items: CommentItem[];
   created_at?: string;
 }
 
