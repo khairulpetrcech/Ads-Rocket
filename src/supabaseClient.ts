@@ -1,51 +1,21 @@
 import { createClient } from '@supabase/supabase-js';
 
-// Helper to safely access Environment Variables
-// Handles cases where import.meta.env might be undefined during certain build steps or runtime
-const getEnv = (key: string) => {
-    let value = '';
-    try {
-        // Check if import.meta exists and has env property
-        // @ts-ignore
-        if (typeof import.meta !== 'undefined' && import.meta.env) {
-            // @ts-ignore
-            value = import.meta.env[key] || '';
-        }
-    } catch (e) {
-        // Ignore errors during access
-    }
-
-    // Fallback to process.env (Node/Vercel Serverless) if import.meta failed
-    if (!value) {
-        try {
-            if (typeof process !== 'undefined' && process.env) {
-                value = process.env[key] || '';
-            }
-        } catch (e) {
-            // Ignore
-        }
-    }
-    return value;
-};
-
-// --- PLACEHOLDER FOR HARDCODED KEYS (Optional) ---
-// If you provide keys, I will put them here.
-// const HARDCODED_URL = "https://your-project.supabase.co";
-// const HARDCODED_KEY = "eyJh...";
-
-const supabaseUrl = getEnv('VITE_SUPABASE_URL'); // || HARDCODED_URL
-const supabaseAnonKey = getEnv('VITE_SUPABASE_ANON_KEY'); // || HARDCODED_KEY
+// Hardcoded Credentials to ensure immediate connection and avoid runtime errors
+const supabaseUrl = "https://ztpedgagubjoiluagqzd.supabase.co";
+const supabaseAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp0cGVkZ2FndWJqb2lsdWFncXpkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUwODgxNDgsImV4cCI6MjA4MDY2NDE0OH0.02A3J4zzTetBmLFUtEXngdkTV1NARHFczvHAg6IVFjQ";
 
 if (!supabaseUrl || !supabaseAnonKey) {
   console.warn("Missing Supabase Credentials! App will not function correctly.");
 }
 
-export const supabase = createClient(supabaseUrl || 'https://placeholder.supabase.co', supabaseAnonKey || 'placeholder');
+export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 // Simple Client-Side Encryption Helper
+// In a real high-security app, keys should be managed via Vault or Backend Proxy.
 export const encryptKey = (text: string): string => {
     if (!text) return '';
     try {
+        // Simple Base64 obfuscation with a salt prefix
         return 'ENCv1_' + btoa(text).split('').reverse().join(''); 
     } catch (e) { return text; }
 };
