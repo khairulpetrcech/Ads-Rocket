@@ -1,7 +1,8 @@
+
 import React, { useState, useEffect } from 'react';
 import { useSettings } from '../App';
 import { CommentTemplate, CommentItem } from '../types';
-import { PlusCircle, Trash2, Image as ImageIcon, Save, AlertTriangle, Layers, X, Loader2 } from 'lucide-react';
+import { PlusCircle, Trash2, Image as ImageIcon, Save, Layers, Loader2 } from 'lucide-react';
 
 const CommentTemplates: React.FC = () => {
     const [templates, setTemplates] = useState<CommentTemplate[]>([]);
