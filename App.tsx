@@ -1,19 +1,24 @@
-
 import React, { createContext, useContext, useState, useEffect, PropsWithChildren } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Layout from './components/Layout';
+import LoginPage from './pages/Login'; // New Login Page
 import ConnectPage from './pages/Connect';
 import Dashboard from './pages/Dashboard';
 import SettingsPage from './pages/Settings';
 import CreateCampaign from './pages/CreateCampaign';
-import CommentTemplates from './pages/CommentTemplates'; // Import
+import CommentTemplates from './pages/CommentTemplates';
 import { UserSettings, AiProvider } from './types';
 import { initFacebookSdk, isSecureContext } from './services/metaService';
+import { supabase, decryptKey, encryptKey } from './supabaseClient';
+import { Session } from '@supabase/supabase-js';
+import { Loader2 } from 'lucide-react';
 
 // Context Definition
 interface AppContextType {
   settings: UserSettings;
-  updateSettings: (newSettings: Partial<UserSettings>) => void;
+  updateSettings: (newSettings: Partial<UserSettings>) => Promise<void>;
+  session: Session | null;
+  loading: boolean;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -24,116 +29,158 @@ export const useSettings = () => {
   return context;
 };
 
-// Security Helpers
-const encode = (str: string) => {
-    if(!str) return '';
-    try { return 'ENC_' + btoa(str); } catch(e) { return str; }
-};
-const decode = (str: string) => {
-    if(!str) return '';
-    if(str.startsWith('ENC_')) {
-        try { return atob(str.substring(4)); } catch(e) { return str; }
-    }
-    return str; // Fallback for existing plaintext
+// Default Empty Settings
+const DEFAULT_SETTINGS: UserSettings = {
+  isConnected: false,
+  businessName: '',
+  selectedAiProvider: AiProvider.CLAUDE, 
+  selectedModel: 'claude-3-5-sonnet-20241022', 
+  apiKey: '',
+  fbAppId: '', 
+  fbAccessToken: '',
+  adAccountId: '',
+  availableAccounts: []
 };
 
-// Main App Component
 const App: React.FC = () => {
-  // Initial State - Try to load from localStorage
-  const [settings, setSettings] = useState<UserSettings>(() => {
-    const saved = localStorage.getItem('adsRoketSettings');
-    const initial = saved ? JSON.parse(saved) : {
-      isConnected: false,
-      businessName: '',
-      selectedAiProvider: AiProvider.CLAUDE, 
-      selectedModel: 'claude-3-5-sonnet-20241022', 
-      apiKey: '',
-      fbAppId: '', 
-      fbAccessToken: '',
-      adAccountId: '',
-      availableAccounts: []
-    };
+  const [session, setSession] = useState<Session | null>(null);
+  const [settings, setSettings] = useState<UserSettings>(DEFAULT_SETTINGS);
+  const [loading, setLoading] = useState(true);
 
-    // Decode Sensitive Fields
-    if(initial.fbAccessToken) initial.fbAccessToken = decode(initial.fbAccessToken);
-    if(initial.apiKey) initial.apiKey = decode(initial.apiKey);
-
-    return initial;
-  });
-
-  // Persist settings (Obfuscated)
+  // 1. Listen for Auth Changes
   useEffect(() => {
-    const toSave = { ...settings };
-    if(toSave.fbAccessToken) toSave.fbAccessToken = encode(toSave.fbAccessToken);
-    if(toSave.apiKey) toSave.apiKey = encode(toSave.apiKey);
-    localStorage.setItem('adsRoketSettings', JSON.stringify(toSave));
-  }, [settings]);
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      if (session) loadUserProfile(session.user.id);
+      else setLoading(false);
+    });
 
-  // IDLE TIMEOUT (Auto Logout after 30 mins of inactivity)
-  useEffect(() => {
-    let timer: ReturnType<typeof setTimeout>;
-    const resetTimer = () => {
-        clearTimeout(timer);
-        timer = setTimeout(() => {
-            if(settings.isConnected) {
-                // Keep App ID but clear connection
-                setSettings(prev => ({ 
-                    ...prev, 
-                    isConnected: false, 
-                    fbAccessToken: '', 
-                    adAccountId: '',
-                    apiKey: '' // Clear AI Key too for security
-                }));
-                // Note: We don't use alert() as it blocks UI, just redirect
-                window.location.hash = '#/connect';
-            }
-        }, 30 * 60 * 1000); // 30 minutes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+      if (session) loadUserProfile(session.user.id);
+      else {
+        setSettings(DEFAULT_SETTINGS);
+        setLoading(false);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  // 2. Load User Profile from Supabase
+  const loadUserProfile = async (userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+
+      if (error && error.code !== 'PGRST116') { // PGRST116 is "Row not found", might be new user
+        console.error('Error fetching profile:', error);
+      }
+
+      if (data) {
+        setSettings(prev => ({
+          ...prev,
+          userId: userId,
+          email: session?.user.email,
+          businessName: data.business_name || '',
+          fbAccessToken: data.fb_access_token || '',
+          adAccountId: data.ad_account_id || '',
+          fbAppId: data.fb_app_id || '',
+          apiKey: decryptKey(data.api_key_encrypted), // Decrypt on load
+          selectedAiProvider: (data.selected_ai_provider as AiProvider) || AiProvider.CLAUDE,
+          selectedModel: data.selected_model || 'claude-3-5-sonnet-20241022',
+          dashboardViewMode: data.dashboard_view_mode || undefined,
+          isConnected: !!(data.fb_access_token && data.ad_account_id)
+        }));
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 3. Update Settings (Save to Supabase)
+  const updateSettings = async (newSettings: Partial<UserSettings>) => {
+    // Update Local State first for UI responsiveness
+    setSettings(prev => ({ ...prev, ...newSettings }));
+
+    if (!session?.user) return;
+
+    // Prepare payload for DB
+    const updates: any = {
+      updated_at: new Date(),
     };
 
-    window.addEventListener('mousemove', resetTimer);
-    window.addEventListener('keydown', resetTimer);
-    window.addEventListener('click', resetTimer);
-    resetTimer();
+    if (newSettings.businessName !== undefined) updates.business_name = newSettings.businessName;
+    if (newSettings.fbAccessToken !== undefined) updates.fb_access_token = newSettings.fbAccessToken;
+    if (newSettings.adAccountId !== undefined) updates.ad_account_id = newSettings.adAccountId;
+    if (newSettings.fbAppId !== undefined) updates.fb_app_id = newSettings.fbAppId;
+    if (newSettings.selectedAiProvider !== undefined) updates.selected_ai_provider = newSettings.selectedAiProvider;
+    if (newSettings.selectedModel !== undefined) updates.selected_model = newSettings.selectedModel;
+    if (newSettings.dashboardViewMode !== undefined) updates.dashboard_view_mode = newSettings.dashboardViewMode;
+    
+    // Encrypt Key before saving if changed
+    if (newSettings.apiKey !== undefined) {
+        updates.api_key_encrypted = encryptKey(newSettings.apiKey);
+    }
 
-    return () => {
-        clearTimeout(timer);
-        window.removeEventListener('mousemove', resetTimer);
-        window.removeEventListener('keydown', resetTimer);
-        window.removeEventListener('click', resetTimer);
-    };
-  }, [settings.isConnected]);
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .upsert({ id: session.user.id, ...updates });
 
-  // Auto-init Facebook SDK if App ID is present AND we are in a secure context
+      if (error) throw error;
+    } catch (e) {
+      console.error("Failed to save settings to DB:", e);
+    }
+  };
+
+  // FB SDK Auto-Init
   useEffect(() => {
     if (settings.fbAppId && settings.fbAppId !== '123456789' && isSecureContext()) {
-      initFacebookSdk(settings.fbAppId).catch(err => 
-        console.warn("Auto-init FB SDK failed:", err)
-      );
+      initFacebookSdk(settings.fbAppId).catch(console.warn);
     }
   }, [settings.fbAppId]);
 
-  const updateSettings = (newSettings: Partial<UserSettings>) => {
-    setSettings(prev => ({ ...prev, ...newSettings }));
-  };
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#0f172a] flex items-center justify-center text-white">
+        <Loader2 className="animate-spin text-indigo-500 w-12 h-12" />
+      </div>
+    );
+  }
 
-  // Protected Route Wrapper
+  // Protected Routes Wrapper
   const ProtectedRoute = ({ children }: PropsWithChildren) => {
+    if (!session) {
+      return <Navigate to="/login" replace />;
+    }
+    // If logged in to SaaS but not connected to Meta, go to Connect
     if (!settings.isConnected) {
-      return <Navigate to="/connect" replace />;
+       // Allow access to Connect page
+       return <Navigate to="/connect" replace />; 
     }
     return <>{children}</>;
   };
 
   return (
-    <AppContext.Provider value={{ settings, updateSettings }}>
+    <AppContext.Provider value={{ settings, updateSettings, session, loading }}>
       <HashRouter>
         <Routes>
-          <Route path="/connect" element={<ConnectPage />} />
+          <Route path="/login" element={<LoginPage />} />
+          
+          <Route path="/connect" element={
+            session ? <ConnectPage /> : <Navigate to="/login" replace />
+          } />
           
           <Route path="/" element={
-            <ProtectedRoute>
-              <Layout />
-            </ProtectedRoute>
+            session ? (
+              settings.isConnected ? <Layout /> : <Navigate to="/connect" replace />
+            ) : <Navigate to="/login" replace />
           }>
             <Route index element={<Dashboard />} />
             <Route path="create-campaign" element={<CreateCampaign />} />

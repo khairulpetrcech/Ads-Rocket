@@ -1,59 +1,40 @@
-
 import React, { useState, useEffect } from 'react';
 import { useSettings } from '../App';
 import { CommentTemplate, CommentItem } from '../types';
-import { PlusCircle, Trash2, Image as ImageIcon, Save, AlertTriangle, Layers, X } from 'lucide-react';
+import { supabase } from '../supabaseClient';
+import { PlusCircle, Trash2, Image as ImageIcon, Save, AlertTriangle, Layers, X, Loader2 } from 'lucide-react';
 
 const CommentTemplates: React.FC = () => {
-    const { settings } = useSettings();
+    const { session } = useSettings();
     const [templates, setTemplates] = useState<CommentTemplate[]>([]);
+    const [loading, setLoading] = useState(false);
     
-    // Template Builder State
+    // Builder State
     const [templateName, setTemplateName] = useState('');
     const [draftItems, setDraftItems] = useState<CommentItem[]>([]);
     
-    // Current Comment Input State
+    // Inputs
     const [currentMessage, setCurrentMessage] = useState('');
     const [currentImage, setCurrentImage] = useState<string>('');
-    
     const [error, setError] = useState('');
 
+    // Load from Supabase
     useEffect(() => {
-        const saved = localStorage.getItem('ar_comment_templates');
-        if (saved) {
-            try {
-                let parsed = JSON.parse(saved);
-                
-                // MIGRATION LOGIC: Check if data is in old format (missing 'items' array)
-                if (Array.isArray(parsed)) {
-                    const migrated = parsed.map((t: any) => {
-                        // If 'items' is missing, likely old format with 'message' property
-                        if (!t.items || !Array.isArray(t.items)) {
-                            const newItems: CommentItem[] = [];
-                            // Recover old data if present
-                            if (t.message) {
-                                newItems.push({
-                                    id: Date.now().toString() + Math.random().toString(),
-                                    message: t.message,
-                                    imageBase64: t.imageBase64
-                                });
-                            }
-                            return { ...t, items: newItems };
-                        }
-                        return t;
-                    });
-                    setTemplates(migrated);
-                    // Save back the migrated version to fix storage permanently
-                    localStorage.setItem('ar_comment_templates', JSON.stringify(migrated));
-                } else {
-                    setTemplates([]);
-                }
-            } catch (e) {
-                console.error("Failed to load/migrate templates", e);
-                setTemplates([]);
-            }
+        if (session?.user.id) fetchTemplates();
+    }, [session]);
+
+    const fetchTemplates = async () => {
+        setLoading(true);
+        const { data, error } = await supabase
+            .from('comment_templates')
+            .select('*')
+            .order('created_at', { ascending: false });
+        
+        if (!error && data) {
+            setTemplates(data as CommentTemplate[]);
         }
-    }, []);
+        setLoading(false);
+    };
 
     const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
@@ -61,9 +42,8 @@ const CommentTemplates: React.FC = () => {
             const reader = new FileReader();
             reader.onloadend = () => {
                 const base64 = reader.result as string;
-                // Safety check for size (LocalStorage limit is ~5MB total, careful)
-                if (base64.length > 1500000) { // Approx 1MB limit per image
-                    setError("Image is too large. Please use a smaller image (< 1MB).");
+                if (base64.length > 2000000) { // 2MB Check (Postgres can handle jsonb but let's be reasonable)
+                    setError("Image is too large. Please use a smaller image (< 2MB).");
                     return;
                 }
                 setCurrentImage(base64);
@@ -82,7 +62,6 @@ const CommentTemplates: React.FC = () => {
             message: currentMessage,
             imageBase64: currentImage || undefined
         };
-
         setDraftItems([...draftItems, newItem]);
         setCurrentMessage('');
         setCurrentImage('');
@@ -95,158 +74,106 @@ const CommentTemplates: React.FC = () => {
         setDraftItems(newDraft);
     };
 
-    const handleSaveTemplate = () => {
+    const handleSaveTemplate = async () => {
         if (!templateName.trim()) return setError("Template Name is required.");
-        if (draftItems.length === 0) return setError("Add at least one comment to the template.");
+        if (draftItems.length === 0) return setError("Add at least one comment.");
+        if (!session?.user) return;
 
-        const newTemplate: CommentTemplate = {
-            id: Date.now().toString(),
-            name: templateName,
-            items: draftItems
-        };
+        setLoading(true);
+        const { data, error } = await supabase
+            .from('comment_templates')
+            .insert([{
+                user_id: session.user.id,
+                name: templateName,
+                items: draftItems
+            }])
+            .select();
 
-        const updated = [...templates, newTemplate];
-        setTemplates(updated);
-        localStorage.setItem('ar_comment_templates', JSON.stringify(updated));
-        
-        // Reset Logic
-        setTemplateName('');
-        setDraftItems([]);
-        setCurrentMessage('');
-        setCurrentImage('');
-        setError('');
+        if (error) {
+            setError("Failed to save to database.");
+        } else if (data) {
+            setTemplates([data[0] as CommentTemplate, ...templates]);
+            setTemplateName('');
+            setDraftItems([]);
+            setError('');
+        }
+        setLoading(false);
     };
 
-    const handleDeleteTemplate = (id: string) => {
-        const updated = templates.filter(t => t.id !== id);
-        setTemplates(updated);
-        localStorage.setItem('ar_comment_templates', JSON.stringify(updated));
+    const handleDeleteTemplate = async (id: string) => {
+        const { error } = await supabase.from('comment_templates').delete().eq('id', id);
+        if (!error) {
+            setTemplates(templates.filter(t => t.id !== id));
+        }
     };
 
     return (
         <div className="max-w-5xl mx-auto pb-20">
-            <h1 className="text-2xl font-bold text-white mb-6">Comment Templates</h1>
-            <p className="text-slate-400 mb-8">
-                Create templates that contain <strong>up to 10 comments</strong>. When launched, all comments in the template will be posted to your ad.
-            </p>
-
+            <h1 className="text-2xl font-bold text-white mb-6">Comment Templates (Cloud Saved)</h1>
+            
             <div className="grid md:grid-cols-12 gap-8">
-                {/* LEFT: BUILDER */}
+                {/* BUILDER */}
                 <div className="md:col-span-7 bg-[#1e293b] p-6 rounded-xl border border-slate-700 h-fit">
                     <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
                         <PlusCircle className="text-indigo-400" size={20}/> Template Builder
                     </h2>
                     
-                    {error && (
-                        <div className="bg-red-900/20 border border-red-800 text-red-400 p-3 rounded-lg text-sm mb-4 flex items-center gap-2">
-                            <AlertTriangle size={16} /> {error}
-                        </div>
-                    )}
+                    {error && <div className="text-red-400 bg-red-900/20 p-3 rounded mb-4 text-sm">{error}</div>}
 
-                    {/* Template Name Input */}
                     <div className="mb-6">
                         <label className="block text-sm text-slate-400 mb-1">Template Name</label>
                         <input 
-                            type="text" 
-                            value={templateName}
-                            onChange={(e) => setTemplateName(e.target.value)}
-                            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-white outline-none focus:border-indigo-500" 
-                            placeholder="e.g. Sales Funnel Reply (3 Comments)"
+                            type="text" value={templateName} onChange={(e) => setTemplateName(e.target.value)}
+                            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-white" 
+                            placeholder="e.g. Sales Funnel Reply"
                         />
                     </div>
 
-                    {/* Add Comment Section */}
                     <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700 mb-6">
-                        <h3 className="text-sm font-semibold text-slate-300 mb-3 uppercase tracking-wider">Add Comment to Sequence ({draftItems.length}/10)</h3>
-                        
                         <textarea 
-                            value={currentMessage}
-                            onChange={(e) => setCurrentMessage(e.target.value)}
-                            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-white h-20 outline-none mb-3 text-sm" 
+                            value={currentMessage} onChange={(e) => setCurrentMessage(e.target.value)}
+                            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-white h-20 text-sm mb-3" 
                             placeholder="Write a comment..."
                         />
-                        
                         <div className="flex justify-between items-center">
-                            <div className="flex items-center gap-3">
-                                <label className="cursor-pointer text-slate-400 hover:text-white flex items-center gap-2 text-xs bg-slate-800 px-3 py-1.5 rounded border border-slate-600">
-                                    <ImageIcon size={14} /> {currentImage ? 'Change Image' : 'Attach Image'}
-                                    <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
-                                </label>
-                                {currentImage && (
-                                    <div className="relative w-8 h-8 rounded overflow-hidden border border-slate-500">
-                                        <img src={currentImage} className="w-full h-full object-cover" alt="Preview" />
-                                        <button onClick={() => setCurrentImage('')} className="absolute inset-0 bg-black/60 flex items-center justify-center text-white"><X size={12}/></button>
-                                    </div>
-                                )}
-                            </div>
-                            <button 
-                                onClick={addToDraft}
-                                disabled={draftItems.length >= 10}
-                                className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-1.5 rounded text-sm font-medium disabled:opacity-50"
-                            >
-                                Add to List
-                            </button>
+                            <label className="cursor-pointer text-slate-400 hover:text-white flex items-center gap-2 text-xs bg-slate-800 px-3 py-1.5 rounded border border-slate-600">
+                                <ImageIcon size={14} /> {currentImage ? 'Change Image' : 'Attach Image'}
+                                <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
+                            </label>
+                            <button onClick={addToDraft} className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-1.5 rounded text-sm">Add to List</button>
                         </div>
                     </div>
 
-                    {/* Draft List */}
                     <div className="space-y-2 mb-6">
                         {draftItems.map((item, idx) => (
                             <div key={idx} className="flex items-start gap-3 bg-slate-900 p-3 rounded border border-slate-800">
-                                <span className="bg-slate-700 text-slate-400 text-[10px] w-5 h-5 flex items-center justify-center rounded-full flex-shrink-0">
-                                    {idx + 1}
-                                </span>
-                                <div className="flex-1 min-w-0">
-                                    <p className="text-slate-300 text-sm truncate">{item.message}</p>
-                                </div>
-                                {item.imageBase64 && <ImageIcon size={14} className="text-green-500 flex-shrink-0"/>}
-                                <button onClick={() => removeFromDraft(idx)} className="text-slate-500 hover:text-red-400"><Trash2 size={14}/></button>
+                                <span className="bg-slate-700 text-slate-400 text-[10px] w-5 h-5 flex items-center justify-center rounded-full">{idx + 1}</span>
+                                <p className="text-slate-300 text-sm truncate flex-1">{item.message}</p>
+                                {item.imageBase64 && <ImageIcon size={14} className="text-green-500"/>}
+                                <button onClick={() => removeFromDraft(idx)}><Trash2 size={14} className="text-slate-500 hover:text-red-400"/></button>
                             </div>
                         ))}
-                        {draftItems.length === 0 && (
-                            <div className="text-center text-xs text-slate-500 italic py-2">No comments added to this template yet.</div>
-                        )}
                     </div>
 
-                    <button 
-                        onClick={handleSaveTemplate}
-                        className="w-full bg-green-600 hover:bg-green-500 text-white py-3 rounded-lg font-bold flex items-center justify-center gap-2 shadow-lg shadow-green-900/20"
-                    >
-                        <Save size={18} /> Save Template
+                    <button onClick={handleSaveTemplate} disabled={loading} className="w-full bg-green-600 hover:bg-green-500 text-white py-3 rounded-lg font-bold flex items-center justify-center gap-2">
+                        {loading ? <Loader2 className="animate-spin"/> : <><Save size={18} /> Save to Cloud</>}
                     </button>
                 </div>
 
-                {/* RIGHT: SAVED LIST */}
+                {/* SAVED LIST */}
                 <div className="md:col-span-5 space-y-4">
-                    <h2 className="text-lg font-bold text-white mb-2">Saved Templates</h2>
-                    
-                    {templates.length === 0 ? (
-                        <div className="text-center py-12 text-slate-500 bg-slate-800/30 rounded-xl border border-dashed border-slate-700">
-                            No templates created yet.
-                        </div>
-                    ) : (
+                    <h2 className="text-lg font-bold text-white">Saved Templates</h2>
+                    {loading && templates.length === 0 ? <Loader2 className="animate-spin text-white"/> : 
+                     templates.length === 0 ? <p className="text-slate-500">No templates found.</p> : (
                         <div className="space-y-3">
                             {templates.map(t => (
-                                <div key={t.id} className="bg-slate-800 p-4 rounded-xl border border-slate-700 hover:border-indigo-500/50 transition-colors">
+                                <div key={t.id} className="bg-slate-800 p-4 rounded-xl border border-slate-700">
                                     <div className="flex justify-between items-start mb-2">
                                         <h3 className="text-white font-bold truncate pr-4">{t.name}</h3>
-                                        <button 
-                                            onClick={() => handleDeleteTemplate(t.id)}
-                                            className="text-slate-500 hover:text-red-400"
-                                        >
-                                            <Trash2 size={16} />
-                                        </button>
+                                        <button onClick={() => handleDeleteTemplate(t.id)} className="text-slate-500 hover:text-red-400"><Trash2 size={16} /></button>
                                     </div>
                                     <div className="bg-slate-900/50 rounded p-2 text-xs text-slate-400 mb-2 flex items-center gap-2">
-                                        <Layers size={12} /> {(t.items || []).length} Comments in sequence
-                                    </div>
-                                    <div className="space-y-1">
-                                        {(t.items || []).slice(0, 2).map((item, i) => (
-                                            <p key={i} className="text-xs text-slate-500 truncate border-l-2 border-slate-700 pl-2">
-                                                {item.message}
-                                            </p>
-                                        ))}
-                                        {(t.items || []).length > 2 && <p className="text-[10px] text-slate-600 pl-2">+{t.items.length - 2} more...</p>}
+                                        <Layers size={12} /> {(t.items || []).length} Comments
                                     </div>
                                 </div>
                             ))}

@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { LayoutDashboard, Settings, LogOut, Zap, Loader2, ChevronDown, ChevronUp, Play, PlusCircle, MessageSquareText } from 'lucide-react';
@@ -6,6 +5,7 @@ import { useSettings } from '../App';
 import { getTopAdsForAccount } from '../services/metaService';
 import { analyzeAccountPerformance } from '../services/aiService';
 import Chatbot from './Chatbot';
+import { supabase } from '../supabaseClient';
 
 const Layout: React.FC = () => {
   const navigate = useNavigate();
@@ -15,17 +15,18 @@ const Layout: React.FC = () => {
   const [loadingAi, setLoadingAi] = useState(false);
   const [isAiExpanded, setIsAiExpanded] = useState(true);
 
-  const handleLogout = () => {
-    // Security: Clear credentials and connection state
-    // We KEEP the fbAppId so the user doesn't have to re-enter it (User Convenience)
+  const handleLogout = async () => {
+    // Sign out from Supabase SaaS
+    await supabase.auth.signOut();
+    // Clear local settings context
     updateSettings({
       isConnected: false,
       fbAccessToken: '',
       adAccountId: '',
       businessName: '',
-      apiKey: '' // Clear AI API Key on logout for safety
+      apiKey: '' 
     });
-    navigate('/connect');
+    navigate('/login');
   };
 
   // Manual Trigger AI Analysis
@@ -35,10 +36,7 @@ const Layout: React.FC = () => {
         setLoadingAi(true);
         setIsAiExpanded(true);
         try {
-            // 1. Get Top 3 Ads
             const topAds = await getTopAdsForAccount(settings.adAccountId, settings.fbAccessToken);
-            
-            // 2. Analyze
             if (topAds.length > 0) {
                 const actionPlan = await analyzeAccountPerformance(
                     topAds, 
@@ -51,7 +49,6 @@ const Layout: React.FC = () => {
                 setAiStatus(["Not enough active ads to analyze."]);
             }
         } catch (e) {
-            console.error("Sidebar AI Error", e);
             setAiStatus(["Could not analyze ads at this time."]);
         } finally {
             setLoadingAi(false);
@@ -72,60 +69,20 @@ const Layout: React.FC = () => {
         </div>
 
         <nav className="flex-1 px-4 space-y-2 mt-4">
-          <NavLink
-            to="/"
-            className={({ isActive }) =>
-              `flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 ${
-                isActive 
-                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-900/50' 
-                  : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-              }`
-            }
-          >
-            <LayoutDashboard size={20} />
-            <span>Dashboard</span>
+          <NavLink to="/" className={({ isActive }) => `flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 ${isActive ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:bg-slate-800'}`}>
+            <LayoutDashboard size={20} /><span>Dashboard</span>
           </NavLink>
 
-          <NavLink
-            to="/create-campaign"
-            className={({ isActive }) =>
-              `flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 ${
-                isActive 
-                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-900/50' 
-                  : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-              }`
-            }
-          >
-            <PlusCircle size={20} />
-            <span>Buat Campaign</span>
+          <NavLink to="/create-campaign" className={({ isActive }) => `flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 ${isActive ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:bg-slate-800'}`}>
+            <PlusCircle size={20} /><span>Buat Campaign</span>
           </NavLink>
           
-          <NavLink
-            to="/comment-templates"
-            className={({ isActive }) =>
-              `flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 ${
-                isActive 
-                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-900/50' 
-                  : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-              }`
-            }
-          >
-            <MessageSquareText size={20} />
-            <span>Comment Templates</span>
+          <NavLink to="/comment-templates" className={({ isActive }) => `flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 ${isActive ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:bg-slate-800'}`}>
+            <MessageSquareText size={20} /><span>Comment Templates</span>
           </NavLink>
 
-          <NavLink
-            to="/settings"
-            className={({ isActive }) =>
-              `flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 ${
-                isActive 
-                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-900/50' 
-                  : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-              }`
-            }
-          >
-            <Settings size={20} />
-            <span>Configuration</span>
+          <NavLink to="/settings" className={({ isActive }) => `flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 ${isActive ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:bg-slate-800'}`}>
+            <Settings size={20} /><span>Configuration</span>
           </NavLink>
         </nav>
 
@@ -134,62 +91,39 @@ const Layout: React.FC = () => {
             <div className="bg-slate-800/50 rounded-lg p-4 mb-4 border border-slate-700 transition-all">
                 <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2 text-indigo-400">
-                        <Zap size={16} />
-                        <span className="text-xs font-semibold uppercase tracking-wider">AI Status</span>
+                        <Zap size={16} /> <span className="text-xs font-semibold uppercase">AI Status</span>
                     </div>
                     <button onClick={() => setIsAiExpanded(!isAiExpanded)} className="text-slate-500 hover:text-white">
                         {isAiExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                     </button>
                 </div>
-
                 {isAiExpanded && (
                     <div className="animate-fadeIn">
-                        {loadingAi ? (
-                            <div className="flex items-center gap-2 text-xs text-slate-400 py-2">
-                                <Loader2 size={12} className="animate-spin" /> Analyzing Top Ads...
-                            </div>
-                        ) : (
+                        {loadingAi ? <div className="text-xs text-slate-400 py-2 flex gap-2"><Loader2 size={12} className="animate-spin"/> Analyzing...</div> : (
                             <ul className="text-xs text-slate-400 space-y-2 list-disc pl-4 mb-3">
-                                {aiStatus.length > 0 ? (
-                                    aiStatus.map((plan, i) => <li key={i}>{plan}</li>)
-                                ) : (
-                                    <li className="list-none italic text-slate-500">Ready to analyze performance.</li>
-                                )}
+                                {aiStatus.length > 0 ? aiStatus.map((plan, i) => <li key={i}>{plan}</li>) : <li className="list-none italic text-slate-500">Ready to analyze.</li>}
                             </ul>
                         )}
-
-                        <button 
-                            onClick={handleAnalyze} 
-                            disabled={loadingAi}
-                            className="w-full flex items-center justify-center gap-2 bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-300 text-xs py-2 rounded border border-indigo-500/30 transition-colors"
-                        >
+                        <button onClick={handleAnalyze} disabled={loadingAi} className="w-full flex items-center justify-center gap-2 bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-300 text-xs py-2 rounded border border-indigo-500/30">
                             <Play size={10} fill="currentColor" /> Analyze Now
                         </button>
                     </div>
                 )}
             </div>
-
-            <button
-                onClick={handleLogout}
-                className="flex items-center gap-3 px-4 py-3 w-full text-slate-400 hover:text-red-400 hover:bg-red-900/20 rounded-lg transition-colors"
-            >
-                <LogOut size={20} />
-                <span>Disconnect</span>
+            <button onClick={handleLogout} className="flex items-center gap-3 px-4 py-3 w-full text-slate-400 hover:text-red-400 hover:bg-red-900/20 rounded-lg transition-colors">
+                <LogOut size={20} /><span>Sign Out</span>
             </button>
         </div>
       </aside>
 
       {/* Main Content */}
       <main className="flex-1 overflow-y-auto relative">
-        <div className="p-6 max-w-7xl mx-auto pb-24">
-            <Outlet />
-        </div>
+        <div className="p-6 max-w-7xl mx-auto pb-24"><Outlet /></div>
       </main>
 
-      {/* Chatbot */}
       <Chatbot />
 
-      {/* Mobile Nav (Bottom) */}
+      {/* Mobile Nav */}
       <div className="md:hidden fixed bottom-0 w-full bg-[#1e293b] border-t border-slate-700 flex justify-around p-3 z-50">
         <NavLink to="/" className={({isActive}) => isActive ? 'text-indigo-400' : 'text-slate-500'}><LayoutDashboard /></NavLink>
         <NavLink to="/create-campaign" className={({isActive}) => isActive ? 'text-indigo-400' : 'text-slate-500'}><PlusCircle /></NavLink>

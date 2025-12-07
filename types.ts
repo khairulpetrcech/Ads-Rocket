@@ -7,19 +7,31 @@ export enum AiProvider {
   OPENROUTER = 'OPENROUTER', // OpenRouter
 }
 
+// Mirrors the 'profiles' table in Supabase
 export interface UserSettings {
+  // Auth Info
+  userId?: string;
+  email?: string;
+  
+  // App State
   isConnected: boolean;
   businessName: string;
+  
+  // AI Config
   selectedAiProvider: AiProvider;
-  selectedModel: string; // Specific model version
-  apiKey: string; // User provided key for AI
-  // Meta Configuration
+  selectedModel: string;
+  apiKey: string; // Will be decrypted on load
+  
+  // Meta Config
   fbAppId: string;
   fbAccessToken: string;
   adAccountId: string;
-  availableAccounts: MetaAdAccount[]; // List of all accounts user can access
+  
   // UI Preferences
   dashboardViewMode?: 'SALES' | 'TRAFFIC';
+  
+  // Runtime Only (Not stored in DB profile usually, fetched fresh)
+  availableAccounts: MetaAdAccount[]; 
 }
 
 export interface CommentItem {
@@ -29,9 +41,11 @@ export interface CommentItem {
 }
 
 export interface CommentTemplate {
-  id: string;
+  id: string; // UUID from Supabase
+  user_id?: string;
   name: string;
-  items: CommentItem[]; // Array of comments (up to 10)
+  items: CommentItem[]; // Stored as JSONB
+  created_at?: string;
 }
 
 export interface AdMetrics {
@@ -46,10 +60,9 @@ export interface AdMetrics {
   costPerLandingPageView: number;
   purchases: number;
   costPerPurchase: number;
-  // New Metrics for Traffic/Leads
-  results: number; // Messaging conversations, Leads, or Link Clicks
+  results: number;
   costPerResult: number;
-  inline_link_click_ctr: number; // CTR (Link Click-through)
+  inline_link_click_ctr: number;
 }
 
 export interface BaseEntity {
@@ -60,13 +73,13 @@ export interface BaseEntity {
 }
 
 export interface AdCampaign extends BaseEntity {
-  objective: string; // OUTCOME_SALES, OUTCOME_TRAFFIC, etc.
+  objective: string;
   dailyBudget: number;
-  history: { date: string; roas: number; spend: number }[]; // For charts
+  history: { date: string; roas: number; spend: number }[];
 }
 
 export interface AdSet extends BaseEntity {
-  dailyBudget: number; // Ad Sets can also have budgets if CBO is off, or just for reference
+  dailyBudget: number;
   campaign_id: string;
 }
 
@@ -75,7 +88,7 @@ export interface Ad extends BaseEntity {
   creative: {
     thumbnail_url?: string;
     image_url?: string;
-    effective_object_story_id?: string; // For linking to the post
+    effective_object_story_id?: string;
   };
 }
 
