@@ -1,5 +1,4 @@
 
-
 import React, { useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { LayoutDashboard, Settings, LogOut, Zap, Loader2, ChevronDown, ChevronUp, Play, PlusCircle, MessageSquareText, Menu, X, Minimize2, Maximize2, Send, CheckCircle } from 'lucide-react';
@@ -7,6 +6,8 @@ import { useSettings } from '../App';
 import { getTopAdsForAccount, publishComment } from '../services/metaService';
 import { analyzeAccountPerformance } from '../services/aiService';
 import { Ad, CommentTemplate } from '../types';
+
+const APP_VERSION = "0.91";
 
 const Layout: React.FC = () => {
   const navigate = useNavigate();
@@ -215,6 +216,11 @@ const Layout: React.FC = () => {
             <button onClick={handleLogout} className="flex items-center gap-3 px-4 py-3 w-full text-slate-400 hover:text-red-400 hover:bg-red-900/20 rounded-lg transition-colors">
                 <LogOut size={20} /><span>Sign Out</span>
             </button>
+            
+            {/* VERSION DISPLAY */}
+            <div className="mt-4 text-center">
+                <p className="text-[10px] text-slate-600 font-mono">Ads Rocket Version : {APP_VERSION}</p>
+            </div>
         </div>
       </aside>
 
@@ -299,6 +305,11 @@ const Layout: React.FC = () => {
                       >
                           <LogOut size={20} /><span>Sign Out</span>
                       </button>
+                      
+                      {/* VERSION DISPLAY MOBILE */}
+                      <div className="mt-4 text-center">
+                        <p className="text-[10px] text-slate-600 font-mono">Ads Rocket Version : {APP_VERSION}</p>
+                      </div>
                   </div>
               </aside>
           </div>
