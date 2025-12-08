@@ -152,12 +152,17 @@ const Layout: React.FC = () => {
       {/* --- DESKTOP SIDEBAR --- */}
       <aside className="w-64 bg-[#1e293b] border-r border-slate-700 flex flex-col hidden md:flex">
         <div className="p-6 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg flex items-center justify-center shadow-lg shadow-indigo-500/20 overflow-hidden bg-white">
+          <div className="w-10 h-10 rounded-lg flex items-center justify-center shadow-lg shadow-indigo-500/20 overflow-hidden bg-white flex-shrink-0">
              <img src="https://i.postimg.cc/5tpzdqNN/rocket.png" alt="Ads Rocket" className="w-full h-full object-cover" />
           </div>
-          <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-400">
-            Ads Rocket
-          </span>
+          <div>
+            <div className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-400 leading-none">
+                Ads Rocket
+            </div>
+            <div className="text-[10px] font-bold mt-1 bg-gradient-to-r from-[#FBF5B7] via-[#BF953F] to-[#AA771C] text-transparent bg-clip-text">
+                Jom Automasi 100% Pemasaran Anda.
+            </div>
+          </div>
         </div>
 
         <nav className="flex-1 px-4 space-y-2 mt-4">
@@ -245,10 +250,15 @@ const Layout: React.FC = () => {
               <aside className="relative w-[80%] max-w-[300px] h-full bg-[#1e293b] shadow-2xl flex flex-col animate-slide-in border-r border-slate-700">
                   <div className="p-6 flex items-center justify-between border-b border-slate-700">
                       <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-xl bg-white shadow-lg overflow-hidden">
+                          <div className="w-10 h-10 rounded-xl bg-white shadow-lg overflow-hidden flex-shrink-0">
                              <img src="https://i.postimg.cc/5tpzdqNN/rocket.png" alt="Logo" className="w-full h-full object-cover" />
                           </div>
-                          <span className="text-xl font-extrabold text-white tracking-tight">Ads Rocket</span>
+                          <div>
+                            <div className="text-xl font-extrabold text-white tracking-tight leading-none">Ads Rocket</div>
+                            <div className="text-[10px] font-bold mt-1 bg-gradient-to-r from-[#FBF5B7] via-[#BF953F] to-[#AA771C] text-transparent bg-clip-text">
+                                Jom Automasi 100% Pemasaran Anda.
+                            </div>
+                          </div>
                       </div>
                       <button onClick={() => setIsMobileMenuOpen(false)} className="text-slate-400 hover:text-white">
                           <X size={24} />
