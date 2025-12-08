@@ -51,7 +51,7 @@ const Layout: React.FC = () => {
       <aside className="w-64 bg-[#1e293b] border-r border-slate-700 flex flex-col hidden md:flex">
         <div className="p-6 flex items-center gap-3">
           <div className="w-10 h-10 rounded-lg flex items-center justify-center shadow-lg shadow-indigo-500/20 overflow-hidden bg-white">
-             <img src="https://i.postimg.cc/pLyD6HKz/adsrocket.jpg" alt="Ads Rocket" className="w-full h-full object-cover" />
+             <img src="https://i.postimg.cc/5tpzdqNN/rocket.png" alt="Ads Rocket" className="w-full h-full object-cover" />
           </div>
           <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-400">
             Ads Rocket

@@ -28,7 +28,7 @@ const LoginPage: React.FC = () => {
 
         <div className="max-w-md w-full bg-[#1e293b]/80 backdrop-blur-xl rounded-2xl border border-slate-700 shadow-2xl p-8 z-10 text-center">
             <div className="w-20 h-20 rounded-xl bg-white mx-auto mb-6 flex items-center justify-center shadow-lg shadow-indigo-500/30">
-                <img src="https://i.postimg.cc/pLyD6HKz/adsrocket.jpg" alt="Ads Rocket" className="w-full h-full object-cover rounded-xl" />
+                <img src="https://i.postimg.cc/5tpzdqNN/rocket.png" alt="Ads Rocket" className="w-full h-full object-cover rounded-xl" />
             </div>
 
             <h1 className="text-3xl font-black text-white mb-2">Ads Rocket</h1>
