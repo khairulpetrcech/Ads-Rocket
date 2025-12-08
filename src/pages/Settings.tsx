@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+
+import React, { useState, useEffect, useRef } from 'react';
 import { useSettings } from '../App';
 import { AiProvider } from '../types';
-import { Save, Key, Shield, Info, RefreshCw, Server, Eye, EyeOff } from 'lucide-react';
+import { Save, Key, Shield, Info, RefreshCw, Server, Eye, EyeOff, Download, Upload, FileJson, CheckCircle, AlertTriangle } from 'lucide-react';
 import { getAvailableModels } from '../services/aiService';
 
 const Settings: React.FC = () => {
@@ -11,6 +12,8 @@ const Settings: React.FC = () => {
   const [loadingModels, setLoadingModels] = useState(false);
   const [availableModels, setAvailableModels] = useState<string[]>([]);
   const [showKey, setShowKey] = useState(false);
+  const [importStatus, setImportStatus] = useState<{msg: string, type: 'success' | 'error'} | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Effect to load available models when Provider or API Key changes
   useEffect(() => {
@@ -50,8 +53,69 @@ const Settings: React.FC = () => {
     setTimeout(() => setSaved(false), 3000);
   };
 
+  // --- BACKUP & RESTORE LOGIC ---
+
+  const handleExportData = () => {
+      const dataToExport = {
+          settings: localStorage.getItem('ar_settings'),
+          auth: localStorage.getItem('ar_auth'),
+          templates: localStorage.getItem('ar_templates'),
+          comment_templates: localStorage.getItem('ar_comment_templates'),
+          published_comments: localStorage.getItem('ar_published_comments'),
+          exportDate: new Date().toISOString(),
+          version: '2.0'
+      };
+
+      const blob = new Blob([JSON.stringify(dataToExport, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `AdsRocket_Backup_${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+  };
+
+  const handleImportClick = () => {
+      fileInputRef.current?.click();
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (event) => {
+          try {
+              const json = JSON.parse(event.target?.result as string);
+              
+              if (!json.version) throw new Error("Invalid backup file format.");
+
+              // Restore Data
+              if (json.settings) localStorage.setItem('ar_settings', json.settings);
+              if (json.auth) localStorage.setItem('ar_auth', json.auth);
+              if (json.templates) localStorage.setItem('ar_templates', json.templates);
+              if (json.comment_templates) localStorage.setItem('ar_comment_templates', json.comment_templates);
+              if (json.published_comments) localStorage.setItem('ar_published_comments', json.published_comments);
+
+              setImportStatus({ msg: 'Data restored successfully! Reloading...', type: 'success' });
+              
+              // Reload to apply changes
+              setTimeout(() => {
+                  window.location.reload();
+              }, 1500);
+
+          } catch (err) {
+              setImportStatus({ msg: 'Failed to restore data. Invalid file.', type: 'error' });
+          }
+      };
+      reader.readAsText(file);
+      // Reset input
+      e.target.value = '';
+  };
+
   return (
-    <div className="max-w-3xl mx-auto">
+    <div className="max-w-3xl mx-auto pb-20">
       <h1 className="text-2xl font-bold text-white mb-8">Settings & Configuration</h1>
 
       <div className="space-y-6">
@@ -79,6 +143,48 @@ const Settings: React.FC = () => {
               </div>
             </div>
           </div>
+        </div>
+
+        {/* Data Management (Backup/Restore) */}
+        <div className="bg-[#1e293b] p-6 rounded-xl border border-slate-700 shadow-sm">
+            <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                <FileJson size={20} className="text-indigo-400"/> Data Management (Local PC)
+            </h2>
+            <div className="bg-slate-800/50 p-4 rounded-lg mb-4 text-sm text-slate-400">
+                <p>Save all your settings, API keys, and templates to a file on your computer. You can use this file to restore your data later.</p>
+            </div>
+            
+            <div className="flex gap-4">
+                <button 
+                    onClick={handleExportData}
+                    className="flex-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 text-white px-4 py-3 rounded-lg flex items-center justify-center gap-2 transition-colors"
+                >
+                    <Download size={18} /> Backup Data (Download)
+                </button>
+                
+                <div className="flex-1">
+                    <input 
+                        type="file" 
+                        ref={fileInputRef} 
+                        onChange={handleFileChange} 
+                        accept=".json" 
+                        className="hidden" 
+                    />
+                    <button 
+                        onClick={handleImportClick}
+                        className="w-full bg-slate-700 hover:bg-slate-600 border border-slate-600 text-white px-4 py-3 rounded-lg flex items-center justify-center gap-2 transition-colors"
+                    >
+                        <Upload size={18} /> Restore Data (Import)
+                    </button>
+                </div>
+            </div>
+            
+            {importStatus && (
+                <div className={`mt-4 p-3 rounded-lg text-sm flex items-center gap-2 ${importStatus.type === 'success' ? 'bg-green-900/20 text-green-400 border border-green-800' : 'bg-red-900/20 text-red-400 border border-red-800'}`}>
+                    {importStatus.type === 'success' ? <CheckCircle size={16} /> : <AlertTriangle size={16} />}
+                    {importStatus.msg}
+                </div>
+            )}
         </div>
 
         {/* AI Configuration */}
