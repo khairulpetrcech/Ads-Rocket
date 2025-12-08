@@ -320,9 +320,15 @@ const Dashboard: React.FC = () => {
                   settings.fbAccessToken
               );
               
-              // Small delay between posts to be safe
+              // Delay between posts to avoid suspicious activity (10-15 seconds)
               if (i < items.length - 1) {
-                  await new Promise(r => setTimeout(r, 500)); 
+                  const delayMs = Math.floor(Math.random() * 5000) + 10000; // 10000ms to 15000ms
+                  const delaySec = Math.ceil(delayMs / 1000);
+                  
+                  for (let s = delaySec; s > 0; s--) {
+                      setProgressText(`Waiting ${s}s to prevent spam detection...`);
+                      await new Promise(r => setTimeout(r, 1000));
+                  }
               }
           }
           

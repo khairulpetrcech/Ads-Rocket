@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { LayoutDashboard, Settings, LogOut, Zap, Loader2, ChevronDown, ChevronUp, Play, PlusCircle, MessageSquareText, Menu, X } from 'lucide-react';
@@ -83,7 +82,7 @@ const Layout: React.FC = () => {
           <div className="flex items-center gap-3 px-4 py-3 rounded-lg text-slate-600 cursor-not-allowed opacity-60">
             <PlusCircle size={20} />
             <span className="flex-1">Buat Campaign</span>
-            <span className="text-[9px] font-bold bg-slate-800 text-slate-400 border border-slate-700 px-1.5 py-0.5 rounded whitespace-nowrap">
+            <span className="text-[9px] font-bold bg-red-600 text-white border border-red-700 px-1.5 py-0.5 rounded whitespace-nowrap">
               Akan Datang
             </span>
           </div>
@@ -156,7 +155,7 @@ const Layout: React.FC = () => {
               ></div>
               
               {/* Sidebar Content */}
-              <aside className="relative w-[80%] max-w-[300px] h-full bg-[#1e293b] shadow-2xl flex flex-col animate-slideInLeft border-r border-slate-700">
+              <aside className="relative w-[80%] max-w-[300px] h-full bg-[#1e293b] shadow-2xl flex flex-col animate-slide-in border-r border-slate-700">
                   <div className="p-6 flex items-center justify-between border-b border-slate-700">
                       <div className="flex items-center gap-3">
                           <div className="w-10 h-10 rounded-xl bg-white shadow-lg overflow-hidden">
@@ -180,7 +179,7 @@ const Layout: React.FC = () => {
                       <div className="flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-slate-600 opacity-60">
                         <PlusCircle size={22} />
                         <span>Buat Campaign</span>
-                        <span className="ml-auto text-[9px] bg-slate-800 border border-slate-700 px-1.5 py-0.5 rounded">
+                        <span className="ml-auto text-[9px] bg-red-600 text-white border border-red-700 px-1.5 py-0.5 rounded">
                           Akan Datang
                         </span>
                       </div>
