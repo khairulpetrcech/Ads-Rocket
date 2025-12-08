@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect, PropsWithChildren } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Layout from './components/Layout';
@@ -10,8 +11,6 @@ import CommentTemplates from './pages/CommentTemplates';
 import { UserSettings, AiProvider } from './types';
 import { initFacebookSdk, isSecureContext } from './services/metaService';
 import { Loader2 } from 'lucide-react';
-// We import utils locally or from the cleaned supabaseClient file if needed, 
-// but sticking to a clean implementation here.
 import { encryptKey } from './supabaseClient'; 
 
 // Context Definition

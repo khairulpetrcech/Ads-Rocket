@@ -1,4 +1,10 @@
-// This file is intentionally left empty to remove Supabase dependencies.
+
+// This file is kept to export utility functions used in App.tsx
+// Supabase dependencies have been removed.
+
+export const supabase = null; // Export null to prevent breaking imports temporarily, though it should not be used.
+
+// Simple Client-Side Encryption Helper
 export const encryptKey = (text: string): string => {
     if (!text) return '';
     try {
