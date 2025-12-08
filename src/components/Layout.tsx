@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { LayoutDashboard, Settings, LogOut, Zap, Loader2, ChevronDown, ChevronUp, Play, PlusCircle, MessageSquareText } from 'lucide-react';
@@ -9,7 +10,7 @@ import Chatbot from './Chatbot';
 const Layout: React.FC = () => {
   const navigate = useNavigate();
   const { settings, logout } = useSettings();
-
+  
   const [aiStatus, setAiStatus] = useState<string[]>([]);
   const [loadingAi, setLoadingAi] = useState(false);
   const [isAiExpanded, setIsAiExpanded] = useState(true);
@@ -29,9 +30,9 @@ const Layout: React.FC = () => {
             const topAds = await getTopAdsForAccount(settings.adAccountId, settings.fbAccessToken);
             if (topAds.length > 0) {
                 const actionPlan = await analyzeAccountPerformance(
-                    topAds,
-                    settings.selectedAiProvider,
-                    settings.apiKey,
+                    topAds, 
+                    settings.selectedAiProvider, 
+                    settings.apiKey, 
                     settings.selectedModel
                 );
                 setAiStatus(actionPlan);
@@ -66,7 +67,7 @@ const Layout: React.FC = () => {
           <NavLink to="/create-campaign" className={({ isActive }) => `flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 ${isActive ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:bg-slate-800'}`}>
             <PlusCircle size={20} /><span>Buat Campaign</span>
           </NavLink>
-
+          
           <NavLink to="/comment-templates" className={({ isActive }) => `flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 ${isActive ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:bg-slate-800'}`}>
             <MessageSquareText size={20} /><span>Comment Templates</span>
           </NavLink>

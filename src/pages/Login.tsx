@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSettings } from '../App';
@@ -13,7 +14,6 @@ const LoginPage: React.FC = () => {
     // Simulate a brief loading for UX
     setTimeout(() => {
         login();
-        // Redirect logic handled by App.tsx based on state
         setLoading(false);
     }, 800);
   };
