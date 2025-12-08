@@ -5,27 +5,17 @@ import { useSettings } from '../App';
 import { getTopAdsForAccount } from '../services/metaService';
 import { analyzeAccountPerformance } from '../services/aiService';
 import Chatbot from './Chatbot';
-import { supabase } from '../supabaseClient';
 
 const Layout: React.FC = () => {
   const navigate = useNavigate();
-  const { settings, updateSettings } = useSettings();
+  const { settings, logout } = useSettings();
   
   const [aiStatus, setAiStatus] = useState<string[]>([]);
   const [loadingAi, setLoadingAi] = useState(false);
   const [isAiExpanded, setIsAiExpanded] = useState(true);
 
-  const handleLogout = async () => {
-    // Sign out from Supabase SaaS
-    await supabase.auth.signOut();
-    // Clear local settings context
-    updateSettings({
-      isConnected: false,
-      fbAccessToken: '',
-      adAccountId: '',
-      businessName: '',
-      apiKey: '' 
-    });
+  const handleLogout = () => {
+    logout();
     navigate('/login');
   };
 

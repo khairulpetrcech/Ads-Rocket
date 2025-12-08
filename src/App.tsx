@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, PropsWithChildren } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Layout from './components/Layout';
 import LoginPage from './pages/Login';
@@ -10,8 +10,7 @@ import CommentTemplates from './pages/CommentTemplates';
 import { UserSettings, AiProvider } from './types';
 import { initFacebookSdk, isSecureContext } from './services/metaService';
 import { Loader2 } from 'lucide-react';
-// import { encryptKey } from './supabaseClient'; // REMOVED
-import { encryptKey } from './utils'; // ADDED
+import { encryptKey, decryptKey } from './utils';
 
 // Context Definition
 interface AppContextType {
@@ -108,6 +107,16 @@ const App: React.FC = () => {
       </div>
     );
   }
+
+  // Protected Routes Wrapper
+  const ProtectedRoute = ({ children }: PropsWithChildren) => {
+    if (!isAuthenticated) {
+      return <Navigate to="/login" replace />;
+    }
+    // If logged in but not connected to Meta, go to Connect
+    // Exception: Allow access to /connect itself (handled by router structure below)
+    return <>{children}</>;
+  };
 
   return (
     <AppContext.Provider value={{ settings, updateSettings, isAuthenticated, login, logout, loading }}>

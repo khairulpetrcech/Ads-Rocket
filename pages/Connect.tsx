@@ -1,16 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CheckCircle, AlertTriangle, RefreshCw, LogOut } from 'lucide-react';
+import { AlertTriangle, RefreshCw, LogOut } from 'lucide-react';
 import { useSettings } from '../App';
-import { initFacebookSdk, loginWithFacebook, getAdAccounts, checkLoginStatus } from '../services/metaService';
+import { initFacebookSdk, loginWithFacebook, getAdAccounts } from '../services/metaService';
 import { MetaAdAccount } from '../types';
-import { supabase } from '../supabaseClient';
 
 const SYSTEM_APP_ID: string = '861724536220118'; 
 
 const ConnectPage: React.FC = () => {
   const navigate = useNavigate();
-  const { settings, updateSettings, session } = useSettings();
+  const { settings, updateSettings, logout } = useSettings();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   
@@ -50,8 +49,8 @@ const ConnectPage: React.FC = () => {
       await initFacebookSdk(appIdToUse);
       const accessToken = await loginWithFacebook();
       
-      // SAVE TO SUPABASE VIA CONTEXT
-      await updateSettings({ fbAppId: appIdToUse, fbAccessToken: accessToken });
+      // SAVE TO CONTEXT
+      updateSettings({ fbAppId: appIdToUse, fbAccessToken: accessToken });
       
       const adAccounts = await getAdAccounts(accessToken);
       
@@ -80,8 +79,8 @@ const ConnectPage: React.FC = () => {
     navigate('/');
   };
 
-  const handleLogoutSaaS = async () => {
-      await supabase.auth.signOut();
+  const handleLogoutLocal = () => {
+      logout();
       navigate('/login');
   };
 
@@ -93,7 +92,7 @@ const ConnectPage: React.FC = () => {
         <div className="p-6 md:p-8">
             <div className="flex justify-between items-center mb-6">
                 <h1 className="text-xl font-bold text-white">Connect Meta Ads</h1>
-                <button onClick={handleLogoutSaaS} className="text-xs text-slate-400 hover:text-white flex items-center gap-1">
+                <button onClick={handleLogoutLocal} className="text-xs text-slate-400 hover:text-white flex items-center gap-1">
                     <LogOut size={12}/> Sign Out
                 </button>
             </div>

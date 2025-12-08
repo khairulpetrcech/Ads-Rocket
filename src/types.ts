@@ -1,22 +1,36 @@
 
 export enum AiProvider {
-  FREE = 'FREE', 
-  GEMINI = 'GEMINI', 
-  CLAUDE = 'CLAUDE', 
-  OPENAI = 'OPENAI', 
-  OPENROUTER = 'OPENROUTER', 
+  FREE = 'FREE', // Simulation
+  GEMINI = 'GEMINI', // Google Gemini
+  CLAUDE = 'CLAUDE', // Anthropic Claude
+  OPENAI = 'OPENAI', // OpenAI GPT
+  OPENROUTER = 'OPENROUTER', // OpenRouter
 }
 
+// Local Settings Interface
 export interface UserSettings {
+  // Auth Info
+  userId?: string;
+  email?: string;
+  
+  // App State
   isConnected: boolean;
   businessName: string;
+  
+  // AI Config
   selectedAiProvider: AiProvider;
   selectedModel: string;
-  apiKey: string; 
+  apiKey: string; // Will be decrypted on load
+  
+  // Meta Config
   fbAppId: string;
   fbAccessToken: string;
   adAccountId: string;
+  
+  // UI Preferences
   dashboardViewMode?: 'SALES' | 'TRAFFIC';
+  
+  // Runtime Only
   availableAccounts: MetaAdAccount[]; 
 }
 
@@ -27,7 +41,7 @@ export interface CommentItem {
 }
 
 export interface CommentTemplate {
-  id: string; 
+  id: string;
   name: string;
   items: CommentItem[];
   created_at?: string;

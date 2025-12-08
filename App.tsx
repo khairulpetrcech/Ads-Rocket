@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, PropsWithChildren } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Layout from './components/Layout';
-import LoginPage from './pages/Login'; // New Login Page
+import LoginPage from './pages/Login';
 import ConnectPage from './pages/Connect';
 import Dashboard from './pages/Dashboard';
 import SettingsPage from './pages/Settings';
@@ -9,15 +9,16 @@ import CreateCampaign from './pages/CreateCampaign';
 import CommentTemplates from './pages/CommentTemplates';
 import { UserSettings, AiProvider } from './types';
 import { initFacebookSdk, isSecureContext } from './services/metaService';
-import { supabase, decryptKey, encryptKey } from './supabaseClient';
-import { Session } from '@supabase/supabase-js';
 import { Loader2 } from 'lucide-react';
+import { encryptKey, decryptKey } from './src/utils';
 
 // Context Definition
 interface AppContextType {
   settings: UserSettings;
-  updateSettings: (newSettings: Partial<UserSettings>) => Promise<void>;
-  session: Session | null;
+  updateSettings: (newSettings: Partial<UserSettings>) => void;
+  isAuthenticated: boolean;
+  login: () => void;
+  logout: () => void;
   loading: boolean;
 }
 
@@ -43,100 +44,64 @@ const DEFAULT_SETTINGS: UserSettings = {
 };
 
 const App: React.FC = () => {
-  const [session, setSession] = useState<Session | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [settings, setSettings] = useState<UserSettings>(DEFAULT_SETTINGS);
   const [loading, setLoading] = useState(true);
 
-  // 1. Listen for Auth Changes
+  // Load State from LocalStorage on Mount
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      if (session) loadUserProfile(session.user.id);
-      else setLoading(false);
-    });
+    const initApp = () => {
+      try {
+        // 1. Check Auth
+        const auth = localStorage.getItem('ar_auth');
+        if (auth === 'true') {
+            setIsAuthenticated(true);
+        }
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      if (session) loadUserProfile(session.user.id);
-      else {
-        setSettings(DEFAULT_SETTINGS);
+        // 2. Check Settings
+        const savedSettings = localStorage.getItem('ar_settings');
+        if (savedSettings) {
+          const parsed = JSON.parse(savedSettings);
+          // Decrypt API key if present
+          if (parsed.apiKey) {
+              parsed.apiKey = decryptKey(parsed.apiKey);
+          }
+          setSettings(prev => ({ ...prev, ...parsed }));
+        }
+      } catch (e) {
+        console.error("Failed to load local state", e);
+      } finally {
         setLoading(false);
       }
-    });
-
-    return () => subscription.unsubscribe();
+    };
+    initApp();
   }, []);
 
-  // 2. Load User Profile from Supabase
-  const loadUserProfile = async (userId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .single();
-
-      if (error && error.code !== 'PGRST116') { // PGRST116 is "Row not found", might be new user
-        console.error('Error fetching profile:', error);
-      }
-
-      if (data) {
-        setSettings(prev => ({
-          ...prev,
-          userId: userId,
-          email: session?.user.email,
-          businessName: data.business_name || '',
-          fbAccessToken: data.fb_access_token || '',
-          adAccountId: data.ad_account_id || '',
-          fbAppId: data.fb_app_id || '',
-          apiKey: decryptKey(data.api_key_encrypted), // Decrypt on load
-          selectedAiProvider: (data.selected_ai_provider as AiProvider) || AiProvider.CLAUDE,
-          selectedModel: data.selected_model || 'claude-3-5-sonnet-20241022',
-          dashboardViewMode: data.dashboard_view_mode || undefined,
-          isConnected: !!(data.fb_access_token && data.ad_account_id)
-        }));
-      }
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoading(false);
-    }
+  const login = () => {
+    localStorage.setItem('ar_auth', 'true');
+    setIsAuthenticated(true);
   };
 
-  // 3. Update Settings (Save to Supabase)
-  const updateSettings = async (newSettings: Partial<UserSettings>) => {
-    // Update Local State first for UI responsiveness
-    setSettings(prev => ({ ...prev, ...newSettings }));
+  const logout = () => {
+    localStorage.removeItem('ar_auth');
+    setIsAuthenticated(false);
+    setSettings(DEFAULT_SETTINGS);
+    localStorage.removeItem('ar_settings');
+  };
 
-    if (!session?.user) return;
-
-    // Prepare payload for DB
-    const updates: any = {
-      updated_at: new Date(),
-    };
-
-    if (newSettings.businessName !== undefined) updates.business_name = newSettings.businessName;
-    if (newSettings.fbAccessToken !== undefined) updates.fb_access_token = newSettings.fbAccessToken;
-    if (newSettings.adAccountId !== undefined) updates.ad_account_id = newSettings.adAccountId;
-    if (newSettings.fbAppId !== undefined) updates.fb_app_id = newSettings.fbAppId;
-    if (newSettings.selectedAiProvider !== undefined) updates.selected_ai_provider = newSettings.selectedAiProvider;
-    if (newSettings.selectedModel !== undefined) updates.selected_model = newSettings.selectedModel;
-    if (newSettings.dashboardViewMode !== undefined) updates.dashboard_view_mode = newSettings.dashboardViewMode;
-    
-    // Encrypt Key before saving if changed
-    if (newSettings.apiKey !== undefined) {
-        updates.api_key_encrypted = encryptKey(newSettings.apiKey);
-    }
-
-    try {
-      const { error } = await supabase
-        .from('profiles')
-        .upsert({ id: session.user.id, ...updates });
-
-      if (error) throw error;
-    } catch (e) {
-      console.error("Failed to save settings to DB:", e);
-    }
+  const updateSettings = (newSettings: Partial<UserSettings>) => {
+    setSettings(prev => {
+        const next = { ...prev, ...newSettings };
+        
+        // Encrypt API Key before saving to LocalStorage
+        const toSave = { ...next };
+        if (toSave.apiKey) {
+            toSave.apiKey = encryptKey(toSave.apiKey);
+        }
+        
+        localStorage.setItem('ar_settings', JSON.stringify(toSave));
+        return next;
+    });
   };
 
   // FB SDK Auto-Init
@@ -156,29 +121,26 @@ const App: React.FC = () => {
 
   // Protected Routes Wrapper
   const ProtectedRoute = ({ children }: PropsWithChildren) => {
-    if (!session) {
+    if (!isAuthenticated) {
       return <Navigate to="/login" replace />;
-    }
-    // If logged in to SaaS but not connected to Meta, go to Connect
-    if (!settings.isConnected) {
-       // Allow access to Connect page
-       return <Navigate to="/connect" replace />; 
     }
     return <>{children}</>;
   };
 
   return (
-    <AppContext.Provider value={{ settings, updateSettings, session, loading }}>
+    <AppContext.Provider value={{ settings, updateSettings, isAuthenticated, login, logout, loading }}>
       <HashRouter>
         <Routes>
-          <Route path="/login" element={<LoginPage />} />
+          <Route path="/login" element={
+             isAuthenticated ? <Navigate to="/connect" replace /> : <LoginPage />
+          } />
           
           <Route path="/connect" element={
-            session ? <ConnectPage /> : <Navigate to="/login" replace />
+            isAuthenticated ? <ConnectPage /> : <Navigate to="/login" replace />
           } />
           
           <Route path="/" element={
-            session ? (
+            isAuthenticated ? (
               settings.isConnected ? <Layout /> : <Navigate to="/connect" replace />
             ) : <Navigate to="/login" replace />
           }>
