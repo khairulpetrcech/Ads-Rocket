@@ -50,7 +50,6 @@ const App: React.FC = () => {
             const saved = localStorage.getItem('ar_settings');
             if (saved) {
                 const parsed = JSON.parse(saved);
-                // Ensure we don't overwrite with defaults if data exists
                 setSettings(prev => ({ ...prev, ...parsed }));
             }
         } catch (e) {

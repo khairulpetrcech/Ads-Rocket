@@ -6,6 +6,7 @@ const LoginPage: React.FC = () => {
   const navigate = useNavigate();
 
   const handleStart = () => {
+    // Navigate directly to connect page
     navigate('/connect');
   };
 
