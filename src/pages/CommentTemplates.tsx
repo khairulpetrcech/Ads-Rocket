@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { CommentTemplate, CommentItem } from '../types';
-import { PlusCircle, Trash2, Image as ImageIcon, Save, Layers, Loader2 } from 'lucide-react';
+import { PlusCircle, Trash2, Image as ImageIcon, Save, Layers, Loader2, AlertTriangle, CheckCircle } from 'lucide-react';
 
 const CommentTemplates: React.FC = () => {
     const [templates, setTemplates] = useState<CommentTemplate[]>([]);
@@ -14,6 +14,7 @@ const CommentTemplates: React.FC = () => {
     const [currentMessage, setCurrentMessage] = useState('');
     const [currentImage, setCurrentImage] = useState<string>('');
     const [error, setError] = useState('');
+    const [successMsg, setSuccessMsg] = useState('');
 
     useEffect(() => {
         fetchTemplates();
@@ -94,6 +95,8 @@ const CommentTemplates: React.FC = () => {
         setTemplateName('');
         setDraftItems([]);
         setError('');
+        setSuccessMsg("Template saved locally.");
+        setTimeout(() => setSuccessMsg(''), 2000);
         setLoading(false);
     };
 
@@ -114,7 +117,8 @@ const CommentTemplates: React.FC = () => {
                         <PlusCircle className="text-indigo-400" size={20}/> Template Builder
                     </h2>
                     
-                    {error && <div className="text-red-400 bg-red-900/20 p-3 rounded mb-4 text-sm">{error}</div>}
+                    {error && <div className="text-red-400 bg-red-900/20 p-3 rounded mb-4 text-sm flex items-center gap-2"><AlertTriangle size={16}/>{error}</div>}
+                    {successMsg && <div className="text-green-400 bg-green-900/20 p-3 rounded mb-4 text-sm flex items-center gap-2"><CheckCircle size={16}/>{successMsg}</div>}
 
                     <div className="mb-6">
                         <label className="block text-sm text-slate-400 mb-1">Template Name</label>

@@ -8,25 +8,14 @@ import Chatbot from './Chatbot';
 
 const Layout: React.FC = () => {
   const navigate = useNavigate();
-  const { settings, updateSettings } = useSettings();
+  const { settings, logout } = useSettings();
   
   const [aiStatus, setAiStatus] = useState<string[]>([]);
   const [loadingAi, setLoadingAi] = useState(false);
   const [isAiExpanded, setIsAiExpanded] = useState(true);
 
   const handleLogout = async () => {
-    // Clear local settings
-    localStorage.removeItem('ar_settings');
-    // We optionally keep templates or clear them too:
-    // localStorage.removeItem('ar_comment_templates'); 
-    
-    updateSettings({
-      isConnected: false,
-      fbAccessToken: '',
-      adAccountId: '',
-      businessName: '',
-      apiKey: '' 
-    });
+    logout();
     navigate('/login');
   };
 

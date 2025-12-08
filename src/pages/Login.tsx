@@ -1,13 +1,21 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Zap } from 'lucide-react';
+import { useSettings } from '../App';
+import { Zap, Loader2 } from 'lucide-react';
 
 const LoginPage: React.FC = () => {
   const navigate = useNavigate();
+  const { login } = useSettings();
+  const [loading, setLoading] = useState(false);
 
-  const handleStart = () => {
-    // Navigate directly to connect page
-    navigate('/connect');
+  const handleStart = async () => {
+    setLoading(true);
+    // Simulate a brief loading for UX
+    setTimeout(() => {
+        login();
+        navigate('/connect');
+        setLoading(false);
+    }, 800);
   };
 
   return (
@@ -30,9 +38,10 @@ const LoginPage: React.FC = () => {
 
             <button
                 onClick={handleStart}
+                disabled={loading}
                 className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold py-3.5 px-4 rounded-xl transition-all transform hover:scale-[1.02] flex items-center justify-center gap-3 shadow-lg"
             >
-                <Zap className="w-5 h-5 fill-current" />
+                {loading ? <Loader2 className="animate-spin" /> : <Zap className="w-5 h-5 fill-current" />}
                 <span>Mula Sekarang</span>
             </button>
             

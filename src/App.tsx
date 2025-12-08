@@ -1,6 +1,7 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, PropsWithChildren } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Layout from './components/Layout';
+import LoginPage from './pages/Login';
 import ConnectPage from './pages/Connect';
 import Dashboard from './pages/Dashboard';
 import SettingsPage from './pages/Settings';
@@ -8,13 +9,16 @@ import CreateCampaign from './pages/CreateCampaign';
 import CommentTemplates from './pages/CommentTemplates';
 import { UserSettings, AiProvider } from './types';
 import { initFacebookSdk, isSecureContext } from './services/metaService';
+import { decryptKey, encryptKey } from './utils';
 import { Loader2 } from 'lucide-react';
-import LoginPage from './pages/Login';
 
 // Context Definition
 interface AppContextType {
   settings: UserSettings;
   updateSettings: (newSettings: Partial<UserSettings>) => void;
+  isAuthenticated: boolean;
+  login: () => void;
+  logout: () => void;
   loading: boolean;
 }
 
@@ -40,28 +44,44 @@ const DEFAULT_SETTINGS: UserSettings = {
 };
 
 const App: React.FC = () => {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [settings, setSettings] = useState<UserSettings>(DEFAULT_SETTINGS);
   const [loading, setLoading] = useState(true);
 
-  // Load Settings from LocalStorage on mount
+  // Load State from LocalStorage
   useEffect(() => {
-    const loadSettings = () => {
-        try {
-            const saved = localStorage.getItem('ar_settings');
-            if (saved) {
-                const parsed = JSON.parse(saved);
-                setSettings(prev => ({ ...prev, ...parsed }));
-            }
-        } catch (e) {
-            console.error("Failed to load settings from LocalStorage", e);
-        } finally {
-            setLoading(false);
+    const initApp = () => {
+      try {
+        // Check Auth
+        const auth = localStorage.getItem('ar_auth');
+        setIsAuthenticated(auth === 'true');
+
+        // Check Settings
+        const savedSettings = localStorage.getItem('ar_settings');
+        if (savedSettings) {
+          setSettings(prev => ({ ...prev, ...JSON.parse(savedSettings) }));
         }
+      } catch (e) {
+        console.error("Failed to load local state", e);
+      } finally {
+        setLoading(false);
+      }
     };
-    loadSettings();
+    initApp();
   }, []);
 
-  // Save Settings to LocalStorage whenever updated
+  const login = () => {
+    localStorage.setItem('ar_auth', 'true');
+    setIsAuthenticated(true);
+  };
+
+  const logout = () => {
+    localStorage.removeItem('ar_auth');
+    localStorage.removeItem('ar_settings');
+    setSettings(DEFAULT_SETTINGS);
+    setIsAuthenticated(false);
+  };
+
   const updateSettings = (newSettings: Partial<UserSettings>) => {
     setSettings(prev => {
         const next = { ...prev, ...newSettings };
@@ -86,15 +106,19 @@ const App: React.FC = () => {
   }
 
   return (
-    <AppContext.Provider value={{ settings, updateSettings, loading }}>
+    <AppContext.Provider value={{ settings, updateSettings, isAuthenticated, login, logout, loading }}>
       <HashRouter>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           
-          <Route path="/connect" element={<ConnectPage />} />
+          <Route path="/connect" element={
+            isAuthenticated ? <ConnectPage /> : <Navigate to="/login" replace />
+          } />
           
           <Route path="/" element={
-            settings.isConnected ? <Layout /> : <Navigate to="/connect" replace />
+            isAuthenticated ? (
+              settings.isConnected ? <Layout /> : <Navigate to="/connect" replace />
+            ) : <Navigate to="/login" replace />
           }>
             <Route index element={<Dashboard />} />
             <Route path="create-campaign" element={<CreateCampaign />} />
