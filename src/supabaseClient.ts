@@ -1,3 +1,3 @@
-// This file is deprecated as Supabase has been removed.
-// Keeping file to prevent import errors during transition, but it exports nothing.
-export {};
+// This file is deprecated. 
+// All logic has been moved to local storage and utils.ts.
+export const supabase = null;

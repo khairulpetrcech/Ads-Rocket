@@ -60,10 +60,6 @@ const App: React.FC = () => {
         const savedSettings = localStorage.getItem('ar_settings');
         if (savedSettings) {
           const parsed = JSON.parse(savedSettings);
-          // Decrypt API key if it exists in storage (though typically stored raw in localstorage for this simple app, 
-          // if we used the util before, we should maintain consistency. 
-          // However, previous localstorage impl might have stored it raw. 
-          // Let's assume raw for localstorage simplicity unless we want to obfuscate.)
           setSettings(prev => ({ ...prev, ...parsed }));
         }
       } catch (e) {
@@ -82,9 +78,10 @@ const App: React.FC = () => {
 
   const logout = () => {
     localStorage.removeItem('ar_auth');
-    // Optional: Keep settings or clear them? Usually keep settings for UX, but clear sensitive tokens if needed.
-    // For now, we keep settings to allow easy re-login.
     setIsAuthenticated(false);
+    // Optional: Clear settings on logout if desired
+    // localStorage.removeItem('ar_settings');
+    // setSettings(DEFAULT_SETTINGS);
   };
 
   const updateSettings = (newSettings: Partial<UserSettings>) => {
