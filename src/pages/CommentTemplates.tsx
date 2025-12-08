@@ -1,6 +1,4 @@
-
 import React, { useState, useEffect } from 'react';
-import { useSettings } from '../App';
 import { CommentTemplate, CommentItem } from '../types';
 import { PlusCircle, Trash2, Image as ImageIcon, Save, Layers, Loader2 } from 'lucide-react';
 
@@ -27,6 +25,7 @@ const CommentTemplates: React.FC = () => {
             const saved = localStorage.getItem('ar_comment_templates');
             if (saved) {
                 const parsed = JSON.parse(saved);
+                // Validate structure
                 const validated = parsed.map((t: any) => ({
                     ...t,
                     items: t.items || (t.message ? [{ id: 'legacy', message: t.message, imageBase64: t.imageBase64 }] : [])

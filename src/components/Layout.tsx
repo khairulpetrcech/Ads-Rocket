@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { LayoutDashboard, Settings, LogOut, Zap, Loader2, ChevronDown, ChevronUp, Play, PlusCircle, MessageSquareText } from 'lucide-react';
@@ -16,7 +15,11 @@ const Layout: React.FC = () => {
   const [isAiExpanded, setIsAiExpanded] = useState(true);
 
   const handleLogout = async () => {
-    // Clear local settings context and LocalStorage
+    // Clear local settings
+    localStorage.removeItem('ar_settings');
+    // We optionally keep templates or clear them too:
+    // localStorage.removeItem('ar_comment_templates'); 
+    
     updateSettings({
       isConnected: false,
       fbAccessToken: '',
@@ -24,8 +27,7 @@ const Layout: React.FC = () => {
       businessName: '',
       apiKey: '' 
     });
-    localStorage.removeItem('ar_settings'); // Explicit clear
-    navigate('/connect');
+    navigate('/login');
   };
 
   // Manual Trigger AI Analysis

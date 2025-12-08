@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Layout from './components/Layout';
@@ -12,11 +11,11 @@ import { initFacebookSdk, isSecureContext } from './services/metaService';
 import { Loader2 } from 'lucide-react';
 import LoginPage from './pages/Login';
 
+// Context Definition
 interface AppContextType {
   settings: UserSettings;
   updateSettings: (newSettings: Partial<UserSettings>) => void;
   loading: boolean;
-  session: null;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -27,6 +26,7 @@ export const useSettings = () => {
   return context;
 };
 
+// Default Empty Settings
 const DEFAULT_SETTINGS: UserSettings = {
   isConnected: false,
   businessName: '',
@@ -45,23 +45,24 @@ const App: React.FC = () => {
 
   // Load Settings from LocalStorage on mount
   useEffect(() => {
-    try {
-        const saved = localStorage.getItem('ar_settings');
-        if (saved) {
-            const parsed = JSON.parse(saved);
-            if (parsed.apiKey && parsed.apiKey.startsWith('ENC')) {
-                parsed.apiKey = ''; // Reset encrypted keys from Supabase version
+    const loadSettings = () => {
+        try {
+            const saved = localStorage.getItem('ar_settings');
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                // Ensure we don't overwrite with defaults if data exists
+                setSettings(prev => ({ ...prev, ...parsed }));
             }
-            setSettings({ ...DEFAULT_SETTINGS, ...parsed });
+        } catch (e) {
+            console.error("Failed to load settings from LocalStorage", e);
+        } finally {
+            setLoading(false);
         }
-    } catch (e) {
-        console.error("Failed to load settings", e);
-    } finally {
-        setLoading(false);
-    }
+    };
+    loadSettings();
   }, []);
 
-  // Save Settings to LocalStorage
+  // Save Settings to LocalStorage whenever updated
   const updateSettings = (newSettings: Partial<UserSettings>) => {
     setSettings(prev => {
         const next = { ...prev, ...newSettings };
@@ -70,6 +71,7 @@ const App: React.FC = () => {
     });
   };
 
+  // FB SDK Auto-Init
   useEffect(() => {
     if (settings.fbAppId && settings.fbAppId !== '123456789' && isSecureContext()) {
       initFacebookSdk(settings.fbAppId).catch(console.warn);
@@ -85,10 +87,11 @@ const App: React.FC = () => {
   }
 
   return (
-    <AppContext.Provider value={{ settings, updateSettings, loading, session: null }}>
+    <AppContext.Provider value={{ settings, updateSettings, loading }}>
       <HashRouter>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
+          
           <Route path="/connect" element={<ConnectPage />} />
           
           <Route path="/" element={
