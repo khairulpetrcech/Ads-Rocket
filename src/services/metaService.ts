@@ -1,3 +1,4 @@
+
 import { AdCampaign, MetaAdAccount, AdSet, Ad } from '../types';
 
 declare global {
@@ -190,8 +191,10 @@ export const loginWithFacebook = (): Promise<string> => {
                 }
             }
         }, { 
-            // Re-added pages_manage_engagement and pages_manage_posts because user enabled the Use Case
-            scope: 'public_profile,ads_read,ads_management,pages_show_list,pages_read_engagement,pages_manage_engagement,pages_manage_posts' 
+            // Explicitly set valid permissions for v19.0+
+            // Removed 'pages_read_user_content' as it causes invalid scope errors.
+            // Using 'pages_read_engagement' and 'pages_manage_engagement' instead.
+            scope: 'public_profile,email,ads_read,ads_management,pages_show_list,pages_read_engagement,pages_manage_engagement,pages_manage_posts' 
         });
     } catch (e) {
         reject("Failed to open Facebook Login dialog.");
