@@ -101,7 +101,7 @@ const Layout: React.FC = () => {
                 )}
             </div>
             <button onClick={handleLogout} className="flex items-center gap-3 px-4 py-3 w-full text-slate-400 hover:text-red-400 hover:bg-red-900/20 rounded-lg transition-colors">
-                <LogOut size={20} /><span>Disconnect</span>
+                <LogOut size={20} /><span>Sign Out</span>
             </button>
         </div>
       </aside>
@@ -113,6 +113,7 @@ const Layout: React.FC = () => {
 
       <Chatbot />
 
+      {/* Mobile Nav */}
       <div className="md:hidden fixed bottom-0 w-full bg-[#1e293b] border-t border-slate-700 flex justify-around p-3 z-50">
         <NavLink to="/" className={({isActive}) => isActive ? 'text-indigo-400' : 'text-slate-500'}><LayoutDashboard /></NavLink>
         <NavLink to="/create-campaign" className={({isActive}) => isActive ? 'text-indigo-400' : 'text-slate-500'}><PlusCircle /></NavLink>

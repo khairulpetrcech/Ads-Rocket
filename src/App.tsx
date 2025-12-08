@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, PropsWithChildren } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Layout from './components/Layout';
 import LoginPage from './pages/Login';
@@ -9,7 +9,6 @@ import CreateCampaign from './pages/CreateCampaign';
 import CommentTemplates from './pages/CommentTemplates';
 import { UserSettings, AiProvider } from './types';
 import { initFacebookSdk, isSecureContext } from './services/metaService';
-import { decryptKey, encryptKey } from './utils';
 import { Loader2 } from 'lucide-react';
 
 // Context Definition

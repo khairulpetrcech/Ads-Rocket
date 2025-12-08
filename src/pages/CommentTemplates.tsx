@@ -26,7 +26,7 @@ const CommentTemplates: React.FC = () => {
             const saved = localStorage.getItem('ar_comment_templates');
             if (saved) {
                 const parsed = JSON.parse(saved);
-                // Validate structure
+                // Validate structure and ensure items array exists
                 const validated = parsed.map((t: any) => ({
                     ...t,
                     items: t.items || (t.message ? [{ id: 'legacy', message: t.message, imageBase64: t.imageBase64 }] : [])
