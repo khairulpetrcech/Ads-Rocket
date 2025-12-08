@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { AdCampaign, AdSet, Ad, CommentTemplate } from '../types';
 import { useSettings } from '../App';
@@ -681,19 +682,25 @@ const Dashboard: React.FC = () => {
                                                                                                             </a>
                                                                                                         )}
 
-                                                                                                        {/* LAUNCH COMMENT BUTTON */}
+                                                                                                        {/* LAUNCH COMMENT BUTTON (MINIMALISTIC 'C') */}
                                                                                                         {ad.creative.effective_object_story_id && (
-                                                                                                            <button 
-                                                                                                                onClick={() => openCommentModal(ad)}
-                                                                                                                disabled={isCommented}
-                                                                                                                className={isCommented
-                                                                                                                    ? "text-[10px] text-slate-600 flex items-center gap-1 cursor-not-allowed border border-slate-700/50 px-1.5 py-0.5 rounded bg-slate-800/50"
-                                                                                                                    : "text-[10px] text-green-400 hover:text-green-300 flex items-center gap-1 opacity-80 hover:opacity-100 border border-green-500/30 px-1.5 py-0.5 rounded"
-                                                                                                                }
-                                                                                                            >
-                                                                                                                {isCommented ? <Check size={10} /> : <MessageSquarePlus size={10} />}
-                                                                                                                {isCommented ? 'Sent' : 'Message'}
-                                                                                                            </button>
+                                                                                                            <div className="relative group/tooltip">
+                                                                                                                <button 
+                                                                                                                    onClick={() => openCommentModal(ad)}
+                                                                                                                    disabled={isCommented}
+                                                                                                                    className={`w-5 h-5 flex items-center justify-center rounded text-[10px] font-bold border transition-colors ${
+                                                                                                                        isCommented 
+                                                                                                                        ? "bg-green-900/30 text-green-400 border-green-700/50 cursor-not-allowed" 
+                                                                                                                        : "bg-indigo-600/20 text-indigo-400 border-indigo-500/30 hover:bg-indigo-600 hover:text-white"
+                                                                                                                    }`}
+                                                                                                                >
+                                                                                                                    C
+                                                                                                                </button>
+                                                                                                                {/* TOOLTIP */}
+                                                                                                                <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 text-[9px] text-white bg-black/90 rounded opacity-0 group-hover/tooltip:opacity-100 whitespace-nowrap pointer-events-none transition-opacity z-10">
+                                                                                                                    {isCommented ? 'Comment Published' : 'Comment pada post'}
+                                                                                                                </span>
+                                                                                                            </div>
                                                                                                         )}
                                                                                                     </div>
                                                                                                 </div>
