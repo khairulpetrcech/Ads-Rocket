@@ -1,4 +1,5 @@
 
+
 export enum AiProvider {
   FREE = 'FREE', // Simulation
   GEMINI = 'GEMINI', // Google Gemini
@@ -45,6 +46,10 @@ export interface CommentTemplate {
   name: string;
   items: CommentItem[];
   created_at?: string;
+}
+
+export interface LayoutContextType {
+  launchCommentSession: (ad: Ad, template: CommentTemplate) => void;
 }
 
 export interface AdMetrics {

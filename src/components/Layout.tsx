@@ -1,11 +1,12 @@
 
+
 import React, { useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Settings, LogOut, Zap, Loader2, ChevronDown, ChevronUp, Play, PlusCircle, MessageSquareText, Menu, X } from 'lucide-react';
+import { LayoutDashboard, Settings, LogOut, Zap, Loader2, ChevronDown, ChevronUp, Play, PlusCircle, MessageSquareText, Menu, X, Minimize2, Maximize2, Send, CheckCircle } from 'lucide-react';
 import { useSettings } from '../App';
-import { getTopAdsForAccount } from '../services/metaService';
+import { getTopAdsForAccount, publishComment } from '../services/metaService';
 import { analyzeAccountPerformance } from '../services/aiService';
-import Chatbot from './Chatbot';
+import { Ad, CommentTemplate } from '../types';
 
 const Layout: React.FC = () => {
   const navigate = useNavigate();
@@ -15,6 +16,25 @@ const Layout: React.FC = () => {
   const [loadingAi, setLoadingAi] = useState(false);
   const [isAiExpanded, setIsAiExpanded] = useState(true);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  // --- GLOBAL COMMENT SESSION STATE ---
+  const [commentSession, setCommentSession] = useState<{
+    active: boolean;
+    minimized: boolean;
+    adName: string;
+    total: number;
+    current: number;
+    status: string;
+    complete: boolean;
+  }>({
+    active: false,
+    minimized: false,
+    adName: '',
+    total: 0,
+    current: 0,
+    status: '',
+    complete: false
+  });
 
   const handleLogout = () => {
     logout();
@@ -47,12 +67,78 @@ const Layout: React.FC = () => {
         }
   };
 
+  const launchCommentSession = async (ad: Ad, template: CommentTemplate) => {
+      if (!ad.creative.effective_object_story_id) return alert("Invalid Ad Post ID");
+      
+      const items = template.items || [];
+      if (items.length === 0) return;
+
+      // Initialize Session
+      setCommentSession({
+          active: true,
+          minimized: false,
+          adName: ad.name,
+          total: items.length,
+          current: 0,
+          status: 'Initializing...',
+          complete: false
+      });
+
+      try {
+          for (let i = 0; i < items.length; i++) {
+              setCommentSession(prev => ({
+                  ...prev,
+                  current: i + 1,
+                  status: `Posting comment ${i + 1} of ${items.length}...`
+              }));
+
+              await publishComment(
+                  ad.creative.effective_object_story_id,
+                  items[i].message,
+                  items[i].imageBase64,
+                  settings.fbAccessToken
+              );
+
+              // Delay logic
+              if (i < items.length - 1) {
+                  const delayMs = Math.floor(Math.random() * 5000) + 10000; // 10-15s
+                  const delaySec = Math.ceil(delayMs / 1000);
+                  
+                  for (let s = delaySec; s > 0; s--) {
+                      setCommentSession(prev => ({ ...prev, status: `Waiting ${s}s to prevent spam detection...` }));
+                      await new Promise(r => setTimeout(r, 1000));
+                  }
+              }
+          }
+          
+          // Complete
+          setCommentSession(prev => ({ ...prev, status: 'All comments posted successfully!', complete: true }));
+          
+          // Save to published list in local storage (handled here globally)
+          const savedPub = localStorage.getItem('ar_published_comments');
+          const pubSet = savedPub ? new Set(JSON.parse(savedPub)) : new Set();
+          pubSet.add(ad.id);
+          localStorage.setItem('ar_published_comments', JSON.stringify(Array.from(pubSet)));
+
+          // Auto close after 3s
+          setTimeout(() => {
+             setCommentSession(prev => ({ ...prev, active: false }));
+          }, 3000);
+
+      } catch (e: any) {
+          setCommentSession(prev => ({ 
+              ...prev, 
+              status: `Error: ${e.message}`,
+              complete: true // Stop but keep open to show error
+          }));
+      }
+  };
+
   const navLinkClass = ({ isActive }: { isActive: boolean }) => 
     `flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 ${
         isActive ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:bg-slate-800'
     }`;
 
-  // Mobile Gradient Style
   const mobileNavLinkClass = ({ isActive }: { isActive: boolean }) => 
     `flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition-all duration-300 transform ${
         isActive 
@@ -210,10 +296,94 @@ const Layout: React.FC = () => {
 
       {/* Main Content */}
       <main className="flex-1 overflow-y-auto relative pt-16 md:pt-0">
-        <div className="p-4 md:p-6 max-w-7xl mx-auto pb-24"><Outlet /></div>
+        <div className="p-4 md:p-6 max-w-7xl mx-auto pb-24">
+            <Outlet context={{ launchCommentSession }} />
+        </div>
       </main>
 
-      <Chatbot />
+      {/* --- GLOBAL COMMENT WIDGET --- */}
+      {commentSession.active && (
+          commentSession.minimized ? (
+              // MINIMIZED WIDGET
+              <div 
+                  className="fixed bottom-6 right-6 bg-[#1e293b] border border-slate-700 rounded-xl shadow-2xl p-4 w-72 z-50 animate-fadeIn cursor-pointer hover:border-indigo-500 transition-colors"
+                  onClick={() => setCommentSession(prev => ({ ...prev, minimized: false }))}
+              >
+                  <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2 text-white font-bold text-sm">
+                          {commentSession.complete ? <CheckCircle size={16} className="text-green-500"/> : <Loader2 size={16} className="animate-spin text-indigo-400"/>}
+                          <span className="truncate max-w-[150px]">{commentSession.adName}</span>
+                      </div>
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); setCommentSession(prev => ({ ...prev, minimized: false })); }}
+                        className="text-slate-400 hover:text-white"
+                      >
+                          <Maximize2 size={14} />
+                      </button>
+                  </div>
+                  <div className="w-full bg-slate-800 rounded-full h-1.5 mb-1 overflow-hidden">
+                      <div className="bg-indigo-500 h-1.5 rounded-full transition-all duration-300" style={{ width: `${(commentSession.current / commentSession.total) * 100}%` }}></div>
+                  </div>
+                  <p className="text-[10px] text-slate-400 truncate">{commentSession.status}</p>
+              </div>
+          ) : (
+              // FULL MODAL
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+                  <div className="bg-[#1e293b] w-full max-w-md rounded-2xl border border-slate-700 shadow-2xl p-6 relative animate-fadeIn">
+                      <div className="flex justify-between items-start mb-6">
+                          <div>
+                            <h2 className="text-xl font-bold text-white">Posting Comments</h2>
+                            <p className="text-sm text-slate-400">Target: <span className="text-indigo-400">{commentSession.adName}</span></p>
+                          </div>
+                          <div className="flex gap-2">
+                            <button 
+                                onClick={() => setCommentSession(prev => ({ ...prev, minimized: true }))}
+                                className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
+                                title="Minimize to background"
+                            >
+                                <Minimize2 size={20} />
+                            </button>
+                            {commentSession.complete && (
+                                <button 
+                                    onClick={() => setCommentSession(prev => ({ ...prev, active: false }))}
+                                    className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg"
+                                >
+                                    <X size={20} />
+                                </button>
+                            )}
+                          </div>
+                      </div>
+
+                      <div className="flex flex-col items-center justify-center py-4 space-y-4">
+                          <div className="relative w-24 h-24 flex items-center justify-center">
+                              {commentSession.complete ? (
+                                  <div className="bg-green-500/20 p-4 rounded-full animate-pulse">
+                                    <CheckCircle size={48} className="text-green-500" />
+                                  </div>
+                              ) : (
+                                  <>
+                                    <svg className="absolute w-full h-full transform -rotate-90">
+                                        <circle cx="48" cy="48" r="40" stroke="#334155" strokeWidth="6" fill="transparent" />
+                                        <circle cx="48" cy="48" r="40" stroke="#6366f1" strokeWidth="6" fill="transparent" strokeDasharray="251.2" strokeDashoffset={251.2 - (251.2 * commentSession.current / commentSession.total)} className="transition-all duration-500" />
+                                    </svg>
+                                    <span className="text-xl font-bold text-white">{commentSession.current}/{commentSession.total}</span>
+                                  </>
+                              )}
+                          </div>
+                          
+                          <p className="text-center text-indigo-300 font-medium animate-pulse">{commentSession.status}</p>
+                          
+                          {!commentSession.complete && (
+                             <p className="text-xs text-slate-500 text-center max-w-[80%]">
+                                You can minimize this window. The process will continue in the background.
+                             </p>
+                          )}
+                      </div>
+                  </div>
+              </div>
+          )
+      )}
+
     </div>
   );
 };

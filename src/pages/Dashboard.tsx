@@ -1,6 +1,8 @@
 
+
 import React, { useState, useEffect, useMemo } from 'react';
-import { AdCampaign, AdSet, Ad, CommentTemplate } from '../types';
+import { useOutletContext } from 'react-router-dom';
+import { AdCampaign, AdSet, Ad, CommentTemplate, LayoutContextType } from '../types';
 import { useSettings } from '../App';
 import { 
     getRealCampaigns, 
@@ -8,8 +10,7 @@ import {
     getAdSets, 
     getAds, 
     updateEntityStatus,
-    updateEntityBudget,
-    publishComment
+    updateEntityBudget
 } from '../services/metaService';
 import { MOCK_CAMPAIGNS } from '../services/mockData';
 import { 
@@ -54,6 +55,7 @@ type ViewMode = 'SALES' | 'TRAFFIC';
 
 const Dashboard: React.FC = () => {
   const { settings, updateSettings } = useSettings();
+  const { launchCommentSession } = useOutletContext<LayoutContextType>();
   
   // Data State
   const [campaigns, setCampaigns] = useState<AdCampaign[]>([]);
@@ -82,14 +84,18 @@ const Dashboard: React.FC = () => {
   const [commentModalOpen, setCommentModalOpen] = useState(false);
   const [selectedAdForComment, setSelectedAdForComment] = useState<Ad | null>(null);
   const [templates, setTemplates] = useState<CommentTemplate[]>([]);
-  const [sendingComment, setSendingComment] = useState(false);
-  const [progressText, setProgressText] = useState('');
   
-  // Track published comments (Ad IDs)
+  // Track published comments (Ad IDs) - Read from local storage to sync UI
   const [publishedComments, setPublishedComments] = useState<Set<string>>(() => {
       const saved = localStorage.getItem('ar_published_comments');
       return saved ? new Set(JSON.parse(saved)) : new Set();
   });
+
+  // Sync published comments occasionally or when modal opens
+  useEffect(() => {
+      const saved = localStorage.getItem('ar_published_comments');
+      if (saved) setPublishedComments(new Set(JSON.parse(saved)));
+  }, [commentModalOpen]);
 
   // Helper to detect objective type
   const isTrafficOrLeads = (obj: string) => {
@@ -124,9 +130,6 @@ const Dashboard: React.FC = () => {
              realData = await getRealCampaigns(settings.adAccountId, settings.fbAccessToken, dateRange);
           }
           setCampaigns(realData);
-
-          // Note: View Mode detection is now handled in a separate useEffect below
-          // to prevent state update loops inside the fetch cycle.
 
         } else {
           setCampaigns(MOCK_CAMPAIGNS);
@@ -295,58 +298,13 @@ const Dashboard: React.FC = () => {
 
   const openCommentModal = (ad: Ad) => {
       setSelectedAdForComment(ad);
-      setProgressText('');
       setCommentModalOpen(true);
   };
 
-  const handleLaunchComment = async (template: CommentTemplate) => {
-      if (!selectedAdForComment?.creative?.effective_object_story_id) return alert("No valid post found for this ad.");
-      
-      setSendingComment(true);
-      
-      try {
-          // Iterate through all items in the template
-          const items = template.items || [];
-          if(items.length === 0) throw new Error("This template is empty.");
-
-          for (let i = 0; i < items.length; i++) {
-              const item = items[i];
-              setProgressText(`Posting comment ${i + 1} of ${items.length}...`);
-              
-              await publishComment(
-                  selectedAdForComment.creative.effective_object_story_id,
-                  item.message,
-                  item.imageBase64,
-                  settings.fbAccessToken
-              );
-              
-              // Delay between posts to avoid suspicious activity (10-15 seconds)
-              if (i < items.length - 1) {
-                  const delayMs = Math.floor(Math.random() * 5000) + 10000; // 10000ms to 15000ms
-                  const delaySec = Math.ceil(delayMs / 1000);
-                  
-                  for (let s = delaySec; s > 0; s--) {
-                      setProgressText(`Waiting ${s}s to prevent spam detection...`);
-                      await new Promise(r => setTimeout(r, 1000));
-                  }
-              }
-          }
-          
-          // Mark as published after ALL are done
-          if (selectedAdForComment) {
-              const newSet = new Set(publishedComments);
-              newSet.add(selectedAdForComment.id);
-              setPublishedComments(newSet);
-              localStorage.setItem('ar_published_comments', JSON.stringify(Array.from(newSet)));
-          }
-
-          alert(`Successfully posted ${items.length} comments!`);
+  const handleTriggerCommentSession = (template: CommentTemplate) => {
+      if (selectedAdForComment) {
+          launchCommentSession(selectedAdForComment, template);
           setCommentModalOpen(false);
-      } catch (e: any) {
-          alert("Failed to post: " + e.message);
-      } finally {
-          setSendingComment(false);
-          setProgressText('');
       }
   };
 
@@ -790,8 +748,7 @@ const Dashboard: React.FC = () => {
                           {templates.map(t => (
                               <button 
                                 key={t.id}
-                                onClick={() => handleLaunchComment(t)}
-                                disabled={sendingComment}
+                                onClick={() => handleTriggerCommentSession(t)}
                                 className="w-full text-left bg-slate-700 hover:bg-slate-600 p-4 rounded-lg border border-slate-600 hover:border-indigo-500 transition-all group"
                               >
                                   <div className="flex justify-between items-start">
@@ -808,17 +765,11 @@ const Dashboard: React.FC = () => {
                                           {(t.items || []).length > 1 && <p className="text-[10px] text-slate-500 mt-0.5">+{(t.items || []).length - 1} more comments</p>}
                                       </div>
                                       <div className="text-indigo-400 opacity-0 group-hover:opacity-100 transition-opacity pl-3">
-                                          {sendingComment ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
+                                          <Send size={18} />
                                       </div>
                                   </div>
                               </button>
                           ))}
-                      </div>
-                  )}
-
-                  {sendingComment && progressText && (
-                      <div className="mt-4 text-center">
-                          <p className="text-xs text-indigo-300 animate-pulse">{progressText}</p>
                       </div>
                   )}
               </div>
