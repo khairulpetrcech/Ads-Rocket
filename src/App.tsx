@@ -7,10 +7,9 @@ import Dashboard from './pages/Dashboard';
 import SettingsPage from './pages/Settings';
 import CreateCampaign from './pages/CreateCampaign';
 import CommentTemplates from './pages/CommentTemplates';
-import { UserSettings, AiProvider } from './types';
+import { UserSettings, AiProvider, MetaAdAccount } from './types';
 import { initFacebookSdk, isSecureContext } from './services/metaService';
 import { Loader2 } from 'lucide-react';
-import { encryptKey, decryptKey } from './utils';
 
 // Context Definition
 interface AppContextType {
@@ -34,10 +33,10 @@ export const useSettings = () => {
 const DEFAULT_SETTINGS: UserSettings = {
   isConnected: false,
   businessName: '',
-  selectedAiProvider: AiProvider.CLAUDE, 
-  selectedModel: 'claude-3-5-sonnet-20241022', 
+  selectedAiProvider: AiProvider.CLAUDE,
+  selectedModel: 'claude-3-5-sonnet-20241022',
   apiKey: '',
-  fbAppId: '', 
+  fbAppId: '',
   fbAccessToken: '',
   adAccountId: '',
   availableAccounts: []
@@ -82,6 +81,7 @@ const App: React.FC = () => {
     localStorage.removeItem('ar_auth');
     setIsAuthenticated(false);
     setSettings(DEFAULT_SETTINGS);
+    localStorage.removeItem('ar_settings');
   };
 
   const updateSettings = (newSettings: Partial<UserSettings>) => {
@@ -114,11 +114,11 @@ const App: React.FC = () => {
           <Route path="/login" element={
              isAuthenticated ? <Navigate to="/connect" replace /> : <LoginPage />
           } />
-          
+
           <Route path="/connect" element={
             isAuthenticated ? <ConnectPage /> : <Navigate to="/login" replace />
           } />
-          
+
           <Route path="/" element={
             isAuthenticated ? (
               settings.isConnected ? <Layout /> : <Navigate to="/connect" replace />

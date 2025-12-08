@@ -13,7 +13,7 @@ const LoginPage: React.FC = () => {
     // Simulate a brief loading for UX
     setTimeout(() => {
         login();
-        navigate('/connect');
+        // Redirect logic handled by App.tsx based on state
         setLoading(false);
     }, 800);
   };
@@ -44,7 +44,7 @@ const LoginPage: React.FC = () => {
                 {loading ? <Loader2 className="animate-spin" /> : <Zap className="w-5 h-5 fill-current" />}
                 <span>Mula Sekarang</span>
             </button>
-            
+
             <p className="mt-6 text-xs text-slate-500">
                 AI-Powered Meta Ads Manager
             </p>

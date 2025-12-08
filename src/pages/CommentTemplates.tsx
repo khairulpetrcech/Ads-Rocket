@@ -5,11 +5,11 @@ import { PlusCircle, Trash2, Image as ImageIcon, Save, Layers, Loader2, AlertTri
 const CommentTemplates: React.FC = () => {
     const [templates, setTemplates] = useState<CommentTemplate[]>([]);
     const [loading, setLoading] = useState(false);
-    
+
     // Builder State
     const [templateName, setTemplateName] = useState('');
     const [draftItems, setDraftItems] = useState<CommentItem[]>([]);
-    
+
     // Inputs
     const [currentMessage, setCurrentMessage] = useState('');
     const [currentImage, setCurrentImage] = useState<string>('');
@@ -43,7 +43,7 @@ const CommentTemplates: React.FC = () => {
             const reader = new FileReader();
             reader.onloadend = () => {
                 const base64 = reader.result as string;
-                if (base64.length > 2000000) { 
+                if (base64.length > 2000000) {
                     setError("Image is too large. Please use a smaller image (< 2MB).");
                     return;
                 }
@@ -80,7 +80,7 @@ const CommentTemplates: React.FC = () => {
         if (draftItems.length === 0) return setError("Add at least one comment.");
 
         setLoading(true);
-        
+
         const newTemplate: CommentTemplate = {
             id: Date.now().toString(),
             name: templateName,
@@ -91,7 +91,7 @@ const CommentTemplates: React.FC = () => {
         const updated = [newTemplate, ...templates];
         setTemplates(updated);
         localStorage.setItem('ar_comment_templates', JSON.stringify(updated));
-        
+
         setTemplateName('');
         setDraftItems([]);
         setError('');
@@ -109,30 +109,30 @@ const CommentTemplates: React.FC = () => {
     return (
         <div className="max-w-5xl mx-auto pb-20">
             <h1 className="text-2xl font-bold text-white mb-6">Comment Templates (Local Saved)</h1>
-            
+
             <div className="grid md:grid-cols-12 gap-8">
                 {/* BUILDER */}
                 <div className="md:col-span-7 bg-[#1e293b] p-6 rounded-xl border border-slate-700 h-fit">
                     <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
                         <PlusCircle className="text-indigo-400" size={20}/> Template Builder
                     </h2>
-                    
+
                     {error && <div className="text-red-400 bg-red-900/20 p-3 rounded mb-4 text-sm flex items-center gap-2"><AlertTriangle size={16}/>{error}</div>}
                     {successMsg && <div className="text-green-400 bg-green-900/20 p-3 rounded mb-4 text-sm flex items-center gap-2"><CheckCircle size={16}/>{successMsg}</div>}
 
                     <div className="mb-6">
                         <label className="block text-sm text-slate-400 mb-1">Template Name</label>
-                        <input 
+                        <input
                             type="text" value={templateName} onChange={(e) => setTemplateName(e.target.value)}
-                            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-white" 
+                            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-white"
                             placeholder="e.g. Sales Funnel Reply"
                         />
                     </div>
 
                     <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700 mb-6">
-                        <textarea 
+                        <textarea
                             value={currentMessage} onChange={(e) => setCurrentMessage(e.target.value)}
-                            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-white h-20 text-sm mb-3" 
+                            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-white h-20 text-sm mb-3"
                             placeholder="Write a comment..."
                         />
                         <div className="flex justify-between items-center">

@@ -5,15 +5,15 @@ import { useSettings } from '../App';
 import { initFacebookSdk, loginWithFacebook, getAdAccounts } from '../services/metaService';
 import { MetaAdAccount } from '../types';
 
-const SYSTEM_APP_ID: string = '861724536220118'; 
+const SYSTEM_APP_ID: string = '861724536220118';
 
 const ConnectPage: React.FC = () => {
   const navigate = useNavigate();
   const { settings, updateSettings, logout } = useSettings();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  
-  const [step, setStep] = useState<1 | 2>(1); 
+
+  const [step, setStep] = useState<1 | 2>(1);
   const [accounts, setAccounts] = useState<MetaAdAccount[]>([]);
   const appIdToUse = SYSTEM_APP_ID;
 
@@ -42,15 +42,15 @@ const ConnectPage: React.FC = () => {
   const handleLogin = async () => {
     setLoading(true);
     setError('');
-    
+
     try {
       await initFacebookSdk(appIdToUse);
       const accessToken = await loginWithFacebook();
-      
+
       updateSettings({ fbAppId: appIdToUse, fbAccessToken: accessToken });
-      
+
       const adAccounts = await getAdAccounts(accessToken);
-      
+
       if (adAccounts.length === 0) {
         setError("No Ad Accounts found.");
         return;
@@ -84,7 +84,7 @@ const ConnectPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-[#0f172a] flex items-center justify-center p-4 stars-bg relative">
       <div className="stars"></div>
-      
+
       <div className="max-w-md w-full bg-[#1e293b]/90 backdrop-blur-xl rounded-2xl border border-slate-700 shadow-2xl overflow-hidden z-10 animate-fade-in-up">
         <div className="p-6 md:p-8">
             <div className="flex justify-between items-center mb-6">
@@ -93,7 +93,7 @@ const ConnectPage: React.FC = () => {
                     <LogOut size={12}/> Sign Out
                 </button>
             </div>
-            
+
           <p className="text-indigo-200 mb-8 text-center text-sm">
             Sambungkan akaun Facebook Ads anda untuk mula menggunakan Ads Rocket.
           </p>
