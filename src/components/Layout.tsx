@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { LayoutDashboard, Settings, LogOut, Zap, Loader2, ChevronDown, ChevronUp, Play, PlusCircle, MessageSquareText, Menu, X } from 'lucide-react';
@@ -176,10 +177,12 @@ const Layout: React.FC = () => {
                       </NavLink>
 
                       {/* DISABLED MOBILE LINK */}
-                      <div className="flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-slate-600 opacity-60">
-                        <PlusCircle size={22} />
-                        <span>Buat Campaign</span>
-                        <span className="ml-auto text-[9px] bg-red-600 text-white border border-red-700 px-1.5 py-0.5 rounded">
+                      <div className="flex items-center justify-between px-4 py-3 rounded-xl bg-slate-800/20 border border-slate-700/30 mb-1 cursor-not-allowed">
+                        <div className="flex items-center gap-3 text-slate-500">
+                          <PlusCircle size={22} />
+                          <span className="font-bold">Buat Campaign</span>
+                        </div>
+                        <span className="text-[10px] font-bold bg-red-600 text-white px-2 py-1 rounded border border-red-500 shadow-sm whitespace-nowrap">
                           Akan Datang
                         </span>
                       </div>
