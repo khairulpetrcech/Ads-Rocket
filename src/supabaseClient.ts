@@ -1,4 +1,3 @@
-// This file is deprecated.
-// All functionality has been moved to src/utils.ts and src/services.
-// This file is kept to maintain file structure but contains no active code.
-export {}; 
+// This file is deprecated as Supabase has been removed.
+// Keeping file to prevent import errors during transition, but it exports nothing.
+export {};

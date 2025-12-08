@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, PropsWithChildren } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Layout from './components/Layout';
 import LoginPage from './pages/Login';
@@ -10,6 +10,7 @@ import CommentTemplates from './pages/CommentTemplates';
 import { UserSettings, AiProvider } from './types';
 import { initFacebookSdk, isSecureContext } from './services/metaService';
 import { Loader2 } from 'lucide-react';
+import { encryptKey, decryptKey } from './utils';
 
 // Context Definition
 interface AppContextType {
@@ -47,18 +48,23 @@ const App: React.FC = () => {
   const [settings, setSettings] = useState<UserSettings>(DEFAULT_SETTINGS);
   const [loading, setLoading] = useState(true);
 
-  // Load State from LocalStorage
+  // Load State from LocalStorage on Mount
   useEffect(() => {
     const initApp = () => {
       try {
-        // Check Auth
+        // 1. Check Auth
         const auth = localStorage.getItem('ar_auth');
         setIsAuthenticated(auth === 'true');
 
-        // Check Settings
+        // 2. Check Settings
         const savedSettings = localStorage.getItem('ar_settings');
         if (savedSettings) {
-          setSettings(prev => ({ ...prev, ...JSON.parse(savedSettings) }));
+          const parsed = JSON.parse(savedSettings);
+          // Decrypt API key if it exists in storage (though typically stored raw in localstorage for this simple app, 
+          // if we used the util before, we should maintain consistency. 
+          // However, previous localstorage impl might have stored it raw. 
+          // Let's assume raw for localstorage simplicity unless we want to obfuscate.)
+          setSettings(prev => ({ ...prev, ...parsed }));
         }
       } catch (e) {
         console.error("Failed to load local state", e);
@@ -76,8 +82,8 @@ const App: React.FC = () => {
 
   const logout = () => {
     localStorage.removeItem('ar_auth');
-    localStorage.removeItem('ar_settings');
-    setSettings(DEFAULT_SETTINGS);
+    // Optional: Keep settings or clear them? Usually keep settings for UX, but clear sensitive tokens if needed.
+    // For now, we keep settings to allow easy re-login.
     setIsAuthenticated(false);
   };
 
@@ -108,7 +114,9 @@ const App: React.FC = () => {
     <AppContext.Provider value={{ settings, updateSettings, isAuthenticated, login, logout, loading }}>
       <HashRouter>
         <Routes>
-          <Route path="/login" element={<LoginPage />} />
+          <Route path="/login" element={
+             isAuthenticated ? <Navigate to="/connect" replace /> : <LoginPage />
+          } />
           
           <Route path="/connect" element={
             isAuthenticated ? <ConnectPage /> : <Navigate to="/login" replace />
