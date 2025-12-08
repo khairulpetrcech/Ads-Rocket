@@ -1,5 +1,4 @@
-
-import React, { createContext, useContext, useState, useEffect, PropsWithChildren } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Layout from './components/Layout';
 import LoginPage from './pages/Login';
@@ -11,7 +10,8 @@ import CommentTemplates from './pages/CommentTemplates';
 import { UserSettings, AiProvider } from './types';
 import { initFacebookSdk, isSecureContext } from './services/metaService';
 import { Loader2 } from 'lucide-react';
-import { encryptKey } from './supabaseClient'; 
+// import { encryptKey } from './supabaseClient'; // REMOVED
+import { encryptKey } from './utils'; // ADDED
 
 // Context Definition
 interface AppContextType {

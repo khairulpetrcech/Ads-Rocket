@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSettings } from '../App';
@@ -14,7 +13,8 @@ const LoginPage: React.FC = () => {
     // Simulate a brief loading for UX
     setTimeout(() => {
         login();
-        setLoading(false);
+        // The App component will handle redirection based on auth state
+        navigate('/connect'); 
     }, 800);
   };
 
