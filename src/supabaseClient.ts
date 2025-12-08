@@ -1,3 +1,2 @@
-
-// This file is deprecated. Encryption utilities have been moved to utils.ts.
+// This file is deprecated. All Supabase functionality has been removed.
 export {};

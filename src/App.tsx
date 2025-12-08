@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect, PropsWithChildren } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Layout from './components/Layout';
@@ -63,6 +62,8 @@ const App: React.FC = () => {
         const savedSettings = localStorage.getItem('ar_settings');
         if (savedSettings) {
           const parsed = JSON.parse(savedSettings);
+          // If encrypted key exists, ensure it is handled or decrypted if needed
+          // For simple local storage, we keep it as is or decrypt for use
           setSettings(prev => ({ ...prev, ...parsed }));
         }
       } catch (e) {
