@@ -1,31 +1,22 @@
 
 export enum AiProvider {
-  FREE = 'FREE', // Simulation
-  GEMINI = 'GEMINI', // Google Gemini
-  CLAUDE = 'CLAUDE', // Anthropic Claude
-  OPENAI = 'OPENAI', // OpenAI GPT
-  OPENROUTER = 'OPENROUTER', // OpenRouter
+  FREE = 'FREE', 
+  GEMINI = 'GEMINI', 
+  CLAUDE = 'CLAUDE', 
+  OPENAI = 'OPENAI', 
+  OPENROUTER = 'OPENROUTER', 
 }
 
 export interface UserSettings {
-  // App State
   isConnected: boolean;
   businessName: string;
-  
-  // AI Config
   selectedAiProvider: AiProvider;
   selectedModel: string;
   apiKey: string; 
-  
-  // Meta Config
   fbAppId: string;
   fbAccessToken: string;
   adAccountId: string;
-  
-  // UI Preferences
   dashboardViewMode?: 'SALES' | 'TRAFFIC';
-  
-  // Runtime Only 
   availableAccounts: MetaAdAccount[]; 
 }
 

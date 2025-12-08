@@ -1,24 +1,55 @@
 import { createClient } from '@supabase/supabase-js';
 
-// Access Environment Variables (Vite uses import.meta.env)
-// For Vercel, ensure these are set in Project Settings > Environment Variables
-const supabaseUrl = (import.meta as any).env.VITE_SUPABASE_URL;
-const supabaseAnonKey = (import.meta as any).env.VITE_SUPABASE_ANON_KEY;
+// Safe environment access helper
+const getEnv = (key: string) => {
+  try {
+    // Check for Vite's import.meta.env
+    if (typeof import.meta !== 'undefined' && import.meta.env) {
+      return import.meta.env[key];
+    }
+  } catch (e) {
+    // Ignore error
+  }
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.warn("Missing Supabase Credentials! App will not function correctly.");
-}
+  try {
+    // Check for Node's process.env
+    if (typeof process !== 'undefined' && process.env) {
+      return process.env[key];
+    }
+  } catch (e) {
+    // Ignore error
+  }
 
-export const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '');
+  return undefined;
+};
+
+const supabaseUrl = getEnv('VITE_SUPABASE_URL');
+const supabaseAnonKey = getEnv('VITE_SUPABASE_ANON_KEY');
+
+// Mock client to prevent crashes if credentials are missing
+const createMockClient = () => ({
+  auth: {
+    getSession: async () => ({ data: { session: null }, error: null }),
+    onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
+    signInWithOAuth: async () => ({ error: { message: "Supabase credentials not configured." } }),
+    signOut: async () => ({ error: null }),
+  },
+  from: () => ({
+    select: () => ({ single: async () => ({ data: null, error: null }) }),
+    insert: () => ({ select: async () => ({ data: null, error: null }) }),
+    upsert: async () => ({ error: null }),
+    delete: () => ({ eq: async () => ({ error: null }) })
+  })
+} as any);
+
+export const supabase = (supabaseUrl && supabaseAnonKey) 
+  ? createClient(supabaseUrl, supabaseAnonKey) 
+  : createMockClient();
 
 // Simple Client-Side Encryption Helper
-// In a real high-security app, keys should be managed via Vault or Backend Proxy.
-// This prevents casual database readers from seeing keys in plain text.
 export const encryptKey = (text: string): string => {
     if (!text) return '';
     try {
-        // Simple Base64 obfuscation with a salt prefix
-        // Enough to hide from casual DB view, but allow client to decrypt for API calls
         return 'ENCv1_' + btoa(text).split('').reverse().join(''); 
     } catch (e) { return text; }
 };
@@ -30,5 +61,5 @@ export const decryptKey = (cipher: string): string => {
             return atob(cipher.substring(6).split('').reverse().join(''));
         } catch (e) { return cipher; }
     }
-    return cipher; // Return as is if not encrypted
+    return cipher; 
 };

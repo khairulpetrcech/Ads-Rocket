@@ -12,12 +12,11 @@ import { initFacebookSdk, isSecureContext } from './services/metaService';
 import { Loader2 } from 'lucide-react';
 import LoginPage from './pages/Login';
 
-// Context Definition
 interface AppContextType {
   settings: UserSettings;
   updateSettings: (newSettings: Partial<UserSettings>) => void;
   loading: boolean;
-  session: null; // Kept null for type compatibility if needed during transition
+  session: null;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -28,7 +27,6 @@ export const useSettings = () => {
   return context;
 };
 
-// Default Empty Settings
 const DEFAULT_SETTINGS: UserSettings = {
   isConnected: false,
   businessName: '',
@@ -51,10 +49,8 @@ const App: React.FC = () => {
         const saved = localStorage.getItem('ar_settings');
         if (saved) {
             const parsed = JSON.parse(saved);
-            // Ensure encoded fields are handled if moving from old version
             if (parsed.apiKey && parsed.apiKey.startsWith('ENC')) {
-                // Legacy support or reset
-                parsed.apiKey = ''; 
+                parsed.apiKey = ''; // Reset encrypted keys from Supabase version
             }
             setSettings({ ...DEFAULT_SETTINGS, ...parsed });
         }
@@ -74,7 +70,6 @@ const App: React.FC = () => {
     });
   };
 
-  // FB SDK Auto-Init
   useEffect(() => {
     if (settings.fbAppId && settings.fbAppId !== '123456789' && isSecureContext()) {
       initFacebookSdk(settings.fbAppId).catch(console.warn);

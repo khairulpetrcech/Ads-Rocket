@@ -18,14 +18,12 @@ const ConnectPage: React.FC = () => {
   const [accounts, setAccounts] = useState<MetaAdAccount[]>([]);
   const appIdToUse = SYSTEM_APP_ID;
 
-  // Auto-connect check
   useEffect(() => {
     const autoCheck = async () => {
       if (settings.isConnected && settings.adAccountId) {
         navigate('/');
         return;
       }
-      // If we have token from localstorage, verify it works
       if (settings.fbAccessToken) {
           try {
               const adAccounts = await getAdAccounts(settings.fbAccessToken);
@@ -35,7 +33,7 @@ const ConnectPage: React.FC = () => {
                 setStep(2);
               }
           } catch (e) {
-              console.warn("Saved token expired or invalid");
+              console.warn("Token invalid");
           }
       }
     };
@@ -50,13 +48,12 @@ const ConnectPage: React.FC = () => {
       await initFacebookSdk(appIdToUse);
       const accessToken = await loginWithFacebook();
       
-      // Save to LocalStorage via Context
       updateSettings({ fbAppId: appIdToUse, fbAccessToken: accessToken });
       
       const adAccounts = await getAdAccounts(accessToken);
       
       if (adAccounts.length === 0) {
-        setError("No Ad Accounts found. Ensure you have admin access.");
+        setError("No Ad Accounts found.");
         return;
       }
 

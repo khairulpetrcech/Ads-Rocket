@@ -17,7 +17,6 @@ const CommentTemplates: React.FC = () => {
     const [currentImage, setCurrentImage] = useState<string>('');
     const [error, setError] = useState('');
 
-    // Load from LocalStorage
     useEffect(() => {
         fetchTemplates();
     }, []);
@@ -28,7 +27,6 @@ const CommentTemplates: React.FC = () => {
             const saved = localStorage.getItem('ar_comment_templates');
             if (saved) {
                 const parsed = JSON.parse(saved);
-                // Migration Logic if needed
                 const validated = parsed.map((t: any) => ({
                     ...t,
                     items: t.items || (t.message ? [{ id: 'legacy', message: t.message, imageBase64: t.imageBase64 }] : [])

@@ -122,7 +122,6 @@ const Layout: React.FC = () => {
 
       <Chatbot />
 
-      {/* Mobile Nav */}
       <div className="md:hidden fixed bottom-0 w-full bg-[#1e293b] border-t border-slate-700 flex justify-around p-3 z-50">
         <NavLink to="/" className={({isActive}) => isActive ? 'text-indigo-400' : 'text-slate-500'}><LayoutDashboard /></NavLink>
         <NavLink to="/create-campaign" className={({isActive}) => isActive ? 'text-indigo-400' : 'text-slate-500'}><PlusCircle /></NavLink>
