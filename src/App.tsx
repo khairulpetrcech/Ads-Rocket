@@ -10,7 +10,9 @@ import CommentTemplates from './pages/CommentTemplates';
 import { UserSettings, AiProvider } from './types';
 import { initFacebookSdk, isSecureContext } from './services/metaService';
 import { Loader2 } from 'lucide-react';
-import { encryptKey, decryptKey } from './utils';
+// We import utils locally or from the cleaned supabaseClient file if needed, 
+// but sticking to a clean implementation here.
+import { encryptKey } from './supabaseClient'; 
 
 // Context Definition
 interface AppContextType {
@@ -34,10 +36,10 @@ export const useSettings = () => {
 const DEFAULT_SETTINGS: UserSettings = {
   isConnected: false,
   businessName: '',
-  selectedAiProvider: AiProvider.CLAUDE,
-  selectedModel: 'claude-3-5-sonnet-20241022',
+  selectedAiProvider: AiProvider.CLAUDE, 
+  selectedModel: 'claude-3-5-sonnet-20241022', 
   apiKey: '',
-  fbAppId: '',
+  fbAppId: '', 
   fbAccessToken: '',
   adAccountId: '',
   availableAccounts: []
@@ -62,8 +64,6 @@ const App: React.FC = () => {
         const savedSettings = localStorage.getItem('ar_settings');
         if (savedSettings) {
           const parsed = JSON.parse(savedSettings);
-          // If encrypted key exists, ensure it is handled or decrypted if needed
-          // For simple local storage, we keep it as is or decrypt for use
           setSettings(prev => ({ ...prev, ...parsed }));
         }
       } catch (e) {
@@ -117,11 +117,11 @@ const App: React.FC = () => {
           <Route path="/login" element={
              isAuthenticated ? <Navigate to="/connect" replace /> : <LoginPage />
           } />
-
+          
           <Route path="/connect" element={
             isAuthenticated ? <ConnectPage /> : <Navigate to="/login" replace />
           } />
-
+          
           <Route path="/" element={
             isAuthenticated ? (
               settings.isConnected ? <Layout /> : <Navigate to="/connect" replace />
