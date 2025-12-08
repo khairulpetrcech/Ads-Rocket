@@ -1,3 +1,3 @@
-// This file is deprecated. 
-// All logic has been moved to local storage and utils.ts.
-export const supabase = null;
+// This file is deprecated and intentionally left empty to prevent build errors.
+// All logic has been moved to localStorage and src/utils.ts.
+export {};

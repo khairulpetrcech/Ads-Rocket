@@ -54,7 +54,9 @@ const App: React.FC = () => {
       try {
         // 1. Check Auth
         const auth = localStorage.getItem('ar_auth');
-        setIsAuthenticated(auth === 'true');
+        if (auth === 'true') {
+            setIsAuthenticated(true);
+        }
 
         // 2. Check Settings
         const savedSettings = localStorage.getItem('ar_settings');
@@ -79,9 +81,7 @@ const App: React.FC = () => {
   const logout = () => {
     localStorage.removeItem('ar_auth');
     setIsAuthenticated(false);
-    // Optional: Clear settings on logout if desired
-    // localStorage.removeItem('ar_settings');
-    // setSettings(DEFAULT_SETTINGS);
+    setSettings(DEFAULT_SETTINGS);
   };
 
   const updateSettings = (newSettings: Partial<UserSettings>) => {
