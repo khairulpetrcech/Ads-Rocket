@@ -48,7 +48,15 @@ const Settings: React.FC = () => {
   }, [localSettings.selectedAiProvider, localSettings.apiKey]);
 
   const handleSave = () => {
-    updateSettings(localSettings);
+    // Sanitize Settings
+    const cleanSettings = { ...localSettings };
+    if (cleanSettings.apiKey) {
+        cleanSettings.apiKey = cleanSettings.apiKey.trim();
+    }
+    
+    setLocalSettings(cleanSettings); // Update local state view
+    updateSettings(cleanSettings);   // Persist
+    
     setSaved(true);
     setTimeout(() => setSaved(false), 3000);
   };

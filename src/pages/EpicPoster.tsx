@@ -25,7 +25,12 @@ const EpicPoster: React.FC = () => {
             const imageUrl = await generateImage(prompt, settings.apiKey, aspectRatio);
             setGeneratedImage(imageUrl);
         } catch (e: any) {
-            setError(e.message || "Failed to generate image. Ensure your API Key supports Gemini Image Gen.");
+            console.error("Gen Error", e);
+            if (e.message && (e.message.includes("API key not valid") || e.message.includes("400"))) {
+                setError("Invalid API Key. Please check for whitespace or typos in the 'Configuration' page.");
+            } else {
+                setError(e.message || "Failed to generate image. Ensure your API Key supports Gemini Image Gen.");
+            }
         } finally {
             setLoading(false);
         }
@@ -61,7 +66,7 @@ const EpicPoster: React.FC = () => {
                         {error && (
                             <div className="bg-red-900/20 border border-red-800 p-3 rounded-lg mb-4 text-red-400 text-sm flex items-start gap-2">
                                 <AlertTriangle size={16} className="mt-0.5 flex-shrink-0" />
-                                {error}
+                                <span>{error}</span>
                             </div>
                         )}
 

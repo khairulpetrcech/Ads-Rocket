@@ -95,6 +95,11 @@ const App: React.FC = () => {
     setSettings(prev => {
         const next = { ...prev, ...newSettings };
         
+        // Trim API Key if it exists in the update
+        if (next.apiKey) {
+            next.apiKey = next.apiKey.trim();
+        }
+
         // Encrypt API Key before saving to LocalStorage
         const toSave = { ...next };
         if (toSave.apiKey) {
