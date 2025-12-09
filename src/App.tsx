@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect, PropsWithChildren } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Layout from './components/Layout';
@@ -7,6 +8,7 @@ import Dashboard from './pages/Dashboard';
 import SettingsPage from './pages/Settings';
 import CreateCampaign from './pages/CreateCampaign';
 import CommentTemplates from './pages/CommentTemplates';
+import EpicPoster from './pages/EpicPoster';
 import { UserSettings, AiProvider } from './types';
 import { initFacebookSdk, isSecureContext } from './services/metaService';
 import { Loader2 } from 'lucide-react';
@@ -137,6 +139,7 @@ const App: React.FC = () => {
           }>
             <Route index element={<Dashboard />} />
             <Route path="create-campaign" element={<CreateCampaign />} />
+            <Route path="epic-poster" element={<EpicPoster />} />
             <Route path="comment-templates" element={<CommentTemplates />} />
             <Route path="settings" element={<SettingsPage />} />
           </Route>

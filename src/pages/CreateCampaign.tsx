@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { useSettings } from '../App';
 import { 
@@ -286,6 +287,7 @@ const CreateCampaign: React.FC = () => {
         } catch (e: any) {
             console.error(e);
             setError(e.message || "Failed to create campaign. Check parameters.");
+            window.scrollTo(0, 0); // Scroll up to see the error
         } finally {
             setLoading(false);
         }
@@ -349,8 +351,12 @@ const CreateCampaign: React.FC = () => {
 
             {/* Error / Success Messages */}
             {error && (
-                <div className="mb-6 p-4 bg-red-900/20 border border-red-800 rounded-xl text-red-400 flex items-center gap-2">
-                    <AlertTriangle size={20}/> {error}
+                <div className="mb-6 p-4 bg-red-900/20 border border-red-800 rounded-xl text-red-200 flex items-start gap-3 shadow-lg">
+                    <AlertTriangle size={20} className="mt-0.5 flex-shrink-0 text-red-400"/> 
+                    <div>
+                        <p className="font-bold text-red-400 mb-1">Error Creating Campaign</p>
+                        <p className="text-sm opacity-90">{error}</p>
+                    </div>
                 </div>
             )}
             

@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, Type } from "@google/genai";
 import { AdCampaign, AiProvider, AiAnalysisResult, Ad } from "../types";
 
@@ -392,3 +393,46 @@ export const chatWithAi = async (
         return await simulateChatResponse();
     }
 }
+
+// --- IMAGE GENERATION (Nano Banana Pro) ---
+export const generateImage = async (
+    prompt: string,
+    userApiKey?: string,
+    aspectRatio: "1:1" | "16:9" | "9:16" = "1:1"
+): Promise<string> => {
+    const apiKey = userApiKey || getEnvApiKey();
+    if (!apiKey) throw new Error("API Key is required for image generation.");
+
+    // Nano Banana Pro mapping -> gemini-3-pro-image-preview
+    const modelName = 'gemini-3-pro-image-preview';
+
+    const ai = new GoogleGenAI({ apiKey });
+    
+    try {
+        const response = await ai.models.generateContent({
+            model: modelName,
+            contents: { parts: [{ text: prompt }] },
+            config: {
+                imageConfig: {
+                    aspectRatio: aspectRatio,
+                    imageSize: "1K"
+                }
+            },
+        });
+
+        if (response.candidates && response.candidates[0].content.parts) {
+             for (const part of response.candidates[0].content.parts) {
+                // Find the image part, do not assume it is the first part.
+                if (part.inlineData) {
+                    const base64EncodeString: string = part.inlineData.data;
+                    return `data:image/png;base64,${base64EncodeString}`;
+                }
+            }
+        }
+        
+        throw new Error("No image data returned from model.");
+    } catch (error: any) {
+        console.error("Image Generation Failed:", error);
+        throw new Error(error.message || "Failed to generate image.");
+    }
+};

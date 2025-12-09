@@ -36,13 +36,24 @@ const handleApiError = (data: any) => {
     console.error("Meta API FULL ERROR:", JSON.stringify(data, null, 2)); // DEBUGGING CRITICAL
     
     const code = data.error.code;
+    const message = data.error.message || "";
+    const userMsg = data.error.error_user_msg || "";
+    
+    // Combine messages for easier checking
+    const fullErrorString = (message + " " + userMsg).toLowerCase();
+
     if (code === 80004 || code === 17 || code === 613) {
       throw new Error("Meta API Rate Limit Exceeded. Please wait 1-2 minutes before refreshing.");
     }
+
+    // Specific Error: Development Mode Restriction on Creatives
+    if (fullErrorString.includes('development mode')) {
+        throw new Error("DEVELOPMENT MODE ISSUE: Your Meta App is still in 'Development Mode'. Even if you are an Admin, Meta prevents ad creative creation in this mode. Please go to developers.facebook.com and switch the App Mode to 'Live'.");
+    }
     
     // Provide more context for Invalid Parameter errors
-    if (data.error.error_user_msg) {
-        throw new Error(`${data.error.error_user_title || 'Error'}: ${data.error.error_user_msg}`);
+    if (userMsg) {
+        throw new Error(`${data.error.error_user_title || 'Error'}: ${userMsg}`);
     }
 
     if (data.error.error_subcode === 1885316) {
@@ -50,16 +61,11 @@ const handleApiError = (data: any) => {
     }
     
     // Catch specific CBO/Budget Sharing errors
-    if (data.error.message && data.error.message.includes('is_adset_budget_sharing_enabled')) {
+    if (message.includes('is_adset_budget_sharing_enabled')) {
         throw new Error("BUDGET_SHARING_ERROR"); // Caught by retry logic
     }
-
-    // Catch Dev Mode Creative errors
-    if (data.error.message && data.error.message.includes('development mode')) {
-        throw new Error("Dev Mode Error: Your App is in Development Mode. Only Admins can see/create ads. Try switching your Meta App to Live Mode.");
-    }
     
-    throw new Error(data.error.message || "Unknown Meta API Error. Check Console for details.");
+    throw new Error(message || "Unknown Meta API Error. Check Console for details.");
   }
 };
 

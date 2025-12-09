@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Settings, LogOut, Zap, Loader2, ChevronDown, ChevronUp, Play, PlusCircle, MessageSquareText, Menu, X, Minimize2, Maximize2, Send, CheckCircle } from 'lucide-react';
+import { LayoutDashboard, Settings, LogOut, Zap, Loader2, ChevronDown, ChevronUp, Play, PlusCircle, MessageSquareText, Menu, X, Minimize2, Maximize2, Send, CheckCircle, Image } from 'lucide-react';
 import { useSettings } from '../App';
 import { getTopAdsForAccount, publishComment } from '../services/metaService';
 import { analyzeAccountPerformance } from '../services/aiService';
@@ -174,6 +174,10 @@ const Layout: React.FC = () => {
           <NavLink to="/create-campaign" className={navLinkClass}>
             <PlusCircle size={20} /><span>Buat Campaign</span>
           </NavLink>
+
+          <NavLink to="/epic-poster" className={navLinkClass}>
+            <Image size={20} /><span>Epic Poster</span>
+          </NavLink>
           
           <NavLink to="/comment-templates" className={navLinkClass}>
             <MessageSquareText size={20} /><span>Comment Templates</span>
@@ -275,6 +279,10 @@ const Layout: React.FC = () => {
 
                       <NavLink to="/create-campaign" onClick={() => setIsMobileMenuOpen(false)} className={mobileNavLinkClass}>
                         <PlusCircle size={22} /><span>Buat Campaign</span>
+                      </NavLink>
+
+                      <NavLink to="/epic-poster" onClick={() => setIsMobileMenuOpen(false)} className={mobileNavLinkClass}>
+                        <Image size={22} /><span>Epic Poster</span>
                       </NavLink>
                       
                       <NavLink to="/comment-templates" onClick={() => setIsMobileMenuOpen(false)} className={mobileNavLinkClass}>
