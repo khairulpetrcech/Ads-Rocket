@@ -64,6 +64,10 @@ const App: React.FC = () => {
         const savedSettings = localStorage.getItem('ar_settings');
         if (savedSettings) {
           const parsed = JSON.parse(savedSettings);
+          // Decrypt API key if present so the app can use it
+          if (parsed.apiKey) {
+              parsed.apiKey = decryptKey(parsed.apiKey);
+          }
           setSettings(prev => ({ ...prev, ...parsed }));
         }
       } catch (e) {
@@ -90,7 +94,14 @@ const App: React.FC = () => {
   const updateSettings = (newSettings: Partial<UserSettings>) => {
     setSettings(prev => {
         const next = { ...prev, ...newSettings };
-        localStorage.setItem('ar_settings', JSON.stringify(next));
+        
+        // Encrypt API Key before saving to LocalStorage
+        const toSave = { ...next };
+        if (toSave.apiKey) {
+            toSave.apiKey = encryptKey(toSave.apiKey);
+        }
+        
+        localStorage.setItem('ar_settings', JSON.stringify(toSave));
         return next;
     });
   };
