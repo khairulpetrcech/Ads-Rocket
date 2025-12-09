@@ -171,14 +171,9 @@ const Layout: React.FC = () => {
             <LayoutDashboard size={20} /><span>Dashboard</span>
           </NavLink>
 
-          {/* DISABLED / COMING SOON LINK */}
-          <div className="flex items-center gap-3 px-4 py-3 rounded-lg text-slate-600 cursor-not-allowed opacity-60">
-            <PlusCircle size={20} />
-            <span className="flex-1">Buat Campaign</span>
-            <span className="text-[9px] font-bold bg-red-600 text-white border border-red-700 px-1.5 py-0.5 rounded whitespace-nowrap">
-              Akan Datang
-            </span>
-          </div>
+          <NavLink to="/create-campaign" className={navLinkClass}>
+            <PlusCircle size={20} /><span>Buat Campaign</span>
+          </NavLink>
           
           <NavLink to="/comment-templates" className={navLinkClass}>
             <MessageSquareText size={20} /><span>Comment Templates</span>
@@ -278,16 +273,9 @@ const Layout: React.FC = () => {
                         <LayoutDashboard size={22} /><span>Dashboard</span>
                       </NavLink>
 
-                      {/* DISABLED MOBILE LINK */}
-                      <div className="flex items-center justify-between px-4 py-3 rounded-xl bg-slate-800/20 border border-slate-700/30 mb-1 cursor-not-allowed">
-                        <div className="flex items-center gap-3 text-slate-500">
-                          <PlusCircle size={22} />
-                          <span className="font-bold">Buat Campaign</span>
-                        </div>
-                        <span className="text-[10px] font-bold bg-red-600 text-white px-2 py-1 rounded border border-red-500 shadow-sm whitespace-nowrap">
-                          Akan Datang
-                        </span>
-                      </div>
+                      <NavLink to="/create-campaign" onClick={() => setIsMobileMenuOpen(false)} className={mobileNavLinkClass}>
+                        <PlusCircle size={22} /><span>Buat Campaign</span>
+                      </NavLink>
                       
                       <NavLink to="/comment-templates" onClick={() => setIsMobileMenuOpen(false)} className={mobileNavLinkClass}>
                         <MessageSquareText size={22} /><span>Comment Templates</span>
