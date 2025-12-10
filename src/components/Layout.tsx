@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Settings, LogOut, Zap, Loader2, ChevronDown, ChevronUp, Play, PlusCircle, MessageSquareText, Menu, X, Minimize2, Maximize2, Send, CheckCircle, Image, Activity } from 'lucide-react';
+import { LayoutDashboard, Settings, LogOut, Zap, Loader2, ChevronDown, ChevronUp, Play, PlusCircle, MessageSquareText, Menu, X, Minimize2, Maximize2, CheckCircle, Image, Activity } from 'lucide-react';
 import { useSettings } from '../App';
 import { getTopAdsForAccount, publishComment } from '../services/metaService';
 import { analyzeAccountPerformance } from '../services/aiService';
