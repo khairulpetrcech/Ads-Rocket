@@ -4,7 +4,7 @@ import { generateImage } from '../services/aiService';
 import { Wand2, Download, Image as ImageIcon, Loader2, AlertTriangle, Sparkles, Terminal } from 'lucide-react';
 
 const EpicPoster: React.FC = () => {
-    const { settings } = useSettings();
+    const { settings, reselectApiKey } = useSettings();
     const [prompt, setPrompt] = useState('');
     const [aspectRatio, setAspectRatio] = useState<"1:1" | "16:9" | "9:16">("1:1");
     const [loading, setLoading] = useState(false);
@@ -27,7 +27,16 @@ const EpicPoster: React.FC = () => {
         } catch (e: any) {
             console.error("Gen Error", e);
             let msg = e.message || "An unknown error occurred.";
+            const msgLower = msg.toLowerCase();
             
+            // Check for API Key validity issues and trigger reselection
+            if (msgLower.includes("api key not valid") || msgLower.includes("api_key_invalid") || msgLower.includes("requested entity was not found")) {
+                await reselectApiKey();
+                setError("API Key issue detected. Please re-select your key and try again.");
+                setLoading(false);
+                return;
+            }
+
             // Friendly error mapping
             if (msg.includes("Receiving end does not exist") || msg.includes("Could not establish connection")) {
                 msg = "Connection Error: The browser could not communicate with the AI service. Please check your internet connection or disable any interfering extensions/VPNs.";

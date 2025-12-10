@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { LayoutDashboard, Settings, LogOut, Zap, Loader2, ChevronDown, ChevronUp, Play, PlusCircle, MessageSquareText, Menu, X, Minimize2, Maximize2, Send, CheckCircle, Image } from 'lucide-react';
@@ -11,7 +10,7 @@ const APP_VERSION = "0.91";
 
 const Layout: React.FC = () => {
   const navigate = useNavigate();
-  const { settings, logout } = useSettings();
+  const { settings, logout, reselectApiKey } = useSettings();
   
   const [aiStatus, setAiStatus] = useState<string[]>([]);
   const [loadingAi, setLoadingAi] = useState(false);
@@ -61,7 +60,11 @@ const Layout: React.FC = () => {
             } else {
                 setAiStatus(["Not enough active ads to analyze."]);
             }
-        } catch (e) {
+        } catch (e: any) {
+            const errStr = (e.message || "").toLowerCase();
+            if (errStr.includes("api key not valid") || errStr.includes("api_key_invalid") || errStr.includes("requested entity was not found")) {
+                await reselectApiKey();
+            }
             setAiStatus(["Could not analyze ads at this time."]);
         } finally {
             setLoadingAi(false);

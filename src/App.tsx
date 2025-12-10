@@ -21,6 +21,7 @@ interface AppContextType {
   login: () => void;
   logout: () => void;
   loading: boolean;
+  reselectApiKey: () => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -79,13 +80,18 @@ const App: React.FC = () => {
     if (win.aistudio) {
       try {
         await win.aistudio.openSelectKey();
-        setHasApiKey(true);
+        const has = await win.aistudio.hasSelectedApiKey();
+        setHasApiKey(has);
       } catch (e: any) {
         console.error("Failed to select API key:", e);
         // Reset state if entity not found or other error to allow retry
         setHasApiKey(false);
       }
     }
+  };
+
+  const reselectApiKey = async () => {
+    await handleSelectKey();
   };
 
   // Load State from LocalStorage on Mount
@@ -198,7 +204,7 @@ const App: React.FC = () => {
   };
 
   return (
-    <AppContext.Provider value={{ settings, updateSettings, isAuthenticated, login, logout, loading }}>
+    <AppContext.Provider value={{ settings, updateSettings, isAuthenticated, login, logout, loading, reselectApiKey }}>
       <HashRouter>
         <Routes>
           <Route path="/login" element={
