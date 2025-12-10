@@ -1,4 +1,3 @@
-
 import { GoogleGenAI, Type } from "@google/genai";
 import { AdCampaign, AiProvider, AiAnalysisResult, Ad } from "../types";
 
@@ -39,7 +38,8 @@ const getEnvApiKey = () => {
 // --- Model Fetching Services ---
 
 export const getAvailableModels = async (provider: AiProvider, userApiKey?: string): Promise<string[]> => {
-  const key = userApiKey || getEnvApiKey();
+  const envKey = getEnvApiKey();
+  const key = provider === AiProvider.GEMINI ? envKey : (userApiKey || envKey);
   
   try {
     if (provider === AiProvider.CLAUDE) {
@@ -166,19 +166,21 @@ const simulateChatResponse = async (): Promise<string> => {
 
 // --- Main Analysis Function ---
 
-const executeAiRequest = async (
+export const executeAiRequest = async (
     prompt: string,
     provider: AiProvider,
     userApiKey?: string,
     modelOverride?: string,
     schema?: any
 ): Promise<string> => {
-    const apiKey = userApiKey || getEnvApiKey();
     
     // --- GEMINI ---
     if (provider === AiProvider.GEMINI) {
-        if (!apiKey) throw new Error("Missing API Key for Gemini");
-        const ai = new GoogleGenAI({ apiKey });
+        // Enforce process.env.API_KEY for Gemini
+        const envKey = getEnvApiKey();
+        if (!envKey) throw new Error("Missing system API Key for Gemini. Please select a key.");
+        
+        const ai = new GoogleGenAI({ apiKey: envKey });
         const modelName = modelOverride || DEFAULT_GEMINI_MODEL;
         const config: any = {};
         if (schema) {
@@ -194,6 +196,9 @@ const executeAiRequest = async (
         if (!text) throw new Error("Empty response from Gemini");
         return text;
     }
+
+    // For other providers, use userApiKey or fallback
+    const apiKey = userApiKey || getEnvApiKey();
 
     // --- CLAUDE ---
     if (provider === AiProvider.CLAUDE) {
@@ -397,10 +402,11 @@ export const chatWithAi = async (
 // --- IMAGE GENERATION (Nano Banana Pro) ---
 export const generateImage = async (
     prompt: string,
-    userApiKey?: string,
+    // userApiKey is ignored for Gemini
+    userApiKey?: string, 
     aspectRatio: "1:1" | "16:9" | "9:16" = "1:1"
 ): Promise<string> => {
-    const apiKey = userApiKey || getEnvApiKey();
+    const apiKey = getEnvApiKey();
     if (!apiKey) throw new Error("API Key is required for image generation.");
 
     // Nano Banana Pro mapping -> gemini-3-pro-image-preview

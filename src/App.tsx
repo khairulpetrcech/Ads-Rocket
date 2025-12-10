@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect, PropsWithChildren } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Layout from './components/Layout';
@@ -11,7 +10,7 @@ import CommentTemplates from './pages/CommentTemplates';
 import EpicPoster from './pages/EpicPoster';
 import { UserSettings, AiProvider } from './types';
 import { initFacebookSdk, isSecureContext } from './services/metaService';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Key } from 'lucide-react';
 import { encryptKey, decryptKey } from './utils';
 
 // Context Definition
@@ -49,6 +48,43 @@ const App: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [settings, setSettings] = useState<UserSettings>(DEFAULT_SETTINGS);
   const [loading, setLoading] = useState(true);
+
+  // API Key Selection State
+  const [hasApiKey, setHasApiKey] = useState(false);
+  const [checkingKey, setCheckingKey] = useState(true);
+
+  // Check for Google GenAI API Key on mount
+  useEffect(() => {
+    const checkKey = async () => {
+      if (window.aistudio) {
+        try {
+          const has = await window.aistudio.hasSelectedApiKey();
+          setHasApiKey(has);
+        } catch (e) {
+          console.warn("Error checking API key status:", e);
+          setHasApiKey(false);
+        }
+      } else {
+        // Not in IDX/SFDX environment, assume valid or handle gracefully
+        setHasApiKey(true);
+      }
+      setCheckingKey(false);
+    };
+    checkKey();
+  }, []);
+
+  const handleSelectKey = async () => {
+    if (window.aistudio) {
+      try {
+        await window.aistudio.openSelectKey();
+        setHasApiKey(true);
+      } catch (e: any) {
+        console.error("Failed to select API key:", e);
+        // Reset state if entity not found or other error to allow retry
+        setHasApiKey(false);
+      }
+    }
+  };
 
   // Load State from LocalStorage on Mount
   useEffect(() => {
@@ -118,10 +154,34 @@ const App: React.FC = () => {
     }
   }, [settings.fbAppId]);
 
-  if (loading) {
+  if (loading || checkingKey) {
     return (
       <div className="min-h-screen bg-[#0f172a] flex items-center justify-center text-white">
         <Loader2 className="animate-spin text-indigo-500 w-12 h-12" />
+      </div>
+    );
+  }
+
+  // Block access if no API Key is selected (in supported environments)
+  if (!hasApiKey && window.aistudio) {
+    return (
+      <div className="min-h-screen bg-[#0f172a] flex flex-col items-center justify-center p-6 text-center font-sans">
+        <div className="w-16 h-16 bg-indigo-600 rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-indigo-500/20">
+          <Key className="text-white w-8 h-8" />
+        </div>
+        <h1 className="text-2xl font-bold text-white mb-3">API Key Required</h1>
+        <p className="text-slate-400 mb-8 max-w-md leading-relaxed">
+          To use the powerful AI features powered by Gemini, you must select a paid API key from your Google Cloud Project.
+        </p>
+        <button 
+          onClick={handleSelectKey}
+          className="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-3 px-8 rounded-xl transition-all transform hover:scale-105 shadow-lg shadow-indigo-500/30"
+        >
+          Select API Key
+        </button>
+        <p className="mt-8 text-xs text-slate-500">
+          Read the <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" rel="noreferrer" className="text-indigo-400 hover:text-indigo-300 underline transition-colors">Billing Documentation</a> for more details.
+        </p>
       </div>
     );
   }
@@ -131,8 +191,6 @@ const App: React.FC = () => {
     if (!isAuthenticated) {
       return <Navigate to="/login" replace />;
     }
-    // If logged in but not connected to Meta, go to Connect
-    // Exception: Allow access to /connect itself (handled by router structure below)
     return <>{children}</>;
   };
 

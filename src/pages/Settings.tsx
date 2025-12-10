@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { useSettings } from '../App';
 import { AiProvider } from '../types';
@@ -204,7 +203,7 @@ const Settings: React.FC = () => {
           <div className="bg-indigo-900/20 border border-indigo-900/50 p-4 rounded-lg mb-6 flex items-start gap-3">
             <Info className="text-indigo-400 flex-shrink-0 mt-0.5" size={18} />
             <p className="text-sm text-indigo-200">
-                Configure your AI Provider. You can enter your own API Key to use your personal quota. If left blank, the system will attempt to use the default environment configuration (if available).
+                Configure your AI Provider. For Google Gemini, the API key is managed automatically by the system. For others, enter your own key.
             </p>
           </div>
 
@@ -229,27 +228,36 @@ const Settings: React.FC = () => {
             {/* API Key Input */}
             {localSettings.selectedAiProvider !== AiProvider.FREE && (
                 <div className="animate-fadeIn">
-                    <label className="block text-sm font-medium text-slate-400 mb-2">API Key</label>
-                    <div className="relative">
-                        <Key className="absolute left-3 top-3.5 text-slate-500" size={18} />
-                        <input 
-                            type={showKey ? "text" : "password"}
-                            value={localSettings.apiKey || ''}
-                            onChange={(e) => setLocalSettings({...localSettings, apiKey: e.target.value})}
-                            placeholder={`Enter your ${localSettings.selectedAiProvider} API Key`}
-                            className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-10 pr-12 py-3 text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all placeholder-slate-600"
-                        />
-                        <button 
-                            type="button"
-                            onClick={() => setShowKey(!showKey)}
-                            className="absolute right-3 top-3 text-slate-500 hover:text-white"
-                        >
-                            {showKey ? <EyeOff size={20} /> : <Eye size={20} />}
-                        </button>
-                    </div>
-                    <p className="text-xs text-slate-500 mt-2">
-                        Your key is stored locally in your browser and used only for requests to the provider.
-                    </p>
+                    {localSettings.selectedAiProvider === AiProvider.GEMINI ? (
+                        <div className="bg-slate-800 p-4 rounded-lg border border-slate-700 text-sm text-slate-300 flex items-center gap-2">
+                            <CheckCircle size={16} className="text-green-500" />
+                            <span>API Key is managed by the system environment.</span>
+                        </div>
+                    ) : (
+                        <>
+                            <label className="block text-sm font-medium text-slate-400 mb-2">API Key</label>
+                            <div className="relative">
+                                <Key className="absolute left-3 top-3.5 text-slate-500" size={18} />
+                                <input 
+                                    type={showKey ? "text" : "password"}
+                                    value={localSettings.apiKey || ''}
+                                    onChange={(e) => setLocalSettings({...localSettings, apiKey: e.target.value})}
+                                    placeholder={`Enter your ${localSettings.selectedAiProvider} API Key`}
+                                    className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-10 pr-12 py-3 text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all placeholder-slate-600"
+                                />
+                                <button 
+                                    type="button"
+                                    onClick={() => setShowKey(!showKey)}
+                                    className="absolute right-3 top-3 text-slate-500 hover:text-white"
+                                >
+                                    {showKey ? <EyeOff size={20} /> : <Eye size={20} />}
+                                </button>
+                            </div>
+                            <p className="text-xs text-slate-500 mt-2">
+                                Your key is stored locally in your browser and used only for requests to the provider.
+                            </p>
+                        </>
+                    )}
                 </div>
             )}
 

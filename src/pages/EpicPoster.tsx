@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useSettings } from '../App';
 import { generateImage } from '../services/aiService';
@@ -14,15 +13,16 @@ const EpicPoster: React.FC = () => {
 
     const handleGenerate = async () => {
         if (!prompt.trim()) return setError("Please enter a prompt description.");
-        if (!settings.apiKey) return setError("API Key is missing. Please configure it in Settings.");
-
+        // We rely on system key for image generation now
+        
         setLoading(true);
         setError('');
         setGeneratedImage(null);
 
         try {
             // "Nano Banana Pro" logic via aiService
-            const imageUrl = await generateImage(prompt, settings.apiKey, aspectRatio);
+            // Pass undefined for userApiKey to force system key usage
+            const imageUrl = await generateImage(prompt, undefined, aspectRatio);
             setGeneratedImage(imageUrl);
         } catch (e: any) {
             console.error("Gen Error", e);
@@ -32,7 +32,7 @@ const EpicPoster: React.FC = () => {
             if (msg.includes("Receiving end does not exist") || msg.includes("Could not establish connection")) {
                 msg = "Connection Error: The browser could not communicate with the AI service. Please check your internet connection or disable any interfering extensions/VPNs.";
             } else if (msg.includes("400")) {
-                msg = "Invalid Request: Check your API Key or Prompt. (Error 400)";
+                msg = "Invalid Request: Check your Prompt or ensure the API Key is valid. (Error 400)";
             }
 
             setError(msg);
