@@ -1,5 +1,4 @@
 
-
 import { AdCampaign, MetaAdAccount, AdSet, Ad } from '../types';
 
 declare global {
@@ -566,7 +565,9 @@ export const uploadAdVideo = async (accountId: string, file: File, accessToken: 
     const startData = await startRes.json();
     handleApiError(startData);
     
-    const { upload_session_id, start_offset, end_offset } = startData;
+    const { upload_session_id, start_offset, end_offset, video_id } = startData;
+    const finalVideoId = video_id; // Usually returned here
+    
     let currentStartOffset = parseInt(start_offset);
     let currentEndOffset = parseInt(end_offset);
 
@@ -611,7 +612,9 @@ export const uploadAdVideo = async (accountId: string, file: File, accessToken: 
     const finishData = await finishRes.json();
     handleApiError(finishData);
     
+    if (finalVideoId) return finalVideoId;
     if (finishData.id) return finishData.id;
+    
     throw new Error("Video upload finished but no ID returned");
 };
 
