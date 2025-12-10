@@ -56,9 +56,10 @@ const App: React.FC = () => {
   // Check for Google GenAI API Key on mount
   useEffect(() => {
     const checkKey = async () => {
-      if (window.aistudio) {
+      const win = window as any;
+      if (win.aistudio) {
         try {
-          const has = await window.aistudio.hasSelectedApiKey();
+          const has = await win.aistudio.hasSelectedApiKey();
           setHasApiKey(has);
         } catch (e) {
           console.warn("Error checking API key status:", e);
@@ -74,9 +75,10 @@ const App: React.FC = () => {
   }, []);
 
   const handleSelectKey = async () => {
-    if (window.aistudio) {
+    const win = window as any;
+    if (win.aistudio) {
       try {
-        await window.aistudio.openSelectKey();
+        await win.aistudio.openSelectKey();
         setHasApiKey(true);
       } catch (e: any) {
         console.error("Failed to select API key:", e);
@@ -163,7 +165,8 @@ const App: React.FC = () => {
   }
 
   // Block access if no API Key is selected (in supported environments)
-  if (!hasApiKey && window.aistudio) {
+  const win = window as any;
+  if (!hasApiKey && win.aistudio) {
     return (
       <div className="min-h-screen bg-[#0f172a] flex flex-col items-center justify-center p-6 text-center font-sans">
         <div className="w-16 h-16 bg-indigo-600 rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-indigo-500/20">
