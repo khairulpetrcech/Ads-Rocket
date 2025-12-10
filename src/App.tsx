@@ -13,6 +13,18 @@ import { initFacebookSdk, isSecureContext } from './services/metaService';
 import { Loader2, Key } from 'lucide-react';
 import { encryptKey, decryptKey } from './utils';
 
+// Declare global augmentation for Window to include aistudio
+declare global {
+  interface AIStudio {
+    hasSelectedApiKey: () => Promise<boolean>;
+    openSelectKey: () => Promise<void>;
+  }
+
+  interface Window {
+    aistudio?: AIStudio;
+  }
+}
+
 // Context Definition
 interface AppContextType {
   settings: UserSettings;
@@ -44,9 +56,6 @@ const DEFAULT_SETTINGS: UserSettings = {
   adAccountId: '',
   availableAccounts: []
 };
-
-// Removed conflicting global declaration for Window.aistudio
-// It is already defined in the environment types.
 
 const App: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
