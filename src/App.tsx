@@ -45,6 +45,9 @@ const DEFAULT_SETTINGS: UserSettings = {
   availableAccounts: []
 };
 
+// Removed conflicting global declaration for Window.aistudio
+// It is already defined in the environment types.
+
 const App: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [settings, setSettings] = useState<UserSettings>(DEFAULT_SETTINGS);
@@ -57,10 +60,9 @@ const App: React.FC = () => {
   // Check for Google GenAI API Key on mount
   useEffect(() => {
     const checkKey = async () => {
-      const win = window as any;
-      if (win.aistudio) {
+      if (window.aistudio) {
         try {
-          const has = await win.aistudio.hasSelectedApiKey();
+          const has = await window.aistudio.hasSelectedApiKey();
           setHasApiKey(has);
         } catch (e) {
           console.warn("Error checking API key status:", e);
@@ -76,11 +78,10 @@ const App: React.FC = () => {
   }, []);
 
   const handleSelectKey = async () => {
-    const win = window as any;
-    if (win.aistudio) {
+    if (window.aistudio) {
       try {
-        await win.aistudio.openSelectKey();
-        const has = await win.aistudio.hasSelectedApiKey();
+        await window.aistudio.openSelectKey();
+        const has = await window.aistudio.hasSelectedApiKey();
         setHasApiKey(has);
       } catch (e: any) {
         console.error("Failed to select API key:", e);
@@ -171,8 +172,7 @@ const App: React.FC = () => {
   }
 
   // Block access if no API Key is selected (in supported environments)
-  const win = window as any;
-  if (!hasApiKey && win.aistudio) {
+  if (!hasApiKey && window.aistudio) {
     return (
       <div className="min-h-screen bg-[#0f172a] flex flex-col items-center justify-center p-6 text-center font-sans">
         <div className="w-16 h-16 bg-indigo-600 rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-indigo-500/20">
