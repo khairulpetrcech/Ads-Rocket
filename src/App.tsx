@@ -8,7 +8,7 @@ import SettingsPage from './pages/Settings';
 import CreateCampaign from './pages/CreateCampaign';
 import CommentTemplates from './pages/CommentTemplates';
 import EpicPoster from './pages/EpicPoster';
-import { UserSettings, AiProvider } from './types';
+import { UserSettings, AiProvider, GlobalProcess } from './types';
 import { initFacebookSdk, isSecureContext } from './services/metaService';
 import { Loader2, Key } from 'lucide-react';
 import { encryptKey, decryptKey } from './utils';
@@ -34,6 +34,9 @@ interface AppContextType {
   logout: () => void;
   loading: boolean;
   reselectApiKey: () => Promise<void>;
+  // Global Process State
+  globalProcess: GlobalProcess;
+  setGlobalProcess: (process: GlobalProcess) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -61,6 +64,14 @@ const App: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [settings, setSettings] = useState<UserSettings>(DEFAULT_SETTINGS);
   const [loading, setLoading] = useState(true);
+
+  // Global Process State (e.g. Campaign Creation)
+  const [globalProcess, setGlobalProcess] = useState<GlobalProcess>({
+    active: false,
+    name: '',
+    message: '',
+    type: 'NONE'
+  });
 
   // API Key Selection State
   const [hasApiKey, setHasApiKey] = useState(false);
@@ -213,7 +224,7 @@ const App: React.FC = () => {
   };
 
   return (
-    <AppContext.Provider value={{ settings, updateSettings, isAuthenticated, login, logout, loading, reselectApiKey }}>
+    <AppContext.Provider value={{ settings, updateSettings, isAuthenticated, login, logout, loading, reselectApiKey, globalProcess, setGlobalProcess }}>
       <HashRouter>
         <Routes>
           <Route path="/login" element={

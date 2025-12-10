@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { useOutletContext, useNavigate } from 'react-router-dom';
 import { AdCampaign, AdSet, Ad, CommentTemplate, LayoutContextType } from '../types';
@@ -15,7 +14,7 @@ import { MOCK_CAMPAIGNS } from '../services/mockData';
 import { 
   TrendingUp, DollarSign, MousePointer, Loader2, RefreshCw, 
   Filter, Calendar, Briefcase, ChevronDown, ChevronRight, Image as ImageIcon,
-  Edit2, ExternalLink, MessageCircle, ShoppingCart, MessageSquarePlus, Send, X, Check, Layers, AlertCircle
+  Edit2, ExternalLink, MessageCircle, ShoppingCart, MessageSquarePlus, Send, X, Check, Layers, AlertCircle, ArrowRight
 } from 'lucide-react';
 
 const formatMYR = (amount: number) => {
@@ -451,20 +450,26 @@ const Dashboard: React.FC = () => {
             
             {/* Custom Range Inputs */}
             {dateRange === 'custom' && (
-                <div className="flex items-center gap-1 bg-slate-800 rounded-lg p-1 border border-slate-700 animate-fadeIn">
-                    <input 
-                        type="date" 
-                        value={customStartDate}
-                        onChange={(e) => setCustomStartDate(e.target.value)}
-                        className="bg-slate-900 border border-slate-700 rounded text-xs text-white p-1 outline-none"
-                    />
-                    <span className="text-slate-400 text-xs">-</span>
-                    <input 
-                        type="date" 
-                        value={customEndDate}
-                        onChange={(e) => setCustomEndDate(e.target.value)}
-                        className="bg-slate-900 border border-slate-700 rounded text-xs text-white p-1 outline-none"
-                    />
+                <div className="flex items-center gap-2 bg-slate-800 rounded-lg p-1.5 border border-slate-700 animate-fadeIn mr-2 shadow-lg">
+                    <div className="flex items-center gap-1 bg-slate-900 rounded px-2 py-1">
+                        <span className="text-[10px] text-slate-500 uppercase font-bold">From</span>
+                        <input 
+                            type="date" 
+                            value={customStartDate}
+                            onChange={(e) => setCustomStartDate(e.target.value)}
+                            className="bg-transparent text-xs text-white outline-none w-24"
+                        />
+                    </div>
+                    <ArrowRight size={12} className="text-slate-500" />
+                    <div className="flex items-center gap-1 bg-slate-900 rounded px-2 py-1">
+                        <span className="text-[10px] text-slate-500 uppercase font-bold">To</span>
+                        <input 
+                            type="date" 
+                            value={customEndDate}
+                            onChange={(e) => setCustomEndDate(e.target.value)}
+                            className="bg-transparent text-xs text-white outline-none w-24"
+                        />
+                    </div>
                 </div>
             )}
 
@@ -490,7 +495,7 @@ const Dashboard: React.FC = () => {
                     <select 
                         value={dateRange}
                         onChange={(e) => setDateRange(e.target.value as DateRange)}
-                        className="bg-slate-800 border border-slate-700 rounded-lg pl-9 pr-8 py-2 text-xs text-white focus:ring-1 focus:ring-indigo-500 appearance-none cursor-pointer"
+                        className="bg-slate-800 border border-slate-700 rounded-lg pl-9 pr-8 py-2 text-xs text-white focus:ring-1 focus:ring-indigo-500 appearance-none cursor-pointer hover:bg-slate-700 transition-colors"
                     >
                         <option value="today">Today</option>
                         <option value="yesterday">Yesterday</option>
@@ -498,7 +503,7 @@ const Dashboard: React.FC = () => {
                         <option value="last_4d">Last 4 Days</option>
                         <option value="last_7d">Last 7 Days</option>
                         <option value="maximum">All Time</option>
-                        <option value="custom">Custom Range</option>
+                        <option value="custom">Custom Calendar</option>
                     </select>
                 </div>
                 

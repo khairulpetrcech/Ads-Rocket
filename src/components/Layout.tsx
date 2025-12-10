@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Settings, LogOut, Zap, Loader2, ChevronDown, ChevronUp, Play, PlusCircle, MessageSquareText, Menu, X, Minimize2, Maximize2, Send, CheckCircle, Image } from 'lucide-react';
+import { LayoutDashboard, Settings, LogOut, Zap, Loader2, ChevronDown, ChevronUp, Play, PlusCircle, MessageSquareText, Menu, X, Minimize2, Maximize2, Send, CheckCircle, Image, Activity } from 'lucide-react';
 import { useSettings } from '../App';
 import { getTopAdsForAccount, publishComment } from '../services/metaService';
 import { analyzeAccountPerformance } from '../services/aiService';
@@ -10,7 +10,7 @@ const APP_VERSION = "0.91";
 
 const Layout: React.FC = () => {
   const navigate = useNavigate();
-  const { settings, logout, reselectApiKey } = useSettings();
+  const { settings, logout, reselectApiKey, globalProcess } = useSettings();
   
   const [aiStatus, setAiStatus] = useState<string[]>([]);
   const [loadingAi, setLoadingAi] = useState(false);
@@ -320,6 +320,24 @@ const Layout: React.FC = () => {
             <Outlet context={{ launchCommentSession }} />
         </div>
       </main>
+      
+      {/* --- GLOBAL BACKGROUND PROCESS BAR (MINI) --- */}
+      {globalProcess.active && (
+        <div className="fixed bottom-24 right-6 md:bottom-6 md:right-6 z-50 animate-fadeIn">
+          <div className="bg-[#1e293b] border border-indigo-500/50 shadow-2xl rounded-xl p-3 flex items-center gap-4 w-72 md:w-80 backdrop-blur-md">
+            <div className="relative flex items-center justify-center w-10 h-10 bg-indigo-900/30 rounded-full flex-shrink-0">
+               <Loader2 className="animate-spin text-indigo-400" size={20} />
+            </div>
+            <div className="flex-1 min-w-0">
+               <div className="flex justify-between items-center mb-0.5">
+                   <h4 className="text-white text-sm font-bold truncate">{globalProcess.name || "Processing..."}</h4>
+                   <Activity size={12} className="text-indigo-400 animate-pulse" />
+               </div>
+               <p className="text-xs text-indigo-300 truncate">{globalProcess.message}</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* --- GLOBAL COMMENT WIDGET --- */}
       {commentSession.active && (

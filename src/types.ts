@@ -35,6 +35,13 @@ export interface UserSettings {
   availableAccounts: MetaAdAccount[]; 
 }
 
+export interface GlobalProcess {
+  active: boolean;
+  name: string; // e.g., "Creating Campaign"
+  message: string; // e.g., "Uploading Video..."
+  type: 'CAMPAIGN_CREATION' | 'NONE';
+}
+
 export interface CommentItem {
   id: string;
   message: string;

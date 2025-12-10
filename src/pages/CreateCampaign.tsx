@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { useSettings } from '../App';
 import { 
@@ -23,9 +22,8 @@ interface Template {
 }
 
 const CreateCampaign: React.FC = () => {
-    const { settings } = useSettings();
+    const { settings, setGlobalProcess, globalProcess } = useSettings();
     const [loading, setLoading] = useState(false);
-    const [loadingStatus, setLoadingStatus] = useState(''); // Text feedback for long processes
     const [error, setError] = useState('');
     const [successMsg, setSuccessMsg] = useState('');
 
@@ -62,10 +60,10 @@ const CreateCampaign: React.FC = () => {
     const [adName, setAdName] = useState('');
     const [primaryText, setPrimaryText] = useState('');
     const [headline, setHeadline] = useState('');
-    const [description, setDescription] = useState(''); // New: Link Description
+    const [description, setDescription] = useState(''); 
     const [destinationUrl, setDestinationUrl] = useState('');
-    const [callToAction, setCallToAction] = useState('LEARN_MORE'); // New
-    const [advantagePlus, setAdvantagePlus] = useState(true); // New: Advantage+ toggle
+    const [callToAction, setCallToAction] = useState('LEARN_MORE'); 
+    const [advantagePlus, setAdvantagePlus] = useState(true); 
     
     // MEDIA STATE
     const [mediaFile, setMediaFile] = useState<File | null>(null);
@@ -74,6 +72,15 @@ const CreateCampaign: React.FC = () => {
 
     // RATE LIMITING REF
     const lastPublishTime = useRef<number>(0);
+
+    // Sync local loading with global process if this page is active
+    useEffect(() => {
+        if (globalProcess.type === 'CAMPAIGN_CREATION' && globalProcess.active) {
+            setLoading(true);
+        } else if (globalProcess.type === 'NONE' && loading) {
+            setLoading(false);
+        }
+    }, [globalProcess]);
 
     // Initial Data Load
     useEffect(() => {
@@ -96,7 +103,7 @@ const CreateCampaign: React.FC = () => {
 
                     const pixels = await getPixels(settings.adAccountId, settings.fbAccessToken);
                     setUserPixels(pixels);
-                    if (pixels.length > 0) setSelectedPixelId(pixels[0].id);
+                    if (pixels.length > 0) setSelectedPixelId(prev => prev || (pixels[0] ? pixels[0].id : ''));
                 }
             } catch (e) { console.error(e); }
         };
@@ -173,8 +180,8 @@ const CreateCampaign: React.FC = () => {
                 campaignMode, newCampaignName, objective,
                 adSetMode, newAdSetName, dailyBudget, optimizationGoal, selectedPixelId,
                 selectedPageId, 
-                adName, // Added missing field
-                primaryText, headline, description, destinationUrl, callToAction, advantagePlus // Added new fields
+                adName,
+                primaryText, headline, description, destinationUrl, callToAction, advantagePlus
             }
         };
         const updated = [...templates, newTemplate];
@@ -197,13 +204,13 @@ const CreateCampaign: React.FC = () => {
         
         // Creative Fields
         if (d.selectedPageId) setSelectedPageId(d.selectedPageId);
-        if (d.adName) setAdName(d.adName); // Fixed: Now loads correctly
+        if (d.adName) setAdName(d.adName);
         if (d.primaryText) setPrimaryText(d.primaryText);
         if (d.headline) setHeadline(d.headline);
-        if (d.description) setDescription(d.description); // New
+        if (d.description) setDescription(d.description); 
         if (d.destinationUrl) setDestinationUrl(d.destinationUrl);
-        if (d.callToAction) setCallToAction(d.callToAction); // New
-        if (d.advantagePlus !== undefined) setAdvantagePlus(d.advantagePlus); // New
+        if (d.callToAction) setCallToAction(d.callToAction);
+        if (d.advantagePlus !== undefined) setAdvantagePlus(d.advantagePlus);
 
         setShowTemplatesDropdown(false);
     };
@@ -235,15 +242,23 @@ const CreateCampaign: React.FC = () => {
         lastPublishTime.current = now;
 
         setLoading(true);
-        setLoadingStatus('Initializing...');
         setError('');
+        
+        // START GLOBAL PROCESS
+        setGlobalProcess({
+            active: true,
+            name: "Creating Campaign...",
+            message: "Initializing...",
+            type: "CAMPAIGN_CREATION"
+        });
+
         try {
             const { adAccountId, fbAccessToken } = settings;
             
             // 1. Resolve Campaign ID
             let finalCampaignId = selectedCampaignId;
             if (campaignMode === 'new') {
-                setLoadingStatus('Creating Campaign...');
+                setGlobalProcess({ active: true, name: "Creating Campaign...", message: "Creating Campaign Structure...", type: "CAMPAIGN_CREATION" });
                 const res = await createMetaCampaign(adAccountId, newCampaignName, objective, fbAccessToken);
                 finalCampaignId = res.id;
             }
@@ -251,7 +266,7 @@ const CreateCampaign: React.FC = () => {
             // 2. Resolve Ad Set ID
             let finalAdSetId = selectedAdSetId;
             if (adSetMode === 'new') {
-                setLoadingStatus('Creating Ad Set...');
+                setGlobalProcess({ active: true, name: "Creating Campaign...", message: "Configuring Ad Set...", type: "CAMPAIGN_CREATION" });
                 const pixelToUse = (objective === 'OUTCOME_SALES' && optimizationGoal === 'OFFSITE_CONVERSIONS') 
                     ? selectedPixelId 
                     : null;
@@ -271,26 +286,26 @@ const CreateCampaign: React.FC = () => {
             // 3. Upload Asset (Image or Video)
             let assetId = '';
             if (mediaType === 'image') {
-                setLoadingStatus('Uploading Image...');
+                setGlobalProcess({ active: true, name: "Creating Campaign...", message: "Uploading Image Asset...", type: "CAMPAIGN_CREATION" });
                 assetId = await uploadAdImage(adAccountId, mediaFile!, fbAccessToken);
             } else {
-                setLoadingStatus('Uploading Video (Chunked)...');
+                setGlobalProcess({ active: true, name: "Creating Campaign...", message: "Uploading Video (Chunked)...", type: "CAMPAIGN_CREATION" });
                 // Use chunked upload for better reliability
                 const videoId = await uploadAdVideo(
                     adAccountId, 
                     mediaFile!, 
                     fbAccessToken, 
-                    (msg) => setLoadingStatus(msg) // Callback for progress
+                    (msg) => setGlobalProcess({ active: true, name: "Creating Campaign...", message: msg, type: "CAMPAIGN_CREATION" })
                 );
                 
-                setLoadingStatus('Processing Video (Meta)...');
+                setGlobalProcess({ active: true, name: "Creating Campaign...", message: "Processing Video on Meta...", type: "CAMPAIGN_CREATION" });
                 const isReady = await waitForVideoReady(videoId, fbAccessToken);
                 if (!isReady) throw new Error("Video processing timed out. Try smaller file.");
                 assetId = videoId;
             }
 
             // 4. Create Creative
-            setLoadingStatus('Finalizing Creative...');
+            setGlobalProcess({ active: true, name: "Creating Campaign...", message: "Finalizing Creative...", type: "CAMPAIGN_CREATION" });
             const creativeId = await createMetaCreative(
                 adAccountId,
                 adName,
@@ -307,19 +322,24 @@ const CreateCampaign: React.FC = () => {
             );
 
             // 5. Create Ad
-            setLoadingStatus('Publishing Ad...');
+            setGlobalProcess({ active: true, name: "Creating Campaign...", message: "Publishing Final Ad...", type: "CAMPAIGN_CREATION" });
             await createMetaAd(adAccountId, finalAdSetId, adName, creativeId, fbAccessToken);
 
             setSuccessMsg("Campaign Created Successfully! Check your Dashboard.");
             window.scrollTo(0, 0);
             
+            // Wait slightly before clearing global process so user sees success
+            setTimeout(() => {
+                setGlobalProcess({ active: false, name: "", message: "", type: "NONE" });
+            }, 2000);
+            
         } catch (e: any) {
             console.error(e);
             setError(e.message || "Failed to create campaign. Check parameters.");
             window.scrollTo(0, 0); 
+            setGlobalProcess({ active: false, name: "", message: "", type: "NONE" });
         } finally {
             setLoading(false);
-            setLoadingStatus('');
         }
     };
 
@@ -626,7 +646,7 @@ const CreateCampaign: React.FC = () => {
                         className="w-full bg-green-600 hover:bg-green-500 text-white text-lg font-bold py-4 rounded-xl shadow-lg shadow-green-900/30 flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed transition-all transform hover:scale-[1.01]"
                     >
                         {loading && <Loader2 className="animate-spin" size={24}/>}
-                        {loading ? (loadingStatus || 'Publishing...') : 'PUBLISH CAMPAIGN NOW'}
+                        {loading ? 'Creating Campaign...' : 'PUBLISH CAMPAIGN NOW'}
                     </button>
                     <p className="text-center text-xs text-slate-500 mt-3">This will create the campaign in your Ads Manager. Default status: PAUSED.</p>
                 </div>
