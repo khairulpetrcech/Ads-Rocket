@@ -1,7 +1,7 @@
 
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { useOutletContext } from 'react-router-dom';
+import { useOutletContext, useNavigate } from 'react-router-dom';
 import { AdCampaign, AdSet, Ad, CommentTemplate, LayoutContextType } from '../types';
 import { useSettings } from '../App';
 import { 
@@ -16,7 +16,7 @@ import { MOCK_CAMPAIGNS } from '../services/mockData';
 import { 
   TrendingUp, DollarSign, MousePointer, Loader2, RefreshCw, 
   Filter, Calendar, Briefcase, ChevronDown, ChevronRight, Image as ImageIcon,
-  Edit2, ExternalLink, MessageCircle, ShoppingCart, MessageSquarePlus, Send, X, Check, Layers
+  Edit2, ExternalLink, MessageCircle, ShoppingCart, MessageSquarePlus, Send, X, Check, Layers, AlertCircle
 } from 'lucide-react';
 
 const formatMYR = (amount: number) => {
@@ -49,11 +49,12 @@ const LoadingSkeleton = () => (
 
 // --- MAIN DASHBOARD ---
 
-type DateRange = 'today' | 'yesterday' | 'last_3d' | 'last_4d' | 'last_7d' | 'maximum';
+type DateRange = 'today' | 'yesterday' | 'last_3d' | 'last_4d' | 'last_7d' | 'maximum' | 'custom';
 type SortOption = 'status' | 'spend' | 'roas';
 type ViewMode = 'SALES' | 'TRAFFIC';
 
 const Dashboard: React.FC = () => {
+  const navigate = useNavigate();
   const { settings, updateSettings } = useSettings();
   const { launchCommentSession } = useOutletContext<LayoutContextType>();
   
@@ -77,27 +78,28 @@ const Dashboard: React.FC = () => {
 
   // Filters
   const [dateRange, setDateRange] = useState<DateRange>('today');
+  const [customStartDate, setCustomStartDate] = useState('');
+  const [customEndDate, setCustomEndDate] = useState('');
+  
   const [sortBy, setSortBy] = useState<SortOption>('spend');
   const [fetchError, setFetchError] = useState('');
+  const [authError, setAuthError] = useState(false); // To detect explicit session expiry
 
   // Comment Modal State
   const [commentModalOpen, setCommentModalOpen] = useState(false);
   const [selectedAdForComment, setSelectedAdForComment] = useState<Ad | null>(null);
   const [templates, setTemplates] = useState<CommentTemplate[]>([]);
   
-  // Track published comments (Ad IDs) - Read from local storage to sync UI
   const [publishedComments, setPublishedComments] = useState<Set<string>>(() => {
       const saved = localStorage.getItem('ar_published_comments');
       return saved ? new Set(JSON.parse(saved)) : new Set();
   });
 
-  // Sync published comments occasionally or when modal opens
   useEffect(() => {
       const saved = localStorage.getItem('ar_published_comments');
       if (saved) setPublishedComments(new Set(JSON.parse(saved)));
   }, [commentModalOpen]);
 
-  // Helper to detect objective type
   const isTrafficOrLeads = (obj: string) => {
       if (!obj) return false;
       const upper = obj.toUpperCase();
@@ -110,40 +112,61 @@ const Dashboard: React.FC = () => {
 
   // --- FETCH DATA ---
 
-  useEffect(() => {
-    const fetchData = async () => {
-      setLoadingCampaigns(true);
-      setFetchError('');
-      setExpandedCampaigns(new Set());
-      setExpandedAdSets(new Set());
-      setShowHiddenAdSets(new Set());
-      setShowAllCampaigns(false);
-      
-      try {
-        if (settings.fbAccessToken === 'dummy_token' || (settings.fbAccessToken && settings.adAccountId)) {
-          let realData: AdCampaign[] = [];
-          if (settings.fbAccessToken === 'dummy_token') {
-             await new Promise(r => setTimeout(r, 600)); 
-             realData = MOCK_CAMPAIGNS;
-          } else {
-             await initFacebookSdk(settings.fbAppId);
-             realData = await getRealCampaigns(settings.adAccountId, settings.fbAccessToken, dateRange);
-          }
-          setCampaigns(realData);
+  const fetchData = async () => {
+    // If Custom, ensure both dates are present
+    if (dateRange === 'custom' && (!customStartDate || !customEndDate)) return;
 
+    setLoadingCampaigns(true);
+    setFetchError('');
+    setAuthError(false);
+    
+    // Reset expansions only on filter change, not every refresh? 
+    // For now resetting to ensure clean state
+    setExpandedCampaigns(new Set());
+    setExpandedAdSets(new Set());
+    setShowHiddenAdSets(new Set());
+    setShowAllCampaigns(false);
+    
+    try {
+      if (settings.fbAccessToken === 'dummy_token' || (settings.fbAccessToken && settings.adAccountId)) {
+        let realData: AdCampaign[] = [];
+        if (settings.fbAccessToken === 'dummy_token') {
+            await new Promise(r => setTimeout(r, 600)); 
+            realData = MOCK_CAMPAIGNS;
         } else {
-          setCampaigns(MOCK_CAMPAIGNS);
+            await initFacebookSdk(settings.fbAppId);
+            
+            // Prepare Date Preset
+            const presetParam = dateRange === 'custom' 
+                ? { start: customStartDate, end: customEndDate } 
+                : dateRange;
+
+            realData = await getRealCampaigns(settings.adAccountId, settings.fbAccessToken, presetParam);
         }
-      } catch (err: any) {
-        console.error("Fetch Error", err);
-        setFetchError("Data sync failed. Using offline data.");
+        setCampaigns(realData);
+
+      } else {
         setCampaigns(MOCK_CAMPAIGNS);
-      } finally {
-        setLoadingCampaigns(false);
       }
-    };
-    fetchData();
-  }, [settings.fbAccessToken, settings.adAccountId, settings.fbAppId, dateRange]);
+    } catch (err: any) {
+      console.error("Fetch Error", err);
+      
+      // Handle Session Expiry
+      if (err.message === "SESSION_EXPIRED" || (err.message || "").toLowerCase().includes("session")) {
+          setAuthError(true);
+          setFetchError("Session Expired. Please reconnect.");
+      } else {
+          setFetchError("Data sync failed. Using offline data.");
+      }
+      setCampaigns(MOCK_CAMPAIGNS);
+    } finally {
+      setLoadingCampaigns(false);
+    }
+  };
+
+  useEffect(() => {
+      fetchData();
+  }, [settings.fbAccessToken, settings.adAccountId, settings.fbAppId, dateRange, customStartDate, customEndDate]);
 
   // --- SEPARATE EFFECT FOR VIEW MODE DETECTION ---
   useEffect(() => {
@@ -158,14 +181,11 @@ const Dashboard: React.FC = () => {
         });
         const detectedMode = trafficCount > salesCount ? 'TRAFFIC' : 'SALES';
         
-        // Only update if different
         if (viewMode !== detectedMode) {
              setViewMode(detectedMode);
-             // Update settings asynchronously to avoid render interrupt
              setTimeout(() => updateSettings({ dashboardViewMode: detectedMode }), 0);
         }
     } else if (settings.dashboardViewMode && viewMode !== settings.dashboardViewMode) {
-        // Sync local state with settings if settings exist
         setViewMode(settings.dashboardViewMode);
     }
   }, [campaigns, settings.dashboardViewMode]);
@@ -188,6 +208,10 @@ const Dashboard: React.FC = () => {
       updateSettings({ dashboardViewMode: mode });
   };
 
+  const handleReconnect = () => {
+      navigate('/connect');
+  };
+
   const toggleExpandCampaign = async (campaignId: string) => {
       const newSet = new Set(expandedCampaigns);
       if (newSet.has(campaignId)) {
@@ -196,7 +220,8 @@ const Dashboard: React.FC = () => {
           newSet.add(campaignId);
           if (!adSetsData[campaignId] && settings.fbAccessToken !== 'dummy_token') {
               try {
-                  const data = await getAdSets(campaignId, settings.fbAccessToken, dateRange);
+                  const presetParam = dateRange === 'custom' ? { start: customStartDate, end: customEndDate } : dateRange;
+                  const data = await getAdSets(campaignId, settings.fbAccessToken, presetParam);
                   setAdSetsData(prev => ({ ...prev, [campaignId]: data }));
               } catch (e) { console.error(e); }
           }
@@ -212,7 +237,8 @@ const Dashboard: React.FC = () => {
           newSet.add(adSetId);
           if (!adsData[adSetId] && settings.fbAccessToken !== 'dummy_token') {
               try {
-                  const data = await getAds(adSetId, settings.fbAccessToken, dateRange);
+                  const presetParam = dateRange === 'custom' ? { start: customStartDate, end: customEndDate } : dateRange;
+                  const data = await getAds(adSetId, settings.fbAccessToken, presetParam);
                   setAdsData(prev => ({ ...prev, [adSetId]: data }));
               } catch (e) { console.error(e); }
           }
@@ -422,49 +448,83 @@ const Dashboard: React.FC = () => {
             </div>
         </div>
         
-        <div className="flex flex-wrap items-center gap-2">
-            {/* VIEW MODE TOGGLE */}
-            <div className="bg-slate-800 p-1 rounded-lg border border-slate-700 flex mr-2">
-                <button 
-                    onClick={() => handleViewModeToggle('SALES')}
-                    className={`px-3 py-1.5 rounded-md text-xs font-medium flex items-center gap-1 transition-all ${viewMode === 'SALES' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}
-                >
-                    <ShoppingCart size={12} /> Sales
-                </button>
-                <button 
-                    onClick={() => handleViewModeToggle('TRAFFIC')}
-                    className={`px-3 py-1.5 rounded-md text-xs font-medium flex items-center gap-1 transition-all ${viewMode === 'TRAFFIC' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}
-                >
-                    <MessageCircle size={12} /> Leads
-                </button>
-            </div>
-
-            <div className="relative">
-                <Calendar className="absolute left-3 top-2.5 text-slate-400" size={14} />
-                <select 
-                    value={dateRange}
-                    onChange={(e) => setDateRange(e.target.value as DateRange)}
-                    className="bg-slate-800 border border-slate-700 rounded-lg pl-9 pr-8 py-2 text-xs text-white focus:ring-1 focus:ring-indigo-500 appearance-none cursor-pointer"
-                >
-                    <option value="today">Today</option>
-                    <option value="yesterday">Yesterday</option>
-                    <option value="last_3d">Last 3 Days</option>
-                    <option value="last_4d">Last 4 Days</option>
-                    <option value="last_7d">Last 7 Days</option>
-                    <option value="maximum">All Time</option>
-                </select>
-            </div>
+        <div className="flex flex-col md:flex-row items-end md:items-center gap-2">
             
-            <div className={`px-3 py-2 rounded-lg border text-xs font-medium flex items-center gap-2 ${loadingCampaigns ? 'bg-indigo-900/20 border-indigo-800 text-indigo-300' : 'bg-slate-800 border-slate-700 text-slate-300'}`}>
-               {loadingCampaigns ? <RefreshCw size={12} className="animate-spin" /> : <div className="w-2 h-2 bg-green-500 rounded-full"></div>}
-               <span>{loadingCampaigns ? 'Syncing...' : 'Live'}</span>
+            {/* Custom Range Inputs */}
+            {dateRange === 'custom' && (
+                <div className="flex items-center gap-1 bg-slate-800 rounded-lg p-1 border border-slate-700 animate-fadeIn">
+                    <input 
+                        type="date" 
+                        value={customStartDate}
+                        onChange={(e) => setCustomStartDate(e.target.value)}
+                        className="bg-slate-900 border border-slate-700 rounded text-xs text-white p-1 outline-none"
+                    />
+                    <span className="text-slate-400 text-xs">-</span>
+                    <input 
+                        type="date" 
+                        value={customEndDate}
+                        onChange={(e) => setCustomEndDate(e.target.value)}
+                        className="bg-slate-900 border border-slate-700 rounded text-xs text-white p-1 outline-none"
+                    />
+                </div>
+            )}
+
+            <div className="flex items-center gap-2">
+                {/* VIEW MODE TOGGLE */}
+                <div className="bg-slate-800 p-1 rounded-lg border border-slate-700 flex mr-2">
+                    <button 
+                        onClick={() => handleViewModeToggle('SALES')}
+                        className={`px-3 py-1.5 rounded-md text-xs font-medium flex items-center gap-1 transition-all ${viewMode === 'SALES' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}
+                    >
+                        <ShoppingCart size={12} /> Sales
+                    </button>
+                    <button 
+                        onClick={() => handleViewModeToggle('TRAFFIC')}
+                        className={`px-3 py-1.5 rounded-md text-xs font-medium flex items-center gap-1 transition-all ${viewMode === 'TRAFFIC' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}
+                    >
+                        <MessageCircle size={12} /> Leads
+                    </button>
+                </div>
+
+                <div className="relative">
+                    <Calendar className="absolute left-3 top-2.5 text-slate-400" size={14} />
+                    <select 
+                        value={dateRange}
+                        onChange={(e) => setDateRange(e.target.value as DateRange)}
+                        className="bg-slate-800 border border-slate-700 rounded-lg pl-9 pr-8 py-2 text-xs text-white focus:ring-1 focus:ring-indigo-500 appearance-none cursor-pointer"
+                    >
+                        <option value="today">Today</option>
+                        <option value="yesterday">Yesterday</option>
+                        <option value="last_3d">Last 3 Days</option>
+                        <option value="last_4d">Last 4 Days</option>
+                        <option value="last_7d">Last 7 Days</option>
+                        <option value="maximum">All Time</option>
+                        <option value="custom">Custom Range</option>
+                    </select>
+                </div>
+                
+                <div className={`px-3 py-2 rounded-lg border text-xs font-medium flex items-center gap-2 ${loadingCampaigns ? 'bg-indigo-900/20 border-indigo-800 text-indigo-300' : 'bg-slate-800 border-slate-700 text-slate-300'}`}>
+                {loadingCampaigns ? <RefreshCw size={12} className="animate-spin" /> : <div className="w-2 h-2 bg-green-500 rounded-full"></div>}
+                <span>{loadingCampaigns ? 'Syncing...' : 'Live'}</span>
+                </div>
             </div>
         </div>
       </div>
 
       {fetchError && (
-        <div className="text-xs text-yellow-500 bg-yellow-900/20 px-4 py-2 rounded-lg border border-yellow-800 flex items-center gap-2">
-            <Filter size={14} /> {fetchError}
+        <div className="text-xs text-yellow-500 bg-yellow-900/20 px-4 py-3 rounded-lg border border-yellow-800 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+                <Filter size={14} /> {fetchError}
+            </div>
+            {authError ? (
+                <button onClick={handleReconnect} className="px-3 py-1 bg-yellow-700 hover:bg-yellow-600 text-white rounded text-xs font-bold transition-colors">
+                    Reconnect Now
+                </button>
+            ) : (
+                <button onClick={() => fetchData()} className="px-3 py-1 bg-yellow-800/50 hover:bg-yellow-800 text-yellow-200 rounded text-xs border border-yellow-700 transition-colors flex items-center gap-1">
+                    <RefreshCw size={10} /> Retry Sync
+                </button>
+            )}
         </div>
       )}
 
@@ -646,7 +706,7 @@ const Dashboard: React.FC = () => {
                                                                                                             </a>
                                                                                                         )}
 
-                                                                                                        {/* LAUNCH COMMENT BUTTON (MINIMALISTIC 'C') */}
+                                                                                                        {/* LAUNCH COMMENT BUTTON */}
                                                                                                         {ad.creative.effective_object_story_id && (
                                                                                                             <div className="relative group/tooltip">
                                                                                                                 <button 
@@ -660,7 +720,6 @@ const Dashboard: React.FC = () => {
                                                                                                                 >
                                                                                                                     C
                                                                                                                 </button>
-                                                                                                                {/* TOOLTIP */}
                                                                                                                 <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 text-[9px] text-white bg-black/90 rounded opacity-0 group-hover/tooltip:opacity-100 whitespace-nowrap pointer-events-none transition-opacity z-10">
                                                                                                                     {isCommented ? 'Comment Published' : 'Comment pada post'}
                                                                                                                 </span>
@@ -696,7 +755,6 @@ const Dashboard: React.FC = () => {
                                                 )}
                                             </React.Fragment>
                                         ))}
-
                                         {secondaryAdSets.length > 0 && (
                                             <tr className="bg-slate-900/30">
                                                 <td colSpan={7} className="text-center py-2 border-b border-slate-800">

@@ -1,4 +1,5 @@
 
+
 import { AdCampaign, MetaAdAccount, AdSet, Ad } from '../types';
 
 declare global {
@@ -38,9 +39,15 @@ const handleApiError = (data: any) => {
     const code = data.error.code;
     const message = data.error.message || "";
     const userMsg = data.error.error_user_msg || "";
+    const subcode = data.error.error_subcode;
     
     // Combine messages for easier checking
     const fullErrorString = (message + " " + userMsg).toLowerCase();
+
+    // Session / Auth Errors
+    if (code === 190 || code === 102) {
+        throw new Error("SESSION_EXPIRED");
+    }
 
     if (code === 80004 || code === 17 || code === 613) {
       throw new Error("Meta API Rate Limit Exceeded. Please wait 1-2 minutes before refreshing.");
@@ -56,7 +63,7 @@ const handleApiError = (data: any) => {
         throw new Error(`${data.error.error_user_title || 'Error'}: ${userMsg}`);
     }
 
-    if (data.error.error_subcode === 1885316) {
+    if (subcode === 1885316) {
         throw new Error("Invalid Image Hash. Please re-upload the image.");
     }
     
@@ -81,10 +88,20 @@ const sanitizeInput = (input: string) => {
 };
 
 // --- HELPER: DATE RANGE PARAMS ---
-export const getDateRangeParams = (preset: string) => {
+// Updated to handle custom objects { start: string, end: string }
+export const getDateRangeParams = (preset: string | { start: string, end: string }) => {
   const today = new Date();
   const formatDate = (date: Date) => date.toISOString().split('T')[0];
 
+  // Custom Range Object
+  if (typeof preset === 'object' && preset.start && preset.end) {
+      return {
+          time_range: JSON.stringify({ since: preset.start, until: preset.end }),
+          date_preset: null
+      };
+  }
+
+  // String Presets
   if (preset === 'last_4d') {
     const end = new Date(today);
     const start = new Date(today);
@@ -94,6 +111,7 @@ export const getDateRangeParams = (preset: string) => {
       date_preset: null
     };
   }
+  
   return { date_preset: preset, time_range: null };
 };
 
@@ -198,7 +216,6 @@ export const loginWithFacebook = (): Promise<string> => {
             }
         }, { 
             // Explicitly set valid permissions for v19.0+
-            // Removed 'email' to fix invalid scope error.
             scope: 'public_profile,ads_read,ads_management,pages_show_list,pages_read_engagement,pages_manage_engagement,pages_manage_posts' 
         });
     } catch (e) {
@@ -237,7 +254,6 @@ const mapInsightsToMetrics = (data: any) => {
   const revenue = parseFloat(purchaseValue || '0');
 
   // New Metrics for Whatsapp/Leads
-  // Result calculation: Looks for Leads OR Messaging Conversations OR Link Clicks (Fallback)
   const leads = insights.actions?.find((a: any) => a.action_type === 'lead')?.value || 0;
   const messagingStarted = insights.actions?.find((a: any) => a.action_type === 'onsite_conversion.messaging_conversation_started_7d')?.value || 0;
   const messagingInitiated = insights.actions?.find((a: any) => a.action_type === 'onsite_conversion.messaging_initiated')?.value || 0;
@@ -245,7 +261,7 @@ const mapInsightsToMetrics = (data: any) => {
 
   // Heuristic for "Results" based on common objectives
   const results = parseInt(leads) + parseInt(messagingStarted) + parseInt(messagingInitiated);
-  const finalResults = results > 0 ? results : parseInt(linkClicks); // Fallback to link clicks if no leads/messages
+  const finalResults = results > 0 ? results : parseInt(linkClicks); 
 
   return {
     spend: spend,
@@ -253,22 +269,25 @@ const mapInsightsToMetrics = (data: any) => {
     roas: spend > 0 ? parseFloat((revenue / spend).toFixed(2)) : 0,
     impressions: parseInt(insights.impressions || '0'),
     clicks: parseInt(insights.clicks || '0'),
-    ctr: parseFloat(insights.ctr || '0'), // CTR (All)
-    inline_link_click_ctr: parseFloat(insights.inline_link_click_ctr || '0'), // CTR (Link Click-Through)
+    ctr: parseFloat(insights.ctr || '0'), 
+    inline_link_click_ctr: parseFloat(insights.inline_link_click_ctr || '0'), 
     cpc: parseFloat(insights.cpc || '0'),
     landingPageViews: parseInt(landingPageViews),
     costPerLandingPageView: landingPageViews > 0 ? parseFloat((spend / landingPageViews).toFixed(2)) : 0,
     purchases: parseInt(purchaseAction),
     costPerPurchase: purchaseAction > 0 ? parseFloat((spend / purchaseAction).toFixed(2)) : 0,
-    // Whatsapp/Leads specific
     results: finalResults,
     costPerResult: finalResults > 0 ? parseFloat((spend / finalResults).toFixed(2)) : 0
   };
 };
 
-export const getRealCampaigns = async (adAccountId: string, accessToken: string, datePreset: string = 'today'): Promise<AdCampaign[]> => {
+export const getRealCampaigns = async (adAccountId: string, accessToken: string, datePreset: string | {start: string, end: string} = 'today'): Promise<AdCampaign[]> => {
   const accountId = adAccountId.startsWith('act_') ? adAccountId : `act_${adAccountId}`;
-  const cacheKey = `campaigns-${accountId}-${datePreset}`;
+  
+  // Create cache key that supports object param
+  const rangeKey = typeof datePreset === 'string' ? datePreset : `${datePreset.start}_${datePreset.end}`;
+  const cacheKey = `campaigns-${accountId}-${rangeKey}`;
+  
   const cached = getCachedData(cacheKey);
   if (cached) return cached;
 
@@ -303,8 +322,9 @@ export const getRealCampaigns = async (adAccountId: string, accessToken: string,
   }
 };
 
-export const getAdSets = async (campaignId: string, accessToken: string, datePreset: string = 'today'): Promise<AdSet[]> => {
-    const cacheKey = `adsets-${campaignId}-${datePreset}`;
+export const getAdSets = async (campaignId: string, accessToken: string, datePreset: string | {start: string, end: string} = 'today'): Promise<AdSet[]> => {
+    const rangeKey = typeof datePreset === 'string' ? datePreset : `${datePreset.start}_${datePreset.end}`;
+    const cacheKey = `adsets-${campaignId}-${rangeKey}`;
     const cached = getCachedData(cacheKey);
     if (cached) return cached;
 
@@ -333,8 +353,9 @@ export const getAdSets = async (campaignId: string, accessToken: string, datePre
     } catch (error) { throw error; }
 };
 
-export const getAds = async (adSetId: string, accessToken: string, datePreset: string = 'today'): Promise<Ad[]> => {
-    const cacheKey = `ads-${adSetId}-${datePreset}`;
+export const getAds = async (adSetId: string, accessToken: string, datePreset: string | {start: string, end: string} = 'today'): Promise<Ad[]> => {
+    const rangeKey = typeof datePreset === 'string' ? datePreset : `${datePreset.start}_${datePreset.end}`;
+    const cacheKey = `ads-${adSetId}-${rangeKey}`;
     const cached = getCachedData(cacheKey);
     if (cached) return cached;
 
@@ -343,7 +364,6 @@ export const getAds = async (adSetId: string, accessToken: string, datePreset: s
       ? `insights.time_range(${time_range}){spend,impressions,clicks,cpc,ctr,inline_link_click_ctr,actions,action_values}`
       : `insights.date_preset(${date_preset}){spend,impressions,clicks,cpc,ctr,inline_link_click_ctr,actions,action_values}`;
 
-    // Added effective_object_story_id to fetch the post ID for linking
     const fields = ['id', 'name', 'status', 'effective_status', 'adset_id', 'creative{thumbnail_url,image_url,effective_object_story_id}', insightsQuery].join(',');
 
     try {
@@ -369,6 +389,7 @@ export const getTopAdsForAccount = async (adAccountId: string, accessToken: stri
     const cacheKey = `top-ads-${accountId}-last_7d`;
     const cached = getCachedData(cacheKey);
     if (cached) return cached;
+    // For AI analysis, usually 7 days is a good default
     const { time_range } = getDateRangeParams('last_7d');
     const insightsQuery = `insights.time_range(${time_range}){spend,impressions,clicks,cpc,ctr,actions,action_values}`;
     const fields = ['id', 'name', 'status', 'effective_status', 'adset_id', 'creative{thumbnail_url,image_url}', insightsQuery].join(',');
@@ -411,7 +432,8 @@ export const getPixels = async (adAccountId: string, accessToken: string) => {
     return data.data || [];
 };
 
-// --- CAMPAIGN CREATION WITH RETRY LOGIC ---
+// --- CAMPAIGN CREATION ---
+
 const tryCreateCampaign = async (url: string, body: any) => {
     const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const data = await response.json();
@@ -425,7 +447,6 @@ export const createMetaCampaign = async (accountId: string, name: string, object
     
     const cleanName = sanitizeInput(name);
 
-    // ATTEMPT 1: With explicit CBO disabled flag (Standard for new accounts)
     try {
         const body1 = {
             name: cleanName,
@@ -433,14 +454,13 @@ export const createMetaCampaign = async (accountId: string, name: string, object
             status: 'PAUSED',
             special_ad_categories: [],
             buying_type: "AUCTION",
-            is_adset_budget_sharing_enabled: false, // Explicitly disable CBO
+            is_adset_budget_sharing_enabled: false, 
             access_token: accessToken
         };
         const data = await tryCreateCampaign(url, body1);
         invalidateCache();
         return data;
     } catch (error: any) {
-        // ATTEMPT 2: If attempt 1 fails with Budget Sharing error, try different payload for older/migrated accounts
         if (error.message === "BUDGET_SHARING_ERROR" || error.message.includes("is_adset_budget_sharing_enabled")) {
             console.warn("Retrying Campaign Creation with alternative parameters...");
             const body2 = {
@@ -449,7 +469,6 @@ export const createMetaCampaign = async (accountId: string, name: string, object
                 status: 'PAUSED',
                 special_ad_categories: [],
                 buying_type: "AUCTION",
-                // Remove the flag, try sending Advantage+ config disabled
                 advantage_plus_create: { enabled: false },
                 access_token: accessToken
             };
@@ -473,7 +492,6 @@ export const createMetaAdSet = async (
     const actId = accountId.startsWith('act_') ? accountId : `act_${accountId}`;
     const url = `https://graph.facebook.com/v19.0/${actId}/adsets`;
     
-    // Targeting (Basic Setup)
     const targeting = {
         geo_locations: { countries: ['MY'] },
         age_min: 18,
@@ -482,7 +500,6 @@ export const createMetaAdSet = async (
         device_platforms: ['mobile', 'desktop']
     };
 
-    // START TIME FIX: Must be future (>15m). Remove MS.
     const startTime = new Date(Date.now() + 60 * 60 * 1000).toISOString().split('.')[0]; 
 
     const body: any = {
@@ -494,11 +511,10 @@ export const createMetaAdSet = async (
         start_time: startTime,
         access_token: accessToken,
         optimization_goal: optimizationGoal,
-        bid_strategy: 'LOWEST_COST_WITHOUT_CAP', // Explicitly set bid strategy
+        bid_strategy: 'LOWEST_COST_WITHOUT_CAP',
         billing_event: 'IMPRESSIONS'
     };
     
-    // FIX: If Conversion, we need promoted_object (Pixel) and billing event
     if (optimizationGoal === 'OFFSITE_CONVERSIONS') {
         if (!pixelId) throw new Error("A Pixel is required for Conversion campaigns.");
         body.destination_type = "WEBSITE";
@@ -506,7 +522,6 @@ export const createMetaAdSet = async (
             pixel_id: pixelId,
             custom_event_type: "PURCHASE" 
         };
-        // Some accounts require IMPRESSIONS for billing event on conversions
         body.billing_event = 'IMPRESSIONS';
     } 
     
@@ -534,23 +549,73 @@ export const uploadAdImage = async (accountId: string, file: File, accessToken: 
     throw new Error("Image upload failed: No hash returned");
 };
 
-export const uploadAdVideo = async (accountId: string, file: File, accessToken: string) => {
+// --- CHUNKED VIDEO UPLOAD ---
+// Essential for reliability and "speed" (prevents timeouts on large files)
+export const uploadAdVideo = async (accountId: string, file: File, accessToken: string, onProgress?: (msg: string) => void) => {
     const actId = accountId.startsWith('act_') ? accountId : `act_${accountId}`;
-    // Use advideos endpoint
     const url = `https://graph-video.facebook.com/v19.0/${actId}/advideos`;
-    const formData = new FormData();
-    formData.append('access_token', accessToken);
-    formData.append('source', file);
     
-    const response = await fetch(url, { method: 'POST', body: formData });
-    const data = await response.json();
-    handleApiError(data);
+    // 1. START SESSION
+    onProgress?.("Initializing Video Upload...");
+    const startFormData = new FormData();
+    startFormData.append('access_token', accessToken);
+    startFormData.append('upload_phase', 'start');
+    startFormData.append('file_size', file.size.toString());
     
-    if (data.id) { return data.id; }
-    throw new Error("Video upload failed: No ID returned");
+    const startRes = await fetch(url, { method: 'POST', body: startFormData });
+    const startData = await startRes.json();
+    handleApiError(startData);
+    
+    const { upload_session_id, start_offset, end_offset } = startData;
+    let currentStartOffset = parseInt(start_offset);
+    let currentEndOffset = parseInt(end_offset);
+
+    // 2. TRANSFER CHUNKS
+    const chunkReader = file.stream().getReader();
+    let uploadedBytes = 0;
+    
+    // Fallback: If browser doesn't support stream well, use slicing
+    // Standard chunk size usually ~1MB to 4MB from Meta, but let's loop based on offsets
+    
+    while (uploadedBytes < file.size) {
+        onProgress?.(`Uploading... ${Math.floor((uploadedBytes/file.size)*100)}%`);
+        
+        const chunkBlob = file.slice(currentStartOffset, currentEndOffset);
+        
+        const transferFormData = new FormData();
+        transferFormData.append('access_token', accessToken);
+        transferFormData.append('upload_phase', 'transfer');
+        transferFormData.append('upload_session_id', upload_session_id);
+        transferFormData.append('start_offset', currentStartOffset.toString());
+        transferFormData.append('video_file_chunk', chunkBlob);
+
+        const transRes = await fetch(url, { method: 'POST', body: transferFormData });
+        const transData = await transRes.json();
+        handleApiError(transData);
+
+        currentStartOffset = parseInt(transData.start_offset);
+        currentEndOffset = parseInt(transData.end_offset);
+        uploadedBytes = currentStartOffset;
+
+        if (currentStartOffset === currentEndOffset) break; // Finished
+    }
+
+    // 3. FINISH SESSION
+    onProgress?.("Finalizing Video...");
+    const finishFormData = new FormData();
+    finishFormData.append('access_token', accessToken);
+    finishFormData.append('upload_phase', 'finish');
+    finishFormData.append('upload_session_id', upload_session_id);
+    
+    const finishRes = await fetch(url, { method: 'POST', body: finishFormData });
+    const finishData = await finishRes.json();
+    handleApiError(finishData);
+    
+    if (finishData.id) return finishData.id;
+    throw new Error("Video upload finished but no ID returned");
 };
 
-// Polling to wait for video to be ready
+
 export const waitForVideoReady = async (videoId: string, accessToken: string, retries = 20): Promise<boolean> => {
     const url = `https://graph.facebook.com/v19.0/${videoId}?fields=status&access_token=${accessToken}`;
     for (let i = 0; i < retries; i++) {
@@ -561,7 +626,6 @@ export const waitForVideoReady = async (videoId: string, accessToken: string, re
                 return true;
             }
         } catch (e) { console.warn("Polling video status failed", e); }
-        // Wait 3 seconds
         await new Promise(r => setTimeout(r, 3000));
     }
     return false;
@@ -577,20 +641,31 @@ export const createMetaCreative = async (
     headline: string,
     link: string,
     accessToken: string,
-    mediaType: 'image' | 'video' = 'image'
+    mediaType: 'image' | 'video' = 'image',
+    callToAction: string = 'LEARN_MORE',
+    description: string = '',
+    advantagePlusEnabled: boolean = true
 ) => {
     const actId = accountId.startsWith('act_') ? accountId : `act_${accountId}`;
     const url = `https://graph.facebook.com/v19.0/${actId}/adcreatives`;
     
-    // DEV MODE FIX: 
-    // Removed degrees_of_freedom_spec. Including it (even OPT_OUT) can trigger "Standard Enhancements" checks
-    // which fail in Dev Mode if not Public. Default behavior creates a Dark Post.
-    
     const body: any = {
         name: sanitizeInput(name) + " Creative",
         access_token: accessToken,
-        published: false // Force Dark Post
+        published: false,
     };
+
+    // --- ADVANTAGE+ CREATIVE LOGIC ---
+    // If OFF, we must explicitly opt out of standard enhancements
+    if (!advantagePlusEnabled) {
+        body.degrees_of_freedom_spec = {
+            creative_features_spec: {
+                standard_enhancements: {
+                    enroll_status: "OPT_OUT"
+                }
+            }
+        };
+    }
 
     if (mediaType === 'image') {
         body.object_story_spec = {
@@ -600,19 +675,20 @@ export const createMetaCreative = async (
                 link: link, 
                 image_hash: assetId,
                 name: sanitizeInput(headline),
-                call_to_action: { type: "LEARN_MORE" }
+                description: sanitizeInput(description),
+                call_to_action: { type: callToAction }
             }
         };
     } else {
-        // VIDEO CREATIVE STRUCTURE
         body.object_story_spec = {
             page_id: pageId,
             video_data: {
                 video_id: assetId,
                 message: sanitizeInput(message),
                 title: sanitizeInput(headline),
-                call_to_action: { type: "LEARN_MORE", value: { link: link } },
-                image_url: "https://via.placeholder.com/1200x628?text=Video+Ad" // Fallback thumbnail
+                link_description: sanitizeInput(description), // Video uses link_description
+                call_to_action: { type: callToAction, value: { link: link } },
+                image_url: "https://via.placeholder.com/1200x628?text=Video+Ad" 
             }
         };
     }
@@ -660,8 +736,7 @@ export const updateEntityBudget = async (id: string, dailyBudget: number, access
 };
 
 // --- COMMENTING ---
-
-// Helper to get Page Access Token for a specific page
+// (Kept as is from previous valid version)
 const getPageAccessToken = async (pageId: string, userAccessToken: string) => {
     try {
         const response = await fetch(`https://graph.facebook.com/v19.0/${pageId}?fields=access_token&access_token=${userAccessToken}`);
@@ -680,26 +755,19 @@ export const publishComment = async (
     imageBase64: string | undefined,
     userAccessToken: string
 ) => {
-    // effectiveObjectStoryId is typically PageID_PostID for Ad Posts
-    // We need to extract the Page ID to get the Page Access Token
     const parts = effectiveObjectStoryId.split('_');
     if (parts.length < 2) throw new Error("Invalid Post ID format. Cannot identify Page.");
     
     const pageId = parts[0];
-    
-    // 1. Get Page Token (Swapping User Token)
     const pageAccessToken = await getPageAccessToken(pageId, userAccessToken);
     if (!pageAccessToken) throw new Error("Failed to authenticate as Page.");
 
     const url = `https://graph.facebook.com/v19.0/${effectiveObjectStoryId}/comments`;
     
-    // If we have an image, we must use FormData
     if (imageBase64) {
         const formData = new FormData();
-        formData.append('access_token', pageAccessToken); // Use Page Token
+        formData.append('access_token', pageAccessToken); 
         formData.append('message', message);
-        
-        // Convert base64 to blob
         try {
             const byteString = atob(imageBase64.split(',')[1]);
             const mimeString = imageBase64.split(',')[0].split(':')[1].split(';')[0];
@@ -714,9 +782,8 @@ export const publishComment = async (
             const response = await fetch(url, { method: 'POST', body: formData });
             const data = await response.json();
             
-            // Custom error handling for missing permission
             if (data.error && data.error.code === 200) {
-                throw new Error("Permission Error: Your App needs 'pages_manage_engagement' to post comments. Add it in Meta Developer Portal.");
+                throw new Error("Permission Error: Your App needs 'pages_manage_engagement' to post comments.");
             }
             handleApiError(data);
             return data.id;
@@ -725,19 +792,15 @@ export const publishComment = async (
             throw new Error(e.message || "Failed to process image for comment.");
         }
     } else {
-        // Text only
         const response = await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message: message, access_token: pageAccessToken }) // Use Page Token
+            body: JSON.stringify({ message: message, access_token: pageAccessToken }) 
         });
         const data = await response.json();
-        
-        // Custom error handling for missing permission
         if (data.error && data.error.code === 200) {
-            throw new Error("Permission Error: Your App needs 'pages_manage_engagement' to post comments. Add it in Meta Developer Portal.");
+            throw new Error("Permission Error: Your App needs 'pages_manage_engagement' to post comments.");
         }
-
         handleApiError(data);
         return data.id;
     }

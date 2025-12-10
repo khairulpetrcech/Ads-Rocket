@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useRef } from 'react';
 import { useSettings } from '../App';
 import { 
@@ -8,13 +9,13 @@ import {
     createMetaAdSet, 
     createMetaAd, 
     uploadAdImage,
-    uploadAdVideo, // New
-    waitForVideoReady, // New
+    uploadAdVideo, 
+    waitForVideoReady, 
     createMetaCreative,
     getPages,
     getPixels
 } from '../services/metaService';
-import { CheckCircle, Loader2, Upload, AlertTriangle, Save, FolderOpen, Trash2, ChevronDown, Video, Image as ImageIcon } from 'lucide-react';
+import { CheckCircle, Loader2, Upload, AlertTriangle, Save, FolderOpen, Trash2, ChevronDown, Video, Image as ImageIcon, Sparkles } from 'lucide-react';
 
 interface Template {
     id: string;
@@ -25,6 +26,7 @@ interface Template {
 const CreateCampaign: React.FC = () => {
     const { settings } = useSettings();
     const [loading, setLoading] = useState(false);
+    const [loadingStatus, setLoadingStatus] = useState(''); // Text feedback for long processes
     const [error, setError] = useState('');
     const [successMsg, setSuccessMsg] = useState('');
 
@@ -61,7 +63,10 @@ const CreateCampaign: React.FC = () => {
     const [adName, setAdName] = useState('');
     const [primaryText, setPrimaryText] = useState('');
     const [headline, setHeadline] = useState('');
+    const [description, setDescription] = useState(''); // New: Link Description
     const [destinationUrl, setDestinationUrl] = useState('');
+    const [callToAction, setCallToAction] = useState('LEARN_MORE'); // New
+    const [advantagePlus, setAdvantagePlus] = useState(true); // New: Advantage+ toggle
     
     // MEDIA STATE
     const [mediaFile, setMediaFile] = useState<File | null>(null);
@@ -168,7 +173,9 @@ const CreateCampaign: React.FC = () => {
             data: {
                 campaignMode, newCampaignName, objective,
                 adSetMode, newAdSetName, dailyBudget, optimizationGoal, selectedPixelId,
-                selectedPageId, primaryText, headline, destinationUrl
+                selectedPageId, 
+                adName, // Added missing field
+                primaryText, headline, description, destinationUrl, callToAction, advantagePlus // Added new fields
             }
         };
         const updated = [...templates, newTemplate];
@@ -188,10 +195,17 @@ const CreateCampaign: React.FC = () => {
         if (d.dailyBudget) setDailyBudget(d.dailyBudget);
         if (d.optimizationGoal) setOptimizationGoal(d.optimizationGoal);
         if (d.selectedPixelId) setSelectedPixelId(d.selectedPixelId);
+        
+        // Creative Fields
         if (d.selectedPageId) setSelectedPageId(d.selectedPageId);
+        if (d.adName) setAdName(d.adName); // Fixed: Now loads correctly
         if (d.primaryText) setPrimaryText(d.primaryText);
         if (d.headline) setHeadline(d.headline);
+        if (d.description) setDescription(d.description); // New
         if (d.destinationUrl) setDestinationUrl(d.destinationUrl);
+        if (d.callToAction) setCallToAction(d.callToAction); // New
+        if (d.advantagePlus !== undefined) setAdvantagePlus(d.advantagePlus); // New
+
         setShowTemplatesDropdown(false);
     };
 
@@ -222,6 +236,7 @@ const CreateCampaign: React.FC = () => {
         lastPublishTime.current = now;
 
         setLoading(true);
+        setLoadingStatus('Initializing...');
         setError('');
         try {
             const { adAccountId, fbAccessToken } = settings;
@@ -229,6 +244,7 @@ const CreateCampaign: React.FC = () => {
             // 1. Resolve Campaign ID
             let finalCampaignId = selectedCampaignId;
             if (campaignMode === 'new') {
+                setLoadingStatus('Creating Campaign...');
                 const res = await createMetaCampaign(adAccountId, newCampaignName, objective, fbAccessToken);
                 finalCampaignId = res.id;
             }
@@ -236,6 +252,7 @@ const CreateCampaign: React.FC = () => {
             // 2. Resolve Ad Set ID
             let finalAdSetId = selectedAdSetId;
             if (adSetMode === 'new') {
+                setLoadingStatus('Creating Ad Set...');
                 const pixelToUse = (objective === 'OUTCOME_SALES' && optimizationGoal === 'OFFSITE_CONVERSIONS') 
                     ? selectedPixelId 
                     : null;
@@ -255,17 +272,26 @@ const CreateCampaign: React.FC = () => {
             // 3. Upload Asset (Image or Video)
             let assetId = '';
             if (mediaType === 'image') {
+                setLoadingStatus('Uploading Image...');
                 assetId = await uploadAdImage(adAccountId, mediaFile!, fbAccessToken);
             } else {
-                // Video Process
-                const videoId = await uploadAdVideo(adAccountId, mediaFile!, fbAccessToken);
-                // Wait for processing
+                setLoadingStatus('Uploading Video (Chunked)...');
+                // Use chunked upload for better reliability
+                const videoId = await uploadAdVideo(
+                    adAccountId, 
+                    mediaFile!, 
+                    fbAccessToken, 
+                    (msg) => setLoadingStatus(msg) // Callback for progress
+                );
+                
+                setLoadingStatus('Processing Video (Meta)...');
                 const isReady = await waitForVideoReady(videoId, fbAccessToken);
                 if (!isReady) throw new Error("Video processing timed out. Try smaller file.");
                 assetId = videoId;
             }
 
             // 4. Create Creative
+            setLoadingStatus('Finalizing Creative...');
             const creativeId = await createMetaCreative(
                 adAccountId,
                 adName,
@@ -275,10 +301,14 @@ const CreateCampaign: React.FC = () => {
                 headline,
                 destinationUrl,
                 fbAccessToken,
-                mediaType // 'image' or 'video'
+                mediaType,
+                callToAction,
+                description,
+                advantagePlus
             );
 
             // 5. Create Ad
+            setLoadingStatus('Publishing Ad...');
             await createMetaAd(adAccountId, finalAdSetId, adName, creativeId, fbAccessToken);
 
             setSuccessMsg("Campaign Created Successfully! Check your Dashboard.");
@@ -287,9 +317,10 @@ const CreateCampaign: React.FC = () => {
         } catch (e: any) {
             console.error(e);
             setError(e.message || "Failed to create campaign. Check parameters.");
-            window.scrollTo(0, 0); // Scroll up to see the error
+            window.scrollTo(0, 0); 
         } finally {
             setLoading(false);
+            setLoadingStatus('');
         }
     };
 
@@ -351,7 +382,7 @@ const CreateCampaign: React.FC = () => {
 
             {/* Error / Success Messages */}
             {error && (
-                <div className="mb-6 p-4 bg-red-900/20 border border-red-800 rounded-xl text-red-200 flex items-start gap-3 shadow-lg">
+                <div className="mb-6 p-4 bg-red-900/20 border border-red-800 rounded-xl text-red-200 flex items-start gap-3 shadow-lg animate-fadeIn">
                     <AlertTriangle size={20} className="mt-0.5 flex-shrink-0 text-red-400"/> 
                     <div>
                         <p className="font-bold text-red-400 mb-1">Error Creating Campaign</p>
@@ -361,7 +392,7 @@ const CreateCampaign: React.FC = () => {
             )}
             
             {successMsg && (
-                <div className="mb-6 p-4 bg-green-900/20 border border-green-800 rounded-xl text-green-400 flex items-center gap-2">
+                <div className="mb-6 p-4 bg-green-900/20 border border-green-800 rounded-xl text-green-400 flex items-center gap-2 animate-fadeIn">
                     <CheckCircle size={20}/> {successMsg}
                 </div>
             )}
@@ -467,6 +498,8 @@ const CreateCampaign: React.FC = () => {
                 <div className="bg-[#1e293b] rounded-xl border border-slate-700 p-6 shadow-sm">
                     <h2 className="text-lg font-bold text-white mb-4 border-b border-slate-700 pb-2">3. Ad Creative</h2>
                     <div className="grid md:grid-cols-2 gap-6">
+                        
+                        {/* Page Selection */}
                         <div>
                             <label className="block text-sm text-slate-400 mb-1">Facebook Page</label>
                             {userPages.length > 0 ? (
@@ -478,11 +511,14 @@ const CreateCampaign: React.FC = () => {
                                 <p className="text-xs text-yellow-500">No Pages found. Re-login with 'Manage Pages' access.</p>
                             )}
                         </div>
+
+                        {/* Ad Name */}
                         <div>
                             <label className="block text-sm text-slate-400 mb-1">Ad Name</label>
                             <input type="text" value={adName} onChange={(e) => setAdName(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-white outline-none" placeholder="Ad Name"/>
                         </div>
                         
+                        {/* Media Upload */}
                         <div className="md:col-span-2">
                              <div className="border border-dashed border-slate-600 rounded-xl p-6 text-center hover:bg-slate-800 transition-colors cursor-pointer relative overflow-hidden group">
                                  <input 
@@ -506,30 +542,80 @@ const CreateCampaign: React.FC = () => {
                                              </div>
                                          )}
                                          <p className="text-green-400 text-sm font-medium">{mediaFile.name}</p>
-                                         <p className="text-xs text-slate-500">{mediaType === 'video' ? 'Video File' : 'Image File'}</p>
+                                         <p className="text-xs text-slate-500">{mediaType === 'video' ? 'Video File (Chunked Upload)' : 'Image File'}</p>
                                      </div>
                                  ) : (
                                      <>
                                         <Upload className="mx-auto text-slate-400 mb-2 group-hover:text-white" />
                                         <p className="text-slate-300 text-sm font-medium">Click to upload Media</p>
-                                        <p className="text-xs text-slate-500 mt-1">Supports Images (JPG, PNG, HEIC) & Videos (MP4, AVI)</p>
+                                        <p className="text-xs text-slate-500 mt-1">Supports Images (JPG, PNG) & Videos (MP4)</p>
                                      </>
                                  )}
                             </div>
+                            {mediaType === 'video' && mediaFile && (
+                                <p className="text-xs text-indigo-400 mt-2 flex items-center gap-1">
+                                    <Sparkles size={12} /> Video uploads use Chunked Resumable Upload for better reliability.
+                                </p>
+                            )}
                         </div>
 
+                        {/* Primary Text */}
                         <div className="md:col-span-2">
-                            <label className="block text-sm text-slate-400 mb-1">Primary Text</label>
-                            <textarea value={primaryText} onChange={(e) => setPrimaryText(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-white h-24 outline-none" placeholder="Main Copy..."/>
+                            <label className="block text-sm text-slate-400 mb-1">Primary Text (Caption)</label>
+                            <textarea value={primaryText} onChange={(e) => setPrimaryText(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-white h-24 outline-none resize-none" placeholder="The main ad copy above the creative..."/>
                         </div>
+
+                        {/* Headline */}
                         <div>
                             <label className="block text-sm text-slate-400 mb-1">Headline</label>
                             <input type="text" value={headline} onChange={(e) => setHeadline(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-white outline-none" placeholder="Bold Headline"/>
                         </div>
+
+                        {/* Call To Action */}
                         <div>
+                            <label className="block text-sm text-slate-400 mb-1">Call To Action</label>
+                            <select value={callToAction} onChange={(e) => setCallToAction(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-white outline-none">
+                                <option value="LEARN_MORE">Learn More</option>
+                                <option value="SHOP_NOW">Shop Now</option>
+                                <option value="WHATSAPP_MESSAGE">Send WhatsApp Message</option>
+                                <option value="SIGN_UP">Sign Up</option>
+                                <option value="GET_OFFER">Get Offer</option>
+                                <option value="CONTACT_US">Contact Us</option>
+                                <option value="ORDER_NOW">Order Now</option>
+                                <option value="WATCH_MORE">Watch More</option>
+                            </select>
+                        </div>
+                        
+                        {/* Description (Optional) */}
+                        <div className="md:col-span-2">
+                            <label className="block text-sm text-slate-400 mb-1">Link Description (Optional)</label>
+                            <input type="text" value={description} onChange={(e) => setDescription(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-white outline-none" placeholder="Small text below headline (e.g. 50% Off Today)"/>
+                        </div>
+
+                        {/* Destination URL */}
+                        <div className="md:col-span-2">
                             <label className="block text-sm text-slate-400 mb-1">Destination URL</label>
                             <input type="text" value={destinationUrl} onChange={(e) => setDestinationUrl(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-white outline-none" placeholder="https://..."/>
                         </div>
+                        
+                        {/* Advantage+ Toggle */}
+                        <div className="md:col-span-2 pt-2">
+                             <div className="flex items-center justify-between bg-slate-800 p-4 rounded-lg border border-slate-700">
+                                 <div>
+                                     <h3 className="text-white font-medium flex items-center gap-2">
+                                         <Sparkles size={16} className="text-indigo-400" /> Advantage+ Creative
+                                     </h3>
+                                     <p className="text-xs text-slate-400 mt-1">Let Meta automatically optimize your creative (Standard Enhancements).</p>
+                                 </div>
+                                 <button 
+                                    onClick={() => setAdvantagePlus(!advantagePlus)}
+                                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${advantagePlus ? 'bg-indigo-600' : 'bg-slate-600'}`}
+                                 >
+                                     <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${advantagePlus ? 'translate-x-6' : 'translate-x-1'}`} />
+                                 </button>
+                             </div>
+                        </div>
+
                     </div>
                 </div>
 
@@ -541,7 +627,7 @@ const CreateCampaign: React.FC = () => {
                         className="w-full bg-green-600 hover:bg-green-500 text-white text-lg font-bold py-4 rounded-xl shadow-lg shadow-green-900/30 flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed transition-all transform hover:scale-[1.01]"
                     >
                         {loading && <Loader2 className="animate-spin" size={24}/>}
-                        {loading ? 'Publishing to Meta... (Video may take time)' : 'PUBLISH CAMPAIGN NOW'}
+                        {loading ? (loadingStatus || 'Publishing...') : 'PUBLISH CAMPAIGN NOW'}
                     </button>
                     <p className="text-center text-xs text-slate-500 mt-3">This will create the campaign in your Ads Manager. Default status: PAUSED.</p>
                 </div>
