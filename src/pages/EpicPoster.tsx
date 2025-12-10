@@ -26,8 +26,16 @@ const EpicPoster: React.FC = () => {
             setGeneratedImage(imageUrl);
         } catch (e: any) {
             console.error("Gen Error", e);
-            // Display original error message
-            setError(e.message || "An unknown error occurred while generating the image.");
+            let msg = e.message || "An unknown error occurred.";
+            
+            // Friendly error mapping
+            if (msg.includes("Receiving end does not exist") || msg.includes("Could not establish connection")) {
+                msg = "Connection Error: The browser could not communicate with the AI service. Please check your internet connection or disable any interfering extensions/VPNs.";
+            } else if (msg.includes("400")) {
+                msg = "Invalid Request: Check your API Key or Prompt. (Error 400)";
+            }
+
+            setError(msg);
         } finally {
             setLoading(false);
         }
