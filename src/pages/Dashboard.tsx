@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { useOutletContext, useNavigate } from 'react-router-dom';
 import { AdCampaign, AdSet, Ad, CommentTemplate, LayoutContextType } from '../types';
@@ -184,6 +185,7 @@ const Dashboard: React.FC = () => {
           setIsCustomDateModalOpen(true);
       } else {
           setDateRange(val);
+          setIsCustomDateModalOpen(false);
       }
   };
 
@@ -525,6 +527,42 @@ const Dashboard: React.FC = () => {
                         <option value="maximum">All Time</option>
                         <option value="custom">Custom Calendar...</option>
                     </select>
+
+                    {/* POP-OVER DROPDOWN FOR CUSTOM DATE */}
+                    {isCustomDateModalOpen && (
+                        <div className="absolute top-full right-0 mt-2 w-64 bg-[#1e293b] border border-slate-700 rounded-xl shadow-2xl p-4 z-50 animate-fadeIn ring-1 ring-white/10">
+                            <div className="flex justify-between items-center mb-3 pb-2 border-b border-slate-700/50">
+                                <span className="text-xs font-bold text-white flex items-center gap-2"><Calendar size={12}/> Custom Range</span>
+                                <button onClick={(e) => { e.stopPropagation(); setIsCustomDateModalOpen(false); }} className="text-slate-500 hover:text-white"><X size={14}/></button>
+                            </div>
+                            <div className="space-y-3">
+                                <div className="space-y-1">
+                                    <label className="text-[10px] uppercase text-slate-500 font-semibold">Start Date</label>
+                                    <input 
+                                        type="date" 
+                                        value={customStartDate} 
+                                        onChange={(e) => setCustomStartDate(e.target.value)}
+                                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-white focus:border-indigo-500 outline-none"
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-[10px] uppercase text-slate-500 font-semibold">End Date</label>
+                                    <input 
+                                        type="date" 
+                                        value={customEndDate} 
+                                        onChange={(e) => setCustomEndDate(e.target.value)}
+                                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-white focus:border-indigo-500 outline-none"
+                                    />
+                                </div>
+                                <button 
+                                    onClick={applyCustomDate}
+                                    className="w-full bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold py-2 rounded-lg transition-all shadow-lg shadow-indigo-900/20"
+                                >
+                                    Apply Range
+                                </button>
+                            </div>
+                        </div>
+                    )}
                 </div>
                 
                 <div className={`px-3 py-2 rounded-lg border text-xs font-medium flex items-center gap-2 ${loadingCampaigns ? 'bg-indigo-900/20 border-indigo-800 text-indigo-300' : 'bg-slate-800 border-slate-700 text-slate-300'}`}>
@@ -812,54 +850,6 @@ const Dashboard: React.FC = () => {
                 </div>
             )}
         </>
-      )}
-
-      {/* CUSTOM DATE MODAL */}
-      {isCustomDateModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fadeIn">
-              <div className="bg-[#1e293b] w-full max-w-sm rounded-2xl border border-slate-700 shadow-2xl p-6 relative">
-                  <button onClick={() => setIsCustomDateModalOpen(false)} className="absolute top-4 right-4 text-slate-500 hover:text-white"><X size={20} /></button>
-                  <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-                      <Calendar size={20} className="text-indigo-400" /> Select Date Range
-                  </h2>
-                  
-                  <div className="space-y-4">
-                      <div>
-                          <label className="block text-xs font-medium text-slate-400 mb-1 uppercase">Start Date</label>
-                          <input 
-                            type="date" 
-                            value={customStartDate} 
-                            onChange={(e) => setCustomStartDate(e.target.value)}
-                            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all"
-                          />
-                      </div>
-                      <div>
-                          <label className="block text-xs font-medium text-slate-400 mb-1 uppercase">End Date</label>
-                          <input 
-                            type="date" 
-                            value={customEndDate} 
-                            onChange={(e) => setCustomEndDate(e.target.value)}
-                            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all"
-                          />
-                      </div>
-
-                      <div className="flex gap-3 pt-2">
-                          <button 
-                             onClick={() => { setIsCustomDateModalOpen(false); setDateRange('today'); }}
-                             className="flex-1 py-3 rounded-lg border border-slate-700 text-slate-300 hover:bg-slate-800 transition-colors"
-                          >
-                              Cancel
-                          </button>
-                          <button 
-                             onClick={applyCustomDate}
-                             className="flex-1 py-3 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold shadow-lg transition-transform hover:scale-[1.02]"
-                          >
-                              Apply Range
-                          </button>
-                      </div>
-                  </div>
-              </div>
-          </div>
       )}
 
       {/* COMMENT MODAL */}
