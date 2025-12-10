@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { useSettings } from '../App';
 import { generateImage } from '../services/aiService';
-import { Wand2, Download, Image as ImageIcon, Loader2, AlertTriangle, Sparkles } from 'lucide-react';
+import { Wand2, Download, Image as ImageIcon, Loader2, AlertTriangle, Sparkles, Terminal } from 'lucide-react';
 
 const EpicPoster: React.FC = () => {
     const { settings } = useSettings();
@@ -26,11 +26,8 @@ const EpicPoster: React.FC = () => {
             setGeneratedImage(imageUrl);
         } catch (e: any) {
             console.error("Gen Error", e);
-            if (e.message && (e.message.includes("API key not valid") || e.message.includes("400"))) {
-                setError("Invalid API Key. Please check for whitespace or typos in the 'Configuration' page.");
-            } else {
-                setError(e.message || "Failed to generate image. Ensure your API Key supports Gemini Image Gen.");
-            }
+            // Display original error message
+            setError(e.message || "An unknown error occurred while generating the image.");
         } finally {
             setLoading(false);
         }
@@ -64,9 +61,16 @@ const EpicPoster: React.FC = () => {
                     <div className="bg-[#1e293b] p-6 rounded-xl border border-slate-700 shadow-sm">
                         
                         {error && (
-                            <div className="bg-red-900/20 border border-red-800 p-3 rounded-lg mb-4 text-red-400 text-sm flex items-start gap-2">
-                                <AlertTriangle size={16} className="mt-0.5 flex-shrink-0" />
-                                <span>{error}</span>
+                            <div className="bg-red-900/20 border border-red-800 p-4 rounded-xl mb-6 shadow-inner animate-fadeIn">
+                                <div className="flex items-center gap-2 text-red-400 font-bold mb-2 text-sm uppercase tracking-wide">
+                                    <AlertTriangle size={18} />
+                                    <span>Error</span>
+                                </div>
+                                <div className="bg-black/30 rounded-lg p-3 overflow-x-auto border border-red-900/30">
+                                    <code className="text-xs text-red-200 font-mono whitespace-pre-wrap break-all leading-relaxed">
+                                        {error}
+                                    </code>
+                                </div>
                             </div>
                         )}
 
