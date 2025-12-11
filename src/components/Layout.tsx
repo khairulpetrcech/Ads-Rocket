@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { LayoutDashboard, Settings, LogOut, Zap, Loader2, ChevronDown, ChevronUp, Play, PlusCircle, MessageSquareText, Menu, X, Minimize2, Maximize2, CheckCircle, Image, Activity, Search, HelpCircle, Bell, Users, FileText } from 'lucide-react';
@@ -143,11 +144,12 @@ const Layout: React.FC = () => {
         isActive ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
     }`;
 
+  // Minimal Mobile Link Class (Mirrors Desktop)
   const mobileNavLinkClass = ({ isActive }: { isActive: boolean }) => 
-    `flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition-all duration-300 transform ${
+    `flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 text-sm font-medium ${
         isActive 
-        ? 'bg-indigo-600 text-white shadow-lg' 
-        : 'text-slate-500 hover:bg-slate-100'
+        ? 'bg-indigo-50 text-indigo-700 font-semibold' 
+        : 'text-slate-600 hover:bg-slate-50'
     }`;
 
   return (
@@ -284,58 +286,71 @@ const Layout: React.FC = () => {
               ></div>
               
               {/* Sidebar Content */}
-              <aside className="relative w-[80%] max-w-[300px] h-full bg-white shadow-2xl flex flex-col animate-slide-in">
-                  <div className="p-6 flex items-center justify-between border-b border-slate-100">
+              <aside className="relative w-[85%] max-w-[320px] h-full bg-white shadow-2xl flex flex-col animate-slide-in">
+                  <div className="p-5 flex items-center justify-between border-b border-slate-100 bg-slate-50/50">
                       <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-xl bg-indigo-600 shadow-lg overflow-hidden flex-shrink-0">
+                          <div className="w-9 h-9 rounded-lg bg-indigo-600 shadow-md overflow-hidden flex-shrink-0">
                              <img src="https://i.postimg.cc/5tpzdqNN/rocket.png" alt="Logo" className="w-full h-full object-cover" />
                           </div>
                           <div>
-                            <div className="text-xl font-extrabold text-slate-800 tracking-tight leading-none">Ads Rocket</div>
-                            <div className="text-[10px] font-bold mt-1 text-indigo-500">
-                                Automation made simple.
-                            </div>
+                            <div className="text-lg font-extrabold text-slate-800 tracking-tight leading-none">Ads Rocket</div>
+                            <div className="text-[10px] font-semibold text-indigo-500 mt-0.5">Mobile Console</div>
                           </div>
                       </div>
-                      <button onClick={() => setIsMobileMenuOpen(false)} className="text-slate-400 hover:text-slate-600">
-                          <X size={24} />
+                      <button onClick={() => setIsMobileMenuOpen(false)} className="text-slate-400 hover:text-slate-600 p-1">
+                          <X size={22} />
                       </button>
                   </div>
 
-                  <nav className="flex-1 px-4 py-6 space-y-3 overflow-y-auto">
-                      <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider pl-4 mb-2">Menu Utama</p>
-                      
-                      <NavLink to="/" onClick={() => setIsMobileMenuOpen(false)} className={mobileNavLinkClass}>
-                        <LayoutDashboard size={22} /><span>Dashboard</span>
-                      </NavLink>
+                  <nav className="flex-1 px-4 py-4 space-y-6 overflow-y-auto">
+                      {/* GENERAL SECTION */}
+                      <div>
+                          <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2 px-4">General</p>
+                          <div className="space-y-1">
+                              <NavLink to="/" onClick={() => setIsMobileMenuOpen(false)} className={mobileNavLinkClass}>
+                                <LayoutDashboard size={20} /><span>Dashboard</span>
+                              </NavLink>
 
-                      <NavLink to="/create-campaign" onClick={() => setIsMobileMenuOpen(false)} className={mobileNavLinkClass}>
-                        <PlusCircle size={22} /><span>Create Campaign</span>
-                      </NavLink>
+                              <NavLink to="/create-campaign" onClick={() => setIsMobileMenuOpen(false)} className={mobileNavLinkClass}>
+                                <PlusCircle size={20} /><span>Create Campaign</span>
+                              </NavLink>
 
-                      <NavLink to="/epic-poster" onClick={() => setIsMobileMenuOpen(false)} className={mobileNavLinkClass}>
-                        <Image size={22} /><span>Epic Poster</span>
-                      </NavLink>
-                      
-                      <NavLink to="/comment-templates" onClick={() => setIsMobileMenuOpen(false)} className={mobileNavLinkClass}>
-                        <MessageSquareText size={22} /><span>Comment Templates</span>
-                      </NavLink>
+                              <NavLink to="/epic-poster" onClick={() => setIsMobileMenuOpen(false)} className={mobileNavLinkClass}>
+                                <Image size={20} /><span>Epic Poster</span>
+                              </NavLink>
+                              
+                              <NavLink to="/comment-templates" onClick={() => setIsMobileMenuOpen(false)} className={mobileNavLinkClass}>
+                                <MessageSquareText size={20} /><span>Comment Templates</span>
+                              </NavLink>
+                          </div>
+                      </div>
 
-                      <NavLink to="/settings" onClick={() => setIsMobileMenuOpen(false)} className={mobileNavLinkClass}>
-                        <Settings size={22} /><span>Configuration</span>
-                      </NavLink>
+                      {/* SETTINGS SECTION */}
+                      <div>
+                          <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2 px-4">Settings</p>
+                          <div className="space-y-1">
+                              <NavLink to="/settings" onClick={() => setIsMobileMenuOpen(false)} className={mobileNavLinkClass}>
+                                <Settings size={20} /><span>Configuration</span>
+                              </NavLink>
+                              <div className="flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-slate-400 cursor-not-allowed opacity-60">
+                                  <Users size={20} /> <span>Members</span>
+                              </div>
+                              <div className="flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-slate-400 cursor-not-allowed opacity-60">
+                                  <Bell size={20} /> <span>Notifications</span>
+                              </div>
+                          </div>
+                      </div>
                   </nav>
 
                   <div className="p-4 border-t border-slate-100 bg-slate-50">
                       <button 
                         onClick={handleLogout} 
-                        className="flex items-center justify-center gap-3 px-4 py-3 w-full text-red-500 hover:text-white hover:bg-red-500 rounded-xl transition-all font-semibold border border-red-100 hover:border-red-500"
+                        className="flex items-center justify-center gap-2 px-4 py-3 w-full text-red-600 hover:bg-red-50 rounded-xl transition-all font-semibold border border-transparent hover:border-red-100"
                       >
-                          <LogOut size={20} /><span>Sign Out</span>
+                          <LogOut size={18} /><span>Sign Out</span>
                       </button>
                       
-                      {/* VERSION DISPLAY MOBILE */}
-                      <div className="mt-4 text-center">
+                      <div className="mt-2 text-center">
                         <p className="text-[10px] text-slate-400 font-mono">v{APP_VERSION}</p>
                       </div>
                   </div>
