@@ -184,6 +184,30 @@ const App: React.FC = () => {
     }
   }, [settings.fbAppId]);
 
+  // Background Token Validity Check (Every 5 minutes)
+  useEffect(() => {
+    if (!isAuthenticated || !settings.isConnected || !settings.fbAppId) return;
+
+    const checkToken = () => {
+        if (window.FB && settings.fbAccessToken !== 'dummy_token') {
+            // Force status check to keep session alive or detect rotation
+            window.FB.getLoginStatus((response: any) => {
+                if (response.status === 'connected' && response.authResponse) {
+                    const newToken = response.authResponse.accessToken;
+                    // Only update if different to avoid infinite loops if updateSettings triggers this
+                    if (newToken && newToken !== settings.fbAccessToken) {
+                        console.log("Refreshing token in background...");
+                        updateSettings({ fbAccessToken: newToken });
+                    }
+                }
+            }, true); // Force update roundtrip
+        }
+    };
+
+    const interval = setInterval(checkToken, 5 * 60 * 1000); // Check every 5 mins
+    return () => clearInterval(interval);
+  }, [isAuthenticated, settings.isConnected, settings.fbAppId, settings.fbAccessToken]);
+
   if (loading || checkingKey) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">

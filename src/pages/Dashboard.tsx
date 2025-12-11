@@ -9,7 +9,8 @@ import {
     getAdSets, 
     getAds, 
     updateEntityStatus, 
-    updateEntityBudget
+    updateEntityBudget,
+    refreshFacebookToken
 } from '../services/metaService';
 import { MOCK_CAMPAIGNS } from '../services/mockData';
 import { 
@@ -263,10 +264,20 @@ const Dashboard: React.FC = () => {
       }
     } catch (err: any) {
       console.error("Fetch Error", err);
-      // AUTO REFRESH LOGIC: If Session expired, redirect immediately to Connect page
+      // AUTO REFRESH LOGIC: If Session expired, try to refresh first
       if (err.message === "SESSION_EXPIRED" || (err.message || "").toLowerCase().includes("session")) {
+          console.log("Session expired, attempting silent refresh...");
+          // Try to get a fresh token silently
+          const newToken = await refreshFacebookToken();
+          if (newToken && newToken !== settings.fbAccessToken) {
+              console.log("Session refreshed successfully.");
+              updateSettings({ fbAccessToken: newToken });
+              // The updateSettings will trigger the useEffect below, restarting fetchData automatically
+              return; 
+          }
+          
+          // If refresh failed, then redirect
           setAuthError(true);
-          // Redirect to connect for re-authentication
           navigate('/connect');
           return;
       } else {

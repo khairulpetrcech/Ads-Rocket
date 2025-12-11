@@ -198,6 +198,25 @@ export const checkLoginStatus = (): Promise<string | null> => {
   });
 };
 
+// Force a roundtrip check to Facebook servers to get a fresh token if possible
+export const refreshFacebookToken = (): Promise<string | null> => {
+  return new Promise((resolve) => {
+    if (!window.FB) return resolve(null);
+    try {
+        // The 'true' parameter forces a roundtrip to Facebook servers
+        window.FB.getLoginStatus((response: any) => {
+            if (response.status === 'connected' && response.authResponse) {
+                resolve(response.authResponse.accessToken);
+            } else {
+                resolve(null);
+            }
+        }, true);
+    } catch (e) {
+        resolve(null);
+    }
+  });
+};
+
 export const loginWithFacebook = (): Promise<string> => {
   return new Promise((resolve, reject) => {
     if (!window.FB) return reject("Facebook SDK not loaded. Try refreshing the page.");
