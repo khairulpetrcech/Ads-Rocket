@@ -1,39 +1,37 @@
+
 import React, { useState } from 'react';
 import { useSettings } from '../App';
-import { generateImage } from '../services/aiService';
-import { Wand2, Download, Image as ImageIcon, Loader2, AlertTriangle, Sparkles } from 'lucide-react';
+import { generateImageOpenRouter } from '../services/aiService';
+import { Wand2, Download, Image as ImageIcon, Loader2, AlertTriangle, Sparkles, Key } from 'lucide-react';
 
 const EpicPoster: React.FC = () => {
-    const { settings, reselectApiKey } = useSettings();
+    const { settings } = useSettings();
     const [prompt, setPrompt] = useState('');
     const [aspectRatio, setAspectRatio] = useState<"1:1" | "16:9" | "9:16">("1:1");
     const [loading, setLoading] = useState(false);
     const [generatedImage, setGeneratedImage] = useState<string | null>(null);
     const [error, setError] = useState('');
+    const [openRouterKey, setOpenRouterKey] = useState('');
 
     const handleGenerate = async () => {
+        if (!openRouterKey.trim()) return setError("Please enter your OpenRouter API Key.");
         if (!prompt.trim()) return setError("Please enter a prompt description.");
+        
         setLoading(true);
         setError('');
         setGeneratedImage(null);
 
+        // Append Aspect Ratio to prompt since standard chat completion might not have config param
+        const finalPrompt = `${prompt} (Aspect Ratio: ${aspectRatio})`;
+
         try {
-            const imageUrl = await generateImage(prompt, undefined, aspectRatio);
+            const imageUrl = await generateImageOpenRouter(finalPrompt, openRouterKey);
             setGeneratedImage(imageUrl);
         } catch (e: any) {
             console.error("Gen Error", e);
             let msg = e.message || "An unknown error occurred.";
-            const msgLower = msg.toLowerCase();
-            if (msgLower.includes("api key not valid") || msgLower.includes("api_key_invalid") || msgLower.includes("requested entity was not found")) {
-                await reselectApiKey();
-                setError("API Key issue detected. Please re-select your key and try again.");
-                setLoading(false);
-                return;
-            }
-            if (msg.includes("Receiving end does not exist") || msg.includes("Could not establish connection")) {
-                msg = "Connection Error: The browser could not communicate with the AI service. Please check your internet connection or disable any interfering extensions/VPNs.";
-            } else if (msg.includes("400")) {
-                msg = "Invalid Request: Check your Prompt or ensure the API Key is valid. (Error 400)";
+            if (msg.includes("401") || msg.includes("unauthorized")) {
+                msg = "Invalid API Key. Please check your OpenRouter Key.";
             }
             setError(msg);
         } finally {
@@ -59,13 +57,31 @@ const EpicPoster: React.FC = () => {
                 </div>
                 <div>
                     <h1 className="text-2xl font-bold text-slate-800">Epic Poster</h1>
-                    <p className="text-xs text-indigo-600 font-bold uppercase tracking-wide">Powered by Nano Banana Pro</p>
+                    <p className="text-xs text-indigo-600 font-bold uppercase tracking-wide">Powered by Gemini via OpenRouter</p>
                 </div>
             </div>
 
             <div className="grid md:grid-cols-12 gap-8">
                 {/* CONTROL PANEL */}
                 <div className="md:col-span-5 space-y-6">
+                    
+                    {/* API KEY INPUT */}
+                    <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                        <label className="block text-sm font-bold text-slate-600 mb-2 flex items-center gap-2">
+                            <Key size={16} /> OpenRouter API Key
+                        </label>
+                        <input 
+                            type="password"
+                            value={openRouterKey}
+                            onChange={(e) => setOpenRouterKey(e.target.value)}
+                            placeholder="sk-or-..."
+                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-mono text-sm"
+                        />
+                        <p className="text-[10px] text-slate-400 mt-2">
+                            Required: Enter your OpenRouter API key to use the image generation model.
+                        </p>
+                    </div>
+
                     <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
                         
                         {error && (
@@ -118,7 +134,7 @@ const EpicPoster: React.FC = () => {
 
                         <button 
                             onClick={handleGenerate}
-                            disabled={loading || !prompt}
+                            disabled={loading || !prompt || !openRouterKey}
                             className="w-full bg-indigo-600 hover:bg-indigo-700 text-white text-lg font-bold py-3.5 rounded-xl shadow-lg shadow-indigo-200 flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                         >
                             {loading ? <Loader2 className="animate-spin" /> : <Wand2 className="w-5 h-5" />}
@@ -154,7 +170,7 @@ const EpicPoster: React.FC = () => {
                                     <div className="flex flex-col items-center">
                                         <Loader2 size={48} className="animate-spin text-indigo-600 mb-4" />
                                         <p className="text-slate-600 font-bold">Creating Masterpiece...</p>
-                                        <p className="text-xs mt-2 text-slate-400">Connecting to Nano Banana Pro...</p>
+                                        <p className="text-xs mt-2 text-slate-400">Sending request to OpenRouter...</p>
                                     </div>
                                 ) : (
                                     <>

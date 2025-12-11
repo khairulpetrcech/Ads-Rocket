@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, Type } from "@google/genai";
 import { AdCampaign, AiProvider, AiAnalysisResult, Ad } from "../types";
 
@@ -399,19 +400,61 @@ export const chatWithAi = async (
     }
 }
 
-// --- IMAGE GENERATION (Nano Banana Pro) ---
+// --- IMAGE GENERATION (Nano Banana Pro / OpenRouter) ---
+
+export const generateImageOpenRouter = async (
+    prompt: string,
+    apiKey: string
+): Promise<string> => {
+    if (!apiKey) throw new Error("OpenRouter API Key is required.");
+
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'google/gemini-3-pro-image-preview',
+        messages: [
+            {
+              "role": "user",
+              "content": prompt
+            }
+          ],
+        modalities: ['image', 'text']
+      }),
+    });
+
+    const result = await response.json();
+    
+    if (result.error) {
+        throw new Error(result.error.message || "OpenRouter API Error");
+    }
+
+    if (result.choices && result.choices.length > 0) {
+      const message = result.choices[0].message;
+      // OpenRouter Gemini Image response structure
+      if ((message as any).images && (message as any).images.length > 0) {
+          return (message as any).images[0].image_url.url;
+      }
+    }
+    
+    throw new Error("No image returned from OpenRouter.");
+};
+
 export const generateImage = async (
     prompt: string,
-    // userApiKey is ignored for Gemini
     userApiKey?: string, 
     aspectRatio: "1:1" | "16:9" | "9:16" = "1:1"
 ): Promise<string> => {
+    // This is the old direct Google GenAI implementation
+    // Keeping it as fallback or legacy if needed elsewhere, 
+    // but EpicPoster now prefers generateImageOpenRouter
     const apiKey = getEnvApiKey();
     if (!apiKey) throw new Error("API Key is required for image generation.");
 
-    // Nano Banana Pro mapping -> gemini-3-pro-image-preview
     const modelName = 'gemini-3-pro-image-preview';
-
     const ai = new GoogleGenAI({ apiKey });
     
     try {
@@ -428,7 +471,6 @@ export const generateImage = async (
 
         if (response.candidates && response.candidates[0].content.parts) {
              for (const part of response.candidates[0].content.parts) {
-                // Find the image part, do not assume it is the first part.
                 if (part.inlineData) {
                     const base64EncodeString: string = part.inlineData.data;
                     return `data:image/png;base64,${base64EncodeString}`;
