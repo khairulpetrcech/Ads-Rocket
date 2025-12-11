@@ -15,7 +15,7 @@ import { MOCK_CAMPAIGNS } from '../services/mockData';
 import { 
   TrendingUp, DollarSign, MousePointer, Loader2, RefreshCw, 
   Filter, Calendar, Briefcase, ChevronDown, ChevronRight, Image as ImageIcon,
-  Edit2, ExternalLink, MessageCircle, ShoppingCart, MessageSquarePlus, Send, X, Check, Layers, ArrowRight
+  Edit2, ExternalLink, MessageCircle, ShoppingCart, MessageSquarePlus, Send, X, Check, Layers, ArrowRight, ChevronLeft
 } from 'lucide-react';
 
 const formatMYR = (amount: number) => {
@@ -46,6 +46,122 @@ const LoadingSkeleton = () => (
     </div>
 );
 
+// --- VISUAL CALENDAR COMPONENT ---
+interface CalendarPickerProps {
+    startDate: string;
+    endDate: string;
+    onChange: (start: string, end: string) => void;
+    onClose: () => void;
+}
+
+const CalendarPicker: React.FC<CalendarPickerProps> = ({ startDate, endDate, onChange, onClose }) => {
+    // Current view state
+    const [currentDate, setCurrentDate] = useState(startDate ? new Date(startDate) : new Date());
+    const [tempStart, setTempStart] = useState<string>(startDate);
+    const [tempEnd, setTempEnd] = useState<string>(endDate);
+
+    const year = currentDate.getFullYear();
+    const month = currentDate.getMonth();
+
+    const getDaysInMonth = (y: number, m: number) => new Date(y, m + 1, 0).getDate();
+    const getFirstDayOfMonth = (y: number, m: number) => new Date(y, m, 1).getDay();
+
+    const prevMonth = () => setCurrentDate(new Date(year, month - 1, 1));
+    const nextMonth = () => setCurrentDate(new Date(year, month + 1, 1));
+
+    const handleDayClick = (day: number) => {
+        const clickedDate = new Date(year, month, day);
+        // Correct timezone offset issue by manually formatting
+        const y = clickedDate.getFullYear();
+        const m = String(clickedDate.getMonth() + 1).padStart(2, '0');
+        const d = String(clickedDate.getDate()).padStart(2, '0');
+        const dateStr = `${y}-${m}-${d}`;
+
+        if (!tempStart || (tempStart && tempEnd)) {
+            // New selection
+            setTempStart(dateStr);
+            setTempEnd('');
+        } else if (tempStart && !tempEnd) {
+            // Complete selection
+            if (new Date(dateStr) < new Date(tempStart)) {
+                setTempEnd(tempStart);
+                setTempStart(dateStr);
+            } else {
+                setTempEnd(dateStr);
+            }
+        }
+    };
+
+    const isSelected = (day: number) => {
+        const d = new Date(year, month, day);
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const dayStr = String(d.getDate()).padStart(2, '0');
+        const full = `${y}-${m}-${dayStr}`;
+        return full === tempStart || full === tempEnd;
+    };
+
+    const isInRange = (day: number) => {
+        if (!tempStart || !tempEnd) return false;
+        const d = new Date(year, month, day);
+        return d > new Date(tempStart) && d < new Date(tempEnd);
+    };
+
+    const apply = () => {
+        if (tempStart && tempEnd) {
+            onChange(tempStart, tempEnd);
+            onClose();
+        } else if (tempStart) {
+            onChange(tempStart, tempStart); // Single day
+            onClose();
+        }
+    };
+
+    const daysInMonth = getDaysInMonth(year, month);
+    const firstDay = getFirstDayOfMonth(year, month);
+    const blanks = Array.from({ length: firstDay }, (_, i) => i);
+    const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
+
+    return (
+        <div className="absolute top-full right-0 mt-2 bg-white border border-slate-200 rounded-xl shadow-xl p-4 z-50 animate-fadeIn ring-1 ring-black/5 w-72">
+             <div className="flex justify-between items-center mb-4">
+                 <button onClick={prevMonth} className="p-1 hover:bg-slate-100 rounded"><ChevronLeft size={16} /></button>
+                 <span className="font-bold text-slate-700">{currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</span>
+                 <button onClick={nextMonth} className="p-1 hover:bg-slate-100 rounded"><ChevronRight size={16} /></button>
+             </div>
+             
+             <div className="grid grid-cols-7 gap-1 mb-2 text-center text-xs font-bold text-slate-400 uppercase">
+                 <div>S</div><div>M</div><div>T</div><div>W</div><div>T</div><div>F</div><div>S</div>
+             </div>
+             
+             <div className="grid grid-cols-7 gap-1 text-sm mb-4">
+                 {blanks.map(x => <div key={`blank-${x}`} />)}
+                 {days.map(d => {
+                     const selected = isSelected(d);
+                     const inRange = isInRange(d);
+                     return (
+                         <div 
+                            key={d} 
+                            onClick={() => handleDayClick(d)}
+                            className={`
+                                h-8 flex items-center justify-center rounded-full cursor-pointer text-xs font-medium transition-colors
+                                ${selected ? 'bg-indigo-600 text-white' : inRange ? 'bg-indigo-50 text-indigo-700' : 'hover:bg-slate-100 text-slate-700'}
+                            `}
+                         >
+                             {d}
+                         </div>
+                     );
+                 })}
+             </div>
+
+             <div className="flex justify-between items-center pt-2 border-t border-slate-100">
+                 <button onClick={onClose} className="text-xs text-slate-500 hover:text-slate-700 px-3 py-2">Cancel</button>
+                 <button onClick={apply} disabled={!tempStart} className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-4 py-2 rounded-lg disabled:opacity-50">Apply</button>
+             </div>
+        </div>
+    );
+};
+
 // --- MAIN DASHBOARD ---
 
 type DateRange = 'today' | 'yesterday' | 'last_3d' | 'last_4d' | 'last_7d' | 'maximum' | 'custom';
@@ -54,7 +170,7 @@ type ViewMode = 'SALES' | 'TRAFFIC';
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
-  const { settings, updateSettings } = useSettings();
+  const { settings, updateSettings, logout } = useSettings();
   const { launchCommentSession } = useOutletContext<LayoutContextType>();
   
   // Data State
@@ -147,9 +263,12 @@ const Dashboard: React.FC = () => {
       }
     } catch (err: any) {
       console.error("Fetch Error", err);
+      // AUTO REFRESH LOGIC: If Session expired, redirect immediately to Connect page
       if (err.message === "SESSION_EXPIRED" || (err.message || "").toLowerCase().includes("session")) {
           setAuthError(true);
-          setFetchError("Session Expired. Please reconnect.");
+          // Redirect to connect for re-authentication
+          navigate('/connect');
+          return;
       } else {
           setFetchError("Data sync failed. Using offline data.");
       }
@@ -175,14 +294,6 @@ const Dashboard: React.FC = () => {
       } else {
           setDateRange(val);
           setIsCustomDateModalOpen(false);
-      }
-  };
-
-  const applyCustomDate = () => {
-      if (customStartDate && customEndDate) {
-          setIsCustomDateModalOpen(false);
-      } else {
-          alert("Please select both start and end dates.");
       }
   };
 
@@ -220,10 +331,6 @@ const Dashboard: React.FC = () => {
   const handleViewModeToggle = (mode: ViewMode) => {
       setViewMode(mode);
       updateSettings({ dashboardViewMode: mode });
-  };
-
-  const handleReconnect = () => {
-      navigate('/connect');
   };
 
   const toggleExpandCampaign = async (campaignId: string) => {
@@ -443,7 +550,14 @@ const Dashboard: React.FC = () => {
         <div>
             <div className="flex items-center gap-2 mb-1">
                 <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Performance Overview</h1>
-                <span className="bg-indigo-100 text-indigo-700 text-xs px-2 py-0.5 rounded-full font-bold">LIVE</span>
+                {/* CLICKABLE LIVE BUTTON */}
+                <button 
+                    onClick={() => fetchData()}
+                    className={`text-xs px-2 py-0.5 rounded-full font-bold flex items-center gap-1 transition-all shadow-sm border ${loadingCampaigns ? 'bg-indigo-100 text-indigo-700 border-indigo-200 cursor-wait' : 'bg-green-100 text-green-700 border-green-200 hover:bg-green-200'}`}
+                >
+                    {loadingCampaigns ? <RefreshCw size={10} className="animate-spin" /> : null}
+                    {loadingCampaigns ? 'Syncing...' : 'LIVE'}
+                </button>
             </div>
             <div className="flex items-center gap-2 text-slate-500 text-sm">
                 <Briefcase size={14} />
@@ -511,46 +625,18 @@ const Dashboard: React.FC = () => {
                         <option value="custom">Custom Calendar...</option>
                     </select>
 
-                    {/* POP-OVER DROPDOWN FOR CUSTOM DATE */}
+                    {/* VISUAL CALENDAR PICKER POPUP */}
                     {isCustomDateModalOpen && (
-                        <div className="absolute top-full right-0 mt-2 w-64 bg-white border border-slate-200 rounded-xl shadow-xl p-4 z-50 animate-fadeIn ring-1 ring-black/5">
-                            <div className="flex justify-between items-center mb-3 pb-2 border-b border-slate-100">
-                                <span className="text-xs font-bold text-slate-800 flex items-center gap-2"><Calendar size={12}/> Custom Range</span>
-                                <button onClick={(e) => { e.stopPropagation(); setIsCustomDateModalOpen(false); }} className="text-slate-400 hover:text-slate-600"><X size={14}/></button>
-                            </div>
-                            <div className="space-y-3">
-                                <div className="space-y-1">
-                                    <label className="text-[10px] uppercase text-slate-500 font-bold">Start Date</label>
-                                    <input 
-                                        type="date" 
-                                        value={customStartDate} 
-                                        onChange={(e) => setCustomStartDate(e.target.value)}
-                                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-xs text-slate-800 focus:border-indigo-500 outline-none"
-                                    />
-                                </div>
-                                <div className="space-y-1">
-                                    <label className="text-[10px] uppercase text-slate-500 font-bold">End Date</label>
-                                    <input 
-                                        type="date" 
-                                        value={customEndDate} 
-                                        onChange={(e) => setCustomEndDate(e.target.value)}
-                                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-xs text-slate-800 focus:border-indigo-500 outline-none"
-                                    />
-                                </div>
-                                <button 
-                                    onClick={applyCustomDate}
-                                    className="w-full bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold py-2 rounded-lg transition-all shadow-md shadow-indigo-200"
-                                >
-                                    Apply Range
-                                </button>
-                            </div>
-                        </div>
+                        <CalendarPicker 
+                            startDate={customStartDate}
+                            endDate={customEndDate}
+                            onChange={(s, e) => {
+                                setCustomStartDate(s);
+                                setCustomEndDate(e);
+                            }}
+                            onClose={() => setIsCustomDateModalOpen(false)}
+                        />
                     )}
-                </div>
-                
-                <div className={`px-3 py-2 rounded-lg border text-xs font-bold flex items-center gap-2 shadow-sm ${loadingCampaigns ? 'bg-indigo-50 border-indigo-200 text-indigo-600' : 'bg-white border-slate-200 text-slate-500'}`}>
-                {loadingCampaigns ? <RefreshCw size={12} className="animate-spin" /> : <div className="w-2 h-2 bg-green-500 rounded-full"></div>}
-                <span>{loadingCampaigns ? 'Syncing...' : 'Live'}</span>
                 </div>
             </div>
         </div>
@@ -561,15 +647,9 @@ const Dashboard: React.FC = () => {
             <div className="flex items-center gap-2">
                 <Filter size={14} className="text-amber-500"/> {fetchError}
             </div>
-            {authError ? (
-                <button onClick={handleReconnect} className="px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded text-xs font-bold transition-colors shadow-sm">
-                    Reconnect Now
-                </button>
-            ) : (
-                <button onClick={() => fetchData()} className="px-3 py-1 bg-white hover:bg-amber-100 text-amber-700 rounded text-xs border border-amber-300 transition-colors flex items-center gap-1 font-semibold">
-                    <RefreshCw size={10} /> Retry Sync
-                </button>
-            )}
+             <button onClick={() => fetchData()} className="px-3 py-1 bg-white hover:bg-amber-100 text-amber-700 rounded text-xs border border-amber-300 transition-colors flex items-center gap-1 font-semibold">
+                <RefreshCw size={10} /> Retry Sync
+            </button>
         </div>
       )}
 
@@ -752,20 +832,20 @@ const Dashboard: React.FC = () => {
                                                                                                                 </a>
                                                                                                             )}
 
-                                                                                                            {/* LAUNCH COMMENT BUTTON */}
+                                                                                                            {/* COMPACT 'C' COMMENT BUTTON */}
                                                                                                             {ad.creative.effective_object_story_id && (
                                                                                                                 <div className="relative group/tooltip">
                                                                                                                     <button 
                                                                                                                         onClick={() => openCommentModal(ad)}
                                                                                                                         disabled={isCommented}
-                                                                                                                        className={`h-5 px-1.5 flex items-center justify-center rounded text-[9px] font-bold border transition-colors ${
+                                                                                                                        title="Launch Comment"
+                                                                                                                        className={`w-5 h-5 flex items-center justify-center rounded-full text-[10px] font-bold border transition-colors ${
                                                                                                                             isCommented 
-                                                                                                                            ? "bg-green-50 text-green-600 border-green-200 cursor-not-allowed" 
-                                                                                                                            : "bg-white text-indigo-600 border-indigo-200 hover:bg-indigo-50 hover:border-indigo-300"
+                                                                                                                            ? "bg-green-100 text-green-600 border-green-200 cursor-not-allowed" 
+                                                                                                                            : "bg-white text-indigo-600 border-indigo-200 hover:bg-indigo-600 hover:text-white hover:border-indigo-600"
                                                                                                                         }`}
                                                                                                                     >
-                                                                                                                        {isCommented ? <Check size={10} className="mr-1" /> : <MessageSquarePlus size={10} className="mr-1" />}
-                                                                                                                        {isCommented ? 'Sent' : 'Comment'}
+                                                                                                                        {isCommented ? <Check size={10} /> : "C"}
                                                                                                                     </button>
                                                                                                                 </div>
                                                                                                             )}
@@ -821,7 +901,6 @@ const Dashboard: React.FC = () => {
                 </div>
             </div>
 
-            {/* Pagination / Show More Campaigns */}
             {secondaryCampaigns.length > 0 && (
                 <div className="text-center pt-6">
                     <button 

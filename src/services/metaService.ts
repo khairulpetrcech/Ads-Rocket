@@ -378,6 +378,10 @@ export const getAds = async (adSetId: string, accessToken: string, datePreset: s
             creative: ad.creative || {},
             metrics: mapInsightsToMetrics(ad)
         }));
+        
+        // SORT BY PURCHASES DESCENDING
+        result.sort((a: Ad, b: Ad) => b.metrics.purchases - a.metrics.purchases);
+
         setCachedData(cacheKey, result);
         return result;
     } catch (error) { throw error; }
