@@ -271,15 +271,28 @@ const mapInsightsToMetrics = (data: any) => {
   const spend = parseFloat(insights.spend || '0');
   const revenue = parseFloat(purchaseValue || '0');
 
-  // New Metrics for Whatsapp/Leads
+  // New Metrics for Whatsapp/Leads/Engagement
   const leads = insights.actions?.find((a: any) => a.action_type === 'lead')?.value || 0;
   const messagingStarted = insights.actions?.find((a: any) => a.action_type === 'onsite_conversion.messaging_conversation_started_7d')?.value || 0;
   const messagingInitiated = insights.actions?.find((a: any) => a.action_type === 'onsite_conversion.messaging_initiated')?.value || 0;
   const linkClicks = insights.actions?.find((a: any) => a.action_type === 'link_click')?.value || 0;
+  
+  // Engagement Metrics (Added for robustness)
+  const postEngagement = insights.actions?.find((a: any) => a.action_type === 'post_engagement')?.value || 0;
+  const videoViews = insights.actions?.find((a: any) => a.action_type === 'video_view')?.value || 0;
+  const thruPlay = insights.actions?.find((a: any) => a.action_type === 'video_thruplay_watched_actions')?.value || 0;
 
-  // Heuristic for "Results" based on common objectives
-  const results = parseInt(leads) + parseInt(messagingStarted) + parseInt(messagingInitiated);
-  const finalResults = results > 0 ? results : parseInt(linkClicks); 
+  // Heuristic for "Results" based on common objectives hierarchy
+  // 1. Leads / Messages
+  let results = parseInt(leads) + parseInt(messagingStarted) + parseInt(messagingInitiated);
+  
+  // 2. Link Clicks (if no leads)
+  if (results === 0) results = parseInt(linkClicks);
+  
+  // 3. Engagement (if no clicks)
+  if (results === 0) results = parseInt(postEngagement) + parseInt(videoViews) + parseInt(thruPlay);
+
+  const finalResults = results;
 
   return {
     spend: spend,
@@ -762,7 +775,6 @@ export const updateEntityBudget = async (id: string, dailyBudget: number, access
 };
 
 // --- COMMENTING ---
-// (Kept as is from previous valid version)
 const getPageAccessToken = async (pageId: string, userAccessToken: string) => {
     try {
         const response = await fetch(`https://graph.facebook.com/v19.0/${pageId}?fields=access_token&access_token=${userAccessToken}`);

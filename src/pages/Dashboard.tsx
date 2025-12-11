@@ -308,25 +308,31 @@ const Dashboard: React.FC = () => {
       }
   };
 
+  // --- VIEW MODE AUTO-DETECTION ---
   useEffect(() => {
-    if (campaigns.length > 0 && !settings.dashboardViewMode) {
+    if (campaigns.length > 0) {
         let trafficCount = 0;
         let salesCount = 0;
-        campaigns.forEach(c => {
-            if (c.status === 'ACTIVE' || c.metrics.spend > 0) {
-                if (isTrafficOrLeads(c.objective)) trafficCount++;
-                else salesCount++;
-            }
+        
+        // Prioritize ACTIVE campaigns for decision making
+        const activeCampaigns = campaigns.filter(c => c.status === 'ACTIVE');
+        const targetList = activeCampaigns.length > 0 ? activeCampaigns : campaigns;
+
+        targetList.forEach(c => {
+            if (isTrafficOrLeads(c.objective)) trafficCount++;
+            else salesCount++;
         });
-        const detectedMode = trafficCount > salesCount ? 'TRAFFIC' : 'SALES';
+        
+        // Auto-switch based on majority
+        const detectedMode = trafficCount >= salesCount ? 'TRAFFIC' : 'SALES';
+        
         if (viewMode !== detectedMode) {
              setViewMode(detectedMode);
-             setTimeout(() => updateSettings({ dashboardViewMode: detectedMode }), 0);
+             // Update settings to remember preference, but allow auto-detect to override next time if data changes significantly
+             updateSettings({ dashboardViewMode: detectedMode });
         }
-    } else if (settings.dashboardViewMode && viewMode !== settings.dashboardViewMode) {
-        setViewMode(settings.dashboardViewMode);
     }
-  }, [campaigns, settings.dashboardViewMode]);
+  }, [campaigns]); 
 
   useEffect(() => {
       const saved = localStorage.getItem('ar_comment_templates');
