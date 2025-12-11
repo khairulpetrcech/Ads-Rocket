@@ -186,8 +186,8 @@ const App: React.FC = () => {
 
   if (loading || checkingKey) {
     return (
-      <div className="min-h-screen bg-[#0f172a] flex items-center justify-center text-white">
-        <Loader2 className="animate-spin text-indigo-500 w-12 h-12" />
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <Loader2 className="animate-spin text-indigo-600 w-12 h-12" />
       </div>
     );
   }
@@ -195,22 +195,22 @@ const App: React.FC = () => {
   // Block access if no API Key is selected (in supported environments)
   if (!hasApiKey && window.aistudio) {
     return (
-      <div className="min-h-screen bg-[#0f172a] flex flex-col items-center justify-center p-6 text-center font-sans">
-        <div className="w-16 h-16 bg-indigo-600 rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-indigo-500/20">
-          <Key className="text-white w-8 h-8" />
+      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 text-center font-sans">
+        <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center mb-6 shadow-md border border-slate-200">
+          <Key className="text-indigo-600 w-8 h-8" />
         </div>
-        <h1 className="text-2xl font-bold text-white mb-3">API Key Required</h1>
-        <p className="text-slate-400 mb-8 max-w-md leading-relaxed">
+        <h1 className="text-2xl font-bold text-slate-800 mb-3">API Key Required</h1>
+        <p className="text-slate-500 mb-8 max-w-md leading-relaxed">
           To use the powerful AI features powered by Gemini, you must select a paid API key from your Google Cloud Project.
         </p>
         <button 
           onClick={handleSelectKey}
-          className="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-3 px-8 rounded-xl transition-all transform hover:scale-105 shadow-lg shadow-indigo-500/30"
+          className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 px-8 rounded-xl transition-all transform hover:scale-105 shadow-lg shadow-indigo-200"
         >
           Select API Key
         </button>
-        <p className="mt-8 text-xs text-slate-500">
-          Read the <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" rel="noreferrer" className="text-indigo-400 hover:text-indigo-300 underline transition-colors">Billing Documentation</a> for more details.
+        <p className="mt-8 text-xs text-slate-400">
+          Read the <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" rel="noreferrer" className="text-indigo-600 hover:text-indigo-500 underline transition-colors">Billing Documentation</a> for more details.
         </p>
       </div>
     );

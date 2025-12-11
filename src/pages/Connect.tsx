@@ -1,6 +1,7 @@
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AlertTriangle, RefreshCw, LogOut } from 'lucide-react';
+import { AlertTriangle, RefreshCw, LogOut, CheckCircle, ArrowRight } from 'lucide-react';
 import { useSettings } from '../App';
 import { initFacebookSdk, loginWithFacebook, getAdAccounts } from '../services/metaService';
 import { MetaAdAccount } from '../types';
@@ -85,26 +86,32 @@ const ConnectPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#0f172a] flex items-center justify-center p-4 stars-bg relative">
-      <div className="stars"></div>
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+      {/* Subtle Background Pattern */}
+      <div className="absolute inset-0 bg-[radial-gradient(#e2e8f0_1px,transparent_1px)] [background-size:20px_20px] opacity-60"></div>
       
-      <div className="max-w-md w-full bg-[#1e293b]/90 backdrop-blur-xl rounded-2xl border border-slate-700 shadow-2xl overflow-hidden z-10 animate-fade-in-up">
+      <div className="max-w-md w-full bg-white rounded-2xl border border-slate-200 shadow-xl overflow-hidden z-10 animate-fade-in-up">
         <div className="p-6 md:p-8">
             <div className="flex justify-between items-center mb-6">
-                <h1 className="text-xl font-bold text-white">Connect Meta Ads</h1>
-                <button onClick={handleLogoutLocal} className="text-xs text-slate-400 hover:text-white flex items-center gap-1">
+                <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center">
+                        <img src="https://i.postimg.cc/5tpzdqNN/rocket.png" alt="Logo" className="w-5 h-5 object-cover opacity-90" />
+                    </div>
+                    <h1 className="text-lg font-bold text-slate-800">Connect Meta Ads</h1>
+                </div>
+                <button onClick={handleLogoutLocal} className="text-xs text-slate-400 hover:text-red-500 flex items-center gap-1 transition-colors">
                     <LogOut size={12}/> Sign Out
                 </button>
             </div>
             
-          <p className="text-indigo-200 mb-8 text-center text-sm">
-            Sambungkan akaun Facebook Ads anda untuk mula menggunakan Ads Rocket.
+          <p className="text-slate-500 mb-8 text-sm leading-relaxed">
+            Connect your Facebook Ads account to sync campaigns, analyze data, and manage creatives.
           </p>
 
           {error && (
-            <div className="bg-red-900/20 border border-red-800 p-3 rounded-lg mb-4 text-red-400 text-sm">
-              <AlertTriangle size={16} className="inline mr-2" />
-              {error}
+            <div className="bg-red-50 border border-red-200 p-3 rounded-lg mb-6 text-red-600 text-sm flex items-start gap-2">
+              <AlertTriangle size={16} className="mt-0.5 flex-shrink-0" />
+              <span>{error}</span>
             </div>
           )}
 
@@ -112,33 +119,46 @@ const ConnectPage: React.FC = () => {
             <button
                 onClick={handleLogin}
                 disabled={loading}
-                className="w-full py-4 px-6 rounded-xl font-bold tracking-wide bg-[#1877F2] hover:bg-[#166fe5] text-white flex items-center justify-center gap-3 transition-all"
+                className="w-full py-3.5 px-6 rounded-xl font-bold tracking-wide bg-[#1877F2] hover:bg-[#166fe5] text-white flex items-center justify-center gap-3 transition-all shadow-md hover:shadow-lg disabled:opacity-70"
             >
-                {loading ? <RefreshCw className="animate-spin" /> : "Link Facebook Ads Account"}
+                {loading ? <RefreshCw className="animate-spin" /> : "Link Facebook Account"}
             </button>
           )}
 
           {step === 2 && (
             <div className="space-y-4 animate-fadeIn">
-              <h3 className="text-white font-medium">Pilih Ad Account</h3>
-              <div className="max-h-60 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
+              <div className="flex items-center justify-between">
+                  <h3 className="text-slate-800 font-bold">Select Ad Account</h3>
+                  <span className="text-xs text-slate-500 bg-slate-100 px-2 py-1 rounded-full">{accounts.length} found</span>
+              </div>
+              
+              <div className="max-h-64 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
                 {accounts.map(acc => (
                   <button
                     key={acc.id}
                     onClick={() => selectAccount(acc)}
-                    className="w-full text-left p-3 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-indigo-500 transition-all flex justify-between items-center group"
+                    className="w-full text-left p-4 rounded-xl bg-white border border-slate-200 hover:border-indigo-500 hover:shadow-md transition-all flex justify-between items-center group relative overflow-hidden"
                   >
-                    <div>
-                      <p className="text-slate-200 font-medium">{acc.name}</p>
-                      <p className="text-xs text-slate-500">ID: {acc.account_id}</p>
+                    <div className="relative z-10">
+                      <p className="text-slate-800 font-bold text-sm">{acc.name}</p>
+                      <p className="text-xs text-slate-500 mt-0.5 font-mono">ID: {acc.account_id}</p>
                     </div>
-                    <div className="opacity-0 group-hover:opacity-100 text-indigo-400">Pilih</div>
+                    <div className="text-indigo-600 opacity-0 group-hover:opacity-100 transform translate-x-2 group-hover:translate-x-0 transition-all duration-300">
+                        <ArrowRight size={18} />
+                    </div>
+                    <div className="absolute inset-0 bg-slate-50 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                   </button>
                 ))}
               </div>
             </div>
           )}
         </div>
+        
+        {step === 1 && (
+            <div className="bg-slate-50 p-4 border-t border-slate-100 text-center">
+                <p className="text-xs text-slate-400">Secure connection via Meta Graph API v19.0</p>
+            </div>
+        )}
       </div>
     </div>
   );
