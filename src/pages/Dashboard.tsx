@@ -27,6 +27,18 @@ const formatMYR = (amount: number) => {
   }).format(amount);
 };
 
+// --- HELPER: CONSTRUCT FB POST URL ---
+const getPostLink = (storyId?: string) => {
+    if (!storyId) return '#';
+    // If format is PAGEID_POSTID, split it
+    if (storyId.includes('_')) {
+        const [pageId, postId] = storyId.split('_');
+        return `https://www.facebook.com/${pageId}/posts/${postId}`;
+    }
+    // Fallback for single IDs
+    return `https://www.facebook.com/${storyId}`;
+};
+
 // --- COMPONENTS ---
 
 const StatusToggle = ({ status, onToggle, loading }: { status: string, onToggle: () => void, loading: boolean }) => (
@@ -840,7 +852,7 @@ const Dashboard: React.FC = () => {
                                                                                                         <div className="flex items-center gap-3 mt-1">
                                                                                                             {ad.creative.effective_object_story_id && (
                                                                                                                 <a 
-                                                                                                                    href={`https://facebook.com/${ad.creative.effective_object_story_id}`} 
+                                                                                                                    href={getPostLink(ad.creative.effective_object_story_id)} 
                                                                                                                     target="_blank" 
                                                                                                                     rel="noopener noreferrer"
                                                                                                                     className="text-[10px] text-indigo-500 hover:text-indigo-700 flex items-center gap-1 font-medium"
@@ -982,3 +994,4 @@ const Dashboard: React.FC = () => {
 };
 
 export default Dashboard;
+    
