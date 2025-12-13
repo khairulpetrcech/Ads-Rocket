@@ -33,8 +33,8 @@ const getPostLink = (storyId?: string) => {
     // If format is PAGEID_POSTID, split it
     if (storyId.includes('_')) {
         const [pageId, postId] = storyId.split('_');
-        // Use permalink.php format which is more reliable for Ad Dark Posts
-        return `https://www.facebook.com/permalink.php?story_fbid=${postId}&id=${pageId}`;
+        // Using business.facebook.com is often more reliable for Admins viewing Dark Posts
+        return `https://business.facebook.com/${pageId}/posts/${postId}`;
     }
     // Fallback for single IDs
     return `https://www.facebook.com/${storyId}`;
