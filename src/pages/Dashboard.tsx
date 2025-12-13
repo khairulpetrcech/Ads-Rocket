@@ -33,7 +33,8 @@ const getPostLink = (storyId?: string) => {
     // If format is PAGEID_POSTID, split it
     if (storyId.includes('_')) {
         const [pageId, postId] = storyId.split('_');
-        return `https://www.facebook.com/${pageId}/posts/${postId}`;
+        // Use permalink.php format which is more reliable for Ad Dark Posts
+        return `https://www.facebook.com/permalink.php?story_fbid=${postId}&id=${pageId}`;
     }
     // Fallback for single IDs
     return `https://www.facebook.com/${storyId}`;
@@ -994,4 +995,3 @@ const Dashboard: React.FC = () => {
 };
 
 export default Dashboard;
-    
