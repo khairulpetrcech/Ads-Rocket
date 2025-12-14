@@ -1,5 +1,5 @@
 
-import React, { createContext, useContext, useState, useEffect, PropsWithChildren } from 'react';
+import React, { createContext, useContext, useState, useEffect, PropsWithChildren, useRef } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Layout from './components/Layout';
 import LoginPage from './pages/Login';
@@ -184,13 +184,14 @@ const App: React.FC = () => {
     }
   }, [settings.fbAppId]);
 
-  // Background Token Validity Check (Every 5 minutes)
+  // Background Token Validity Check (Robust Desktop Handling)
   useEffect(() => {
     if (!isAuthenticated || !settings.isConnected || !settings.fbAppId) return;
 
     const checkToken = () => {
         if (window.FB && settings.fbAccessToken !== 'dummy_token') {
             // Force status check to keep session alive or detect rotation
+            // The 'true' flag forces a roundtrip to FB servers, critical for waking up cookies
             window.FB.getLoginStatus((response: any) => {
                 if (response.status === 'connected' && response.authResponse) {
                     const newToken = response.authResponse.accessToken;
@@ -199,13 +200,50 @@ const App: React.FC = () => {
                         console.log("Refreshing token in background...");
                         updateSettings({ fbAccessToken: newToken });
                     }
+                } else if (response.status === 'unknown' || response.status === 'not_authorized') {
+                    console.warn("Session lost during background check.");
+                    // Optional: Auto-logout or Prompt re-login could be added here
                 }
-            }, true); // Force update roundtrip
+            }, true); 
         }
     };
 
+    // 1. Regular Interval (Stops when tab sleeps)
     const interval = setInterval(checkToken, 5 * 60 * 1000); // Check every 5 mins
-    return () => clearInterval(interval);
+
+    // 2. Visibility Change Listener (Triggers when tab wakes up)
+    const handleVisibilityChange = () => {
+        if (document.visibilityState === 'visible') {
+            console.log("Tab woke up: Checking token status...");
+            checkToken();
+        }
+    };
+
+    // 3. User Interaction Listener (Extra safety for desktop idle)
+    // We debounce this so it doesn't fire constantly
+    let lastInteractionCheck = Date.now();
+    const handleInteraction = () => {
+        const now = Date.now();
+        // Only check if it's been more than 10 minutes since last check AND user is active
+        if (now - lastInteractionCheck > 10 * 60 * 1000) {
+            lastInteractionCheck = now;
+            console.log("User active after idle: Checking token...");
+            checkToken();
+        }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleVisibilityChange);
+    window.addEventListener('click', handleInteraction);
+    window.addEventListener('keydown', handleInteraction);
+
+    return () => {
+        clearInterval(interval);
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+        window.removeEventListener('focus', handleVisibilityChange);
+        window.removeEventListener('click', handleInteraction);
+        window.removeEventListener('keydown', handleInteraction);
+    };
   }, [isAuthenticated, settings.isConnected, settings.fbAppId, settings.fbAccessToken]);
 
   if (loading || checkingKey) {
