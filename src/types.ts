@@ -1,5 +1,4 @@
 
-
 export enum AiProvider {
   FREE = 'FREE', // Simulation
   GEMINI = 'GEMINI', // Google Gemini
@@ -33,6 +32,14 @@ export interface UserSettings {
   
   // Runtime Only
   availableAccounts: MetaAdAccount[]; 
+}
+
+export interface AdvantagePlusConfig {
+  enabled: boolean;
+  visualTouchups: boolean;
+  textOptimizations: boolean;
+  mediaCropping: boolean;
+  music: boolean;
 }
 
 export interface GlobalProcess {

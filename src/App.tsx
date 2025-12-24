@@ -189,22 +189,29 @@ const App: React.FC = () => {
     if (!isAuthenticated || !settings.isConnected || !settings.fbAppId) return;
 
     const checkToken = () => {
-        if (window.FB && settings.fbAccessToken !== 'dummy_token') {
-            // Force status check to keep session alive or detect rotation
-            // The 'true' flag forces a roundtrip to FB servers, critical for waking up cookies
-            window.FB.getLoginStatus((response: any) => {
-                if (response.status === 'connected' && response.authResponse) {
-                    const newToken = response.authResponse.accessToken;
-                    // Only update if different to avoid infinite loops if updateSettings triggers this
-                    if (newToken && newToken !== settings.fbAccessToken) {
-                        console.log("Refreshing token in background...");
-                        updateSettings({ fbAccessToken: newToken });
+        // Safety check to ensure window.FB is available and not in a disconnected state
+        if (typeof window.FB !== 'undefined' && window.FB.getLoginStatus && settings.fbAccessToken !== 'dummy_token') {
+            try {
+                // The 'true' flag forces a roundtrip to FB servers.
+                // We wrap this in a try-catch because if the extension context is invalidated (common in 'sleeping' tabs),
+                // accessing window.FB might throw a "Receiving end does not exist" error.
+                window.FB.getLoginStatus((response: any) => {
+                    if (response.status === 'connected' && response.authResponse) {
+                        const newToken = response.authResponse.accessToken;
+                        // Only update if different to avoid infinite loops
+                        if (newToken && newToken !== settings.fbAccessToken) {
+                            console.log("Refreshing token in background...");
+                            updateSettings({ fbAccessToken: newToken });
+                        }
+                    } else if (response.status === 'unknown' || response.status === 'not_authorized') {
+                        console.warn("Session lost during background check.");
                     }
-                } else if (response.status === 'unknown' || response.status === 'not_authorized') {
-                    console.warn("Session lost during background check.");
-                    // Optional: Auto-logout or Prompt re-login could be added here
-                }
-            }, true); 
+                }, true); 
+            } catch (e) {
+                // Silently ignore connection errors during background checks to prevent console noise
+                // This usually happens when the browser cleans up the extension context.
+                console.debug("Background token check skipped due to browser state.");
+            }
         }
     };
 
@@ -215,7 +222,8 @@ const App: React.FC = () => {
     const handleVisibilityChange = () => {
         if (document.visibilityState === 'visible') {
             console.log("Tab woke up: Checking token status...");
-            checkToken();
+            // Small delay to allow extensions/iframes to reconnect
+            setTimeout(checkToken, 1000);
         }
     };
 
