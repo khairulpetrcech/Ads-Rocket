@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { useSettings } from '../App';
 import { 
@@ -13,7 +14,7 @@ import {
     getPages,
     getPixels
 } from '../services/metaService';
-import { CheckCircle, Loader2, Upload, AlertTriangle, Save, FolderOpen, Trash2, ChevronDown, Video, Image as ImageIcon, Sparkles } from 'lucide-react';
+import { CheckCircle, Loader2, Upload, AlertTriangle, Save, FolderOpen, Trash2, ChevronDown, Video, Image as ImageIcon } from 'lucide-react';
 
 interface Template {
     id: string;
@@ -22,7 +23,7 @@ interface Template {
 }
 
 const CreateCampaign: React.FC = () => {
-    const { settings, setGlobalProcess, globalProcess } = useSettings();
+    const { settings, globalProcess, setGlobalProcess } = useSettings();
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [successMsg, setSuccessMsg] = useState('');
@@ -57,7 +58,6 @@ const CreateCampaign: React.FC = () => {
     const [description, setDescription] = useState(''); 
     const [destinationUrl, setDestinationUrl] = useState('');
     const [callToAction, setCallToAction] = useState('LEARN_MORE'); 
-    const [advantagePlus, setAdvantagePlus] = useState(true); 
     
     const [mediaFile, setMediaFile] = useState<File | null>(null);
     const [mediaType, setMediaType] = useState<'image' | 'video'>('image');
@@ -161,7 +161,7 @@ const CreateCampaign: React.FC = () => {
                 adSetMode, newAdSetName, dailyBudget, optimizationGoal, selectedPixelId,
                 selectedPageId, 
                 adName,
-                primaryText, headline, description, destinationUrl, callToAction, advantagePlus
+                primaryText, headline, description, destinationUrl, callToAction
             }
         };
         const updated = [...templates, newTemplate];
@@ -188,7 +188,6 @@ const CreateCampaign: React.FC = () => {
         if (d.description) setDescription(d.description); 
         if (d.destinationUrl) setDestinationUrl(d.destinationUrl);
         if (d.callToAction) setCallToAction(d.callToAction);
-        if (d.advantagePlus !== undefined) setAdvantagePlus(d.advantagePlus);
         setShowTemplatesDropdown(false);
     };
 
@@ -257,7 +256,19 @@ const CreateCampaign: React.FC = () => {
             }
 
             setGlobalProcess({ active: true, name: "Creating Campaign...", message: "Finalizing Creative...", type: "CAMPAIGN_CREATION" });
-            const creativeId = await createMetaCreative(adAccountId, adName, selectedPageId, assetId, primaryText, headline, destinationUrl, fbAccessToken, mediaType, callToAction, description, advantagePlus);
+            const creativeId = await createMetaCreative(
+                adAccountId, 
+                adName, 
+                selectedPageId, 
+                assetId, 
+                primaryText, 
+                headline, 
+                destinationUrl, 
+                fbAccessToken, 
+                mediaType, 
+                callToAction, 
+                description
+            );
 
             setGlobalProcess({ active: true, name: "Creating Campaign...", message: "Publishing Final Ad...", type: "CAMPAIGN_CREATION" });
             await createMetaAd(adAccountId, finalAdSetId, adName, creativeId, fbAccessToken);
@@ -503,11 +514,6 @@ const CreateCampaign: React.FC = () => {
                                      </>
                                  )}
                             </div>
-                            {mediaType === 'video' && mediaFile && (
-                                <p className="text-xs text-indigo-600 mt-2 flex items-center gap-1 font-medium bg-indigo-50 p-2 rounded">
-                                    <Sparkles size={12} /> Video uploads use Chunked Resumable Upload for better reliability.
-                                </p>
-                            )}
                         </div>
 
                         <div className="md:col-span-2">
@@ -542,23 +548,6 @@ const CreateCampaign: React.FC = () => {
                         <div className="md:col-span-2">
                             <label className="block text-sm font-medium text-slate-600 mb-1.5">Destination URL</label>
                             <input type="text" value={destinationUrl} onChange={(e) => setDestinationUrl(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-slate-800 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 outline-none transition-all" placeholder="https://..."/>
-                        </div>
-                        
-                        <div className="md:col-span-2 pt-2">
-                             <div className="flex items-center justify-between bg-slate-50 p-4 rounded-lg border border-slate-200">
-                                 <div>
-                                     <h3 className="text-slate-800 font-bold flex items-center gap-2">
-                                         <Sparkles size={16} className="text-indigo-600" /> Advantage+ Creative
-                                     </h3>
-                                     <p className="text-xs text-slate-500 mt-1">Let Meta automatically optimize your creative (Standard Enhancements).</p>
-                                 </div>
-                                 <button 
-                                    onClick={() => setAdvantagePlus(!advantagePlus)}
-                                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${advantagePlus ? 'bg-indigo-600' : 'bg-slate-300'}`}
-                                 >
-                                     <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${advantagePlus ? 'translate-x-6' : 'translate-x-1'}`} />
-                                 </button>
-                             </div>
                         </div>
 
                     </div>

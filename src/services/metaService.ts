@@ -682,8 +682,7 @@ export const createMetaCreative = async (
     accessToken: string,
     mediaType: 'image' | 'video' = 'image',
     callToAction: string = 'LEARN_MORE',
-    description: string = '',
-    advantagePlusEnabled: boolean = true
+    description: string = ''
 ) => {
     const actId = accountId.startsWith('act_') ? accountId : `act_${accountId}`;
     const url = `https://graph.facebook.com/v19.0/${actId}/adcreatives`;
@@ -694,17 +693,9 @@ export const createMetaCreative = async (
         published: false,
     };
 
-    // --- ADVANTAGE+ CREATIVE LOGIC ---
-    // If OFF, we must explicitly opt out of standard enhancements
-    if (!advantagePlusEnabled) {
-        body.degrees_of_freedom_spec = {
-            creative_features_spec: {
-                standard_enhancements: {
-                    enroll_status: "OPT_OUT"
-                }
-            }
-        };
-    }
+    // Removed deprecated degrees_of_freedom_spec logic to fix API error 100/3858504
+    // Standard enhancements are now generally auto-managed or require different endpoints.
+    // By omitting the field, we rely on default Meta behavior which is safer for the Graph API.
 
     if (mediaType === 'image') {
         body.object_story_spec = {
