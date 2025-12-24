@@ -1,5 +1,5 @@
 
-import { AdCampaign, MetaAdAccount, AdSet, Ad, AdvantagePlusConfig } from '../types';
+import { AdCampaign, MetaAdAccount, AdSet, Ad } from '../types';
 
 declare global {
   interface Window {
@@ -682,8 +682,7 @@ export const createMetaCreative = async (
     accessToken: string,
     mediaType: 'image' | 'video' = 'image',
     callToAction: string = 'LEARN_MORE',
-    description: string = '',
-    advantagePlusConfig?: AdvantagePlusConfig 
+    description: string = ''
 ) => {
     const actId = accountId.startsWith('act_') ? accountId : `act_${accountId}`;
     const url = `https://graph.facebook.com/v19.0/${actId}/adcreatives`;
@@ -694,23 +693,9 @@ export const createMetaCreative = async (
         published: false,
     };
 
-    // --- ADVANTAGE+ / STANDARD ENHANCEMENTS LOGIC ---
-    // If config exists, use it. Otherwise rely on default (Meta usually defaults to OPT_IN for new creatives)
-    // To strictly support "Turn Off", we check the enabled flag.
-    if (advantagePlusConfig) {
-        // Construct the degrees_of_freedom_spec to control Standard Enhancements
-        body.degrees_of_freedom_spec = {
-            creative_features_spec: {
-                standard_enhancements: {
-                    enroll_status: advantagePlusConfig.enabled ? 'OPT_IN' : 'OPT_OUT'
-                }
-            }
-        };
-        // NOTE: Granular exclusion (e.g. specifically turning off Text Overlay while keeping others)
-        // is not fully supported in the standard adcreatives endpoint without using Asset Feeds.
-        // We prioritize the 'enroll_status' to ensure the API call succeeds without 400 errors.
-        // The backend treats the sub-toggles as indicators for the bundle.
-    }
+    // Removed deprecated degrees_of_freedom_spec logic to fix API error 100/3858504
+    // Standard enhancements are now generally auto-managed or require different endpoints.
+    // By omitting the field, we rely on default Meta behavior which is safer for the Graph API.
 
     if (mediaType === 'image') {
         body.object_story_spec = {
