@@ -14,13 +14,30 @@ import {
     getPages,
     getPixels
 } from '../services/metaService';
-import { CheckCircle, Loader2, Upload, AlertTriangle, Save, FolderOpen, Trash2, ChevronDown, Video, Image as ImageIcon } from 'lucide-react';
+import { CheckCircle, Loader2, Upload, AlertTriangle, Save, FolderOpen, Trash2, ChevronDown, Video, Image as ImageIcon, Sparkles, Wand2 } from 'lucide-react';
+import { AdvantagePlusConfig } from '../types';
 
 interface Template {
     id: string;
     name: string;
     data: any;
 }
+
+// TOGGLE SWITCH COMPONENT
+const ToggleSwitch = ({ checked, onChange, label, subtext }: { checked: boolean, onChange: (val: boolean) => void, label: string, subtext?: string }) => (
+    <div className="flex items-center justify-between py-2 group">
+        <div className="flex flex-col">
+            <span className={`text-sm font-medium transition-colors ${checked ? 'text-slate-800' : 'text-slate-500'}`}>{label}</span>
+            {subtext && <span className="text-[10px] text-slate-400">{subtext}</span>}
+        </div>
+        <button 
+            onClick={() => onChange(!checked)}
+            className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none ${checked ? 'bg-indigo-600' : 'bg-slate-200'}`}
+        >
+            <span className={`inline-block h-3 w-3 transform rounded-full bg-white shadow-sm transition-transform ${checked ? 'translate-x-5' : 'translate-x-1'}`} />
+        </button>
+    </div>
+);
 
 const CreateCampaign: React.FC = () => {
     const { settings, globalProcess, setGlobalProcess } = useSettings();
@@ -58,6 +75,15 @@ const CreateCampaign: React.FC = () => {
     const [description, setDescription] = useState(''); 
     const [destinationUrl, setDestinationUrl] = useState('');
     const [callToAction, setCallToAction] = useState('LEARN_MORE'); 
+    
+    // ADVANTAGE+ CREATIVE STATE
+    const [advPlusConfig, setAdvPlusConfig] = useState<AdvantagePlusConfig>({
+        enabled: true, // Default On (Standard Meta Behavior)
+        visualTouchups: true,
+        textOptimizations: true,
+        mediaCropping: true,
+        music: true
+    });
     
     const [mediaFile, setMediaFile] = useState<File | null>(null);
     const [mediaType, setMediaType] = useState<'image' | 'video'>('image');
@@ -161,7 +187,8 @@ const CreateCampaign: React.FC = () => {
                 adSetMode, newAdSetName, dailyBudget, optimizationGoal, selectedPixelId,
                 selectedPageId, 
                 adName,
-                primaryText, headline, description, destinationUrl, callToAction
+                primaryText, headline, description, destinationUrl, callToAction,
+                advPlusConfig // Save Adv+ Config
             }
         };
         const updated = [...templates, newTemplate];
@@ -188,6 +215,7 @@ const CreateCampaign: React.FC = () => {
         if (d.description) setDescription(d.description); 
         if (d.destinationUrl) setDestinationUrl(d.destinationUrl);
         if (d.callToAction) setCallToAction(d.callToAction);
+        if (d.advPlusConfig) setAdvPlusConfig(d.advPlusConfig); // Load Adv+ Config
         setShowTemplatesDropdown(false);
     };
 
@@ -256,6 +284,8 @@ const CreateCampaign: React.FC = () => {
             }
 
             setGlobalProcess({ active: true, name: "Creating Campaign...", message: "Finalizing Creative...", type: "CAMPAIGN_CREATION" });
+            
+            // Pass Advantage+ Config here
             const creativeId = await createMetaCreative(
                 adAccountId, 
                 adName, 
@@ -267,7 +297,8 @@ const CreateCampaign: React.FC = () => {
                 fbAccessToken, 
                 mediaType, 
                 callToAction, 
-                description
+                description,
+                advPlusConfig 
             );
 
             setGlobalProcess({ active: true, name: "Creating Campaign...", message: "Publishing Final Ad...", type: "CAMPAIGN_CREATION" });
@@ -550,6 +581,64 @@ const CreateCampaign: React.FC = () => {
                             <input type="text" value={destinationUrl} onChange={(e) => setDestinationUrl(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-slate-800 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 outline-none transition-all" placeholder="https://..."/>
                         </div>
 
+                    </div>
+                </div>
+
+                {/* --- ADVANTAGE+ CREATIVE SECTION --- */}
+                <div className="bg-gradient-to-br from-indigo-50 to-white rounded-xl border border-indigo-100 p-6 shadow-sm relative overflow-hidden">
+                    {/* Decorative Background Icon */}
+                    <div className="absolute top-0 right-0 p-6 opacity-5 pointer-events-none">
+                        <Wand2 size={100} className="text-indigo-600" />
+                    </div>
+
+                    <div className="flex items-center gap-3 mb-4">
+                        <div className="p-2 bg-indigo-100 rounded-lg text-indigo-600">
+                            <Sparkles size={20} />
+                        </div>
+                        <div>
+                            <h2 className="text-lg font-bold text-slate-800">Advantage+ Creative</h2>
+                            <p className="text-xs text-slate-500">Automatically optimize creative for each person.</p>
+                        </div>
+                    </div>
+
+                    <div className="space-y-4 relative z-10">
+                        <ToggleSwitch 
+                            label="Enable Advantage+ Creative" 
+                            checked={advPlusConfig.enabled} 
+                            onChange={(val) => setAdvPlusConfig({...advPlusConfig, enabled: val})}
+                            subtext="Allow Meta to automatically improve creative performance."
+                        />
+
+                        {advPlusConfig.enabled && (
+                            <div className="pl-4 ml-2 border-l-2 border-indigo-100 space-y-1 animate-fadeIn">
+                                <ToggleSwitch 
+                                    label="Visual Touchups" 
+                                    checked={advPlusConfig.visualTouchups} 
+                                    onChange={(val) => setAdvPlusConfig({...advPlusConfig, visualTouchups: val})}
+                                    subtext="Adjust brightness, contrast and aspect ratio."
+                                />
+                                <ToggleSwitch 
+                                    label="Text Optimizations" 
+                                    checked={advPlusConfig.textOptimizations} 
+                                    onChange={(val) => setAdvPlusConfig({...advPlusConfig, textOptimizations: val})}
+                                    subtext="Swap text between headline, primary, and description."
+                                />
+                                <ToggleSwitch 
+                                    label="Media Cropping" 
+                                    checked={advPlusConfig.mediaCropping} 
+                                    onChange={(val) => setAdvPlusConfig({...advPlusConfig, mediaCropping: val})}
+                                    subtext="Auto-crop images/videos for stories and reels."
+                                />
+                                {mediaType === 'video' && (
+                                    <ToggleSwitch 
+                                        label="Music" 
+                                        checked={advPlusConfig.music} 
+                                        onChange={(val) => setAdvPlusConfig({...advPlusConfig, music: val})}
+                                        subtext="Automatically add music to video ads."
+                                    />
+                                )}
+                            </div>
+                        )}
                     </div>
                 </div>
 
