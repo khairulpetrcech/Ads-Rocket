@@ -584,6 +584,68 @@ export const uploadAdImage = async (accountId: string, file: File, accessToken: 
     throw new Error("Image upload failed: No hash returned");
 };
 
+// Upload image from Blob (for video thumbnails)
+export const uploadAdImageBlob = async (accountId: string, blob: Blob, accessToken: string) => {
+    const actId = accountId.startsWith('act_') ? accountId : `act_${accountId}`;
+    const url = `https://graph.facebook.com/v19.0/${actId}/adimages`;
+    const formData = new FormData();
+    formData.append('access_token', accessToken);
+    formData.append('filename', blob, 'thumbnail.jpg');
+    const response = await fetch(url, { method: 'POST', body: formData });
+    const data = await response.json();
+    handleApiError(data);
+    const images = data.images || {};
+    const firstKey = Object.keys(images)[0];
+    if (firstKey && images[firstKey].hash) { return images[firstKey].hash; }
+    throw new Error("Thumbnail upload failed: No hash returned");
+};
+
+// Extract thumbnail from video file at 1 second mark
+export const extractVideoThumbnail = (videoFile: File): Promise<Blob> => {
+    return new Promise((resolve, reject) => {
+        const video = document.createElement('video');
+        video.preload = 'metadata';
+        video.muted = true;
+        video.playsInline = true;
+
+        const url = URL.createObjectURL(videoFile);
+        video.src = url;
+
+        video.onloadeddata = () => {
+            // Seek to 1 second or 10% of video duration, whichever is smaller
+            video.currentTime = Math.min(1, video.duration * 0.1);
+        };
+
+        video.onseeked = () => {
+            try {
+                const canvas = document.createElement('canvas');
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                const ctx = canvas.getContext('2d');
+                if (!ctx) throw new Error("Canvas context failed");
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+                canvas.toBlob((blob) => {
+                    URL.revokeObjectURL(url);
+                    if (blob) {
+                        resolve(blob);
+                    } else {
+                        reject(new Error("Failed to generate thumbnail blob"));
+                    }
+                }, 'image/jpeg', 0.85);
+            } catch (e) {
+                URL.revokeObjectURL(url);
+                reject(e);
+            }
+        };
+
+        video.onerror = () => {
+            URL.revokeObjectURL(url);
+            reject(new Error("Failed to load video for thumbnail extraction"));
+        };
+    });
+};
+
 // --- CHUNKED VIDEO UPLOAD (RESUMABLE) ---
 // DEBUG: Using strict steps from user request
 export const uploadAdVideo = async (
@@ -758,7 +820,8 @@ export const createMetaCreative = async (
     mediaType: 'image' | 'video' = 'image',
     callToAction: string = 'LEARN_MORE',
     description: string = '',
-    advantagePlusConfig?: AdvantagePlusConfig
+    advantagePlusConfig?: AdvantagePlusConfig,
+    thumbnailHash?: string // For video ads - required thumbnail image hash
 ) => {
     const actId = accountId.startsWith('act_') ? accountId : `act_${accountId}`;
     const url = `https://graph.facebook.com/v19.0/${actId}/adcreatives`;
@@ -807,8 +870,8 @@ export const createMetaCreative = async (
                 message: sanitizeInput(message),
                 title: sanitizeInput(headline),
                 link_description: sanitizeInput(description),
-                call_to_action: { type: callToAction, value: { link: link } }
-                // Note: image_url removed - Facebook auto-generates thumbnail from video
+                call_to_action: { type: callToAction, value: { link: link } },
+                image_hash: thumbnailHash // Required thumbnail for video ads
             }
         };
     }

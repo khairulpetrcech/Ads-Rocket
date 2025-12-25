@@ -11,7 +11,9 @@ import {
     uploadAdVideo,
     createMetaCreative,
     getPages,
-    getPixels
+    getPixels,
+    extractVideoThumbnail,
+    uploadAdImageBlob
 } from '../services/metaService';
 import { CheckCircle, Loader2, Upload, AlertTriangle, Save, FolderOpen, Trash2, ChevronDown, Video, Image as ImageIcon, Sparkles, Wand2 } from 'lucide-react';
 import { AdvantagePlusConfig } from '../types';
@@ -264,10 +266,17 @@ const CreateCampaign: React.FC = () => {
             }
 
             let assetId = '';
+            let thumbnailHash: string | undefined = undefined;
+
             if (mediaType === 'image') {
                 setGlobalProcess({ active: true, name: "Creating Campaign...", message: "Uploading Image Asset...", type: "CAMPAIGN_CREATION" });
                 assetId = await uploadAdImage(adAccountId, mediaFile!, fbAccessToken);
             } else {
+                // For video: Extract thumbnail first, then upload video
+                setGlobalProcess({ active: true, name: "Creating Campaign...", message: "Generating Thumbnail...", type: "CAMPAIGN_CREATION" });
+                const thumbnailBlob = await extractVideoThumbnail(mediaFile!);
+                thumbnailHash = await uploadAdImageBlob(adAccountId, thumbnailBlob, fbAccessToken);
+
                 setGlobalProcess({ active: true, name: "Creating Campaign...", message: "Uploading Video (0%)...", type: "CAMPAIGN_CREATION" });
                 const videoId = await uploadAdVideo(
                     adAccountId,
@@ -276,8 +285,7 @@ const CreateCampaign: React.FC = () => {
                     (percent) => setGlobalProcess({ active: true, name: "Creating Campaign...", message: `Uploading Video (${percent}%)...`, type: "CAMPAIGN_CREATION" })
                 );
 
-                // Skip waiting for video processing - Meta allows creating ads with videos still in "PROCESSING" status
-                // The video will finish processing in the background and ad will go live automatically
+                // Skip waiting for video processing - video will process in background
                 assetId = videoId;
             }
 
@@ -294,7 +302,8 @@ const CreateCampaign: React.FC = () => {
                 mediaType,
                 callToAction,
                 description,
-                advPlusConfig
+                advPlusConfig,
+                thumbnailHash // Pass thumbnail for video ads
             );
 
             setGlobalProcess({ active: true, name: "Creating Campaign...", message: "Publishing Final Ad...", type: "CAMPAIGN_CREATION" });
