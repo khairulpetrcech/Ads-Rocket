@@ -834,15 +834,19 @@ export const createMetaCreative = async (
 
     // --- ADVANTAGE+ / CREATIVE FEATURES LOGIC ---
     // As of API v22.0, standard_enhancements bundle is DEPRECATED.
-    // Must set only valid individual features: image_touchups, text_optimizations, image_templates, inline_comment
+    // Must set individual features for both image and video ads.
     if (advantagePlusConfig && !advantagePlusConfig.enabled) {
-        // OPT OUT of Advantage+ Creative features when disabled
-        // Only use validated feature keys to avoid API errors
+        // OPT OUT of ALL Advantage+ Creative features when disabled
         body.degrees_of_freedom_spec = {
             creative_features_spec: {
+                // Image features
                 image_touchups: { enroll_status: 'OPT_OUT' },
-                text_optimizations: { enroll_status: 'OPT_OUT' },
                 image_templates: { enroll_status: 'OPT_OUT' },
+                // Video features
+                video_auto_crop: { enroll_status: 'OPT_OUT' },
+                enhance_cta: { enroll_status: 'OPT_OUT' },
+                // Text features
+                text_optimizations: { enroll_status: 'OPT_OUT' },
                 inline_comment: { enroll_status: 'OPT_OUT' }
             }
         };

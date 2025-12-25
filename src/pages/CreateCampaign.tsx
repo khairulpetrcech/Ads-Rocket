@@ -77,13 +77,13 @@ const CreateCampaign: React.FC = () => {
     const [destinationUrl, setDestinationUrl] = useState('');
     const [callToAction, setCallToAction] = useState('LEARN_MORE');
 
-    // ADVANTAGE+ CREATIVE STATE
+    // ADVANTAGE+ CREATIVE STATE - Default OFF to disable all enhancements
     const [advPlusConfig, setAdvPlusConfig] = useState<AdvantagePlusConfig>({
-        enabled: true, // Default On (Standard Meta Behavior)
-        visualTouchups: true,
-        textOptimizations: true,
-        mediaCropping: true,
-        music: true
+        enabled: false, // Default OFF - user can enable if wanted
+        visualTouchups: false,
+        textOptimizations: false,
+        mediaCropping: false,
+        music: false
     });
 
     const [mediaFile, setMediaFile] = useState<File | null>(null);
