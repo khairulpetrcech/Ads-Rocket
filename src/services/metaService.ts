@@ -585,7 +585,7 @@ export const uploadAdImage = async (accountId: string, file: File, accessToken: 
 };
 
 // --- CHUNKED VIDEO UPLOAD (RESUMABLE) ---
-// Fixing Timeouts for Large Files
+// Fixing Timeouts for Large Files and removing aggressive Aborts to prevent connection drops
 export const uploadAdVideo = async (
     accountId: string, 
     file: File, 
@@ -626,15 +626,11 @@ export const uploadAdVideo = async (
         
         while (retries > 0) {
             try {
-                const controller = new AbortController();
-                const id = setTimeout(() => controller.abort(), 60000); // 60s timeout per chunk upload
-                
+                // Removed AbortController to reduce browser connection errors
                 const transRes = await fetch(url, { 
                     method: 'POST', 
-                    body: transferForm,
-                    signal: controller.signal
+                    body: transferForm
                 });
-                clearTimeout(id);
                 
                 transData = await transRes.json();
                 handleApiError(transData);
@@ -666,9 +662,21 @@ export const uploadAdVideo = async (
     finishForm.append('upload_phase', 'finish');
     finishForm.append('upload_session_id', upload_session_id);
     
-    const finishRes = await fetch(url, { method: 'POST', body: finishForm });
-    const finishData = await finishRes.json();
-    handleApiError(finishData);
+    // Retry logic for Finish as well, as it triggers encoding start
+    let finishRetries = 3;
+    let finishData = null;
+    while(finishRetries > 0) {
+        try {
+            const finishRes = await fetch(url, { method: 'POST', body: finishForm });
+            finishData = await finishRes.json();
+            handleApiError(finishData);
+            break;
+        } catch(e) {
+            finishRetries--;
+            if (finishRetries === 0) throw new Error("Video upload finish phase failed.");
+            await new Promise(r => setTimeout(r, 2000));
+        }
+    }
     
     if (onProgress) onProgress(100);
     
@@ -680,15 +688,39 @@ export const uploadAdVideo = async (
 
 
 export const waitForVideoReady = async (videoId: string, accessToken: string, retries = 120): Promise<boolean> => {
-    const url = `https://graph.facebook.com/v19.0/${videoId}?fields=status&access_token=${accessToken}`;
+    // Adding processing_progress to fields to monitor status
+    const url = `https://graph.facebook.com/v19.0/${videoId}?fields=status,processing_progress&access_token=${accessToken}`;
     for (let i = 0; i < retries; i++) {
         try {
             const res = await fetch(url);
             const data = await res.json();
+            
+            // Explicitly check for error object to avoid silent fail/timeout
+            if (data.error) {
+                console.error("Video Polling Error:", data.error);
+                if (data.error.code === 190) { // Session expired
+                    throw new Error("Session expired during video processing.");
+                }
+                // If it's another error, we might want to fail fast or retry.
+                // For now, logging and continuing unless it's a fatal permanent error.
+            }
+
             if (data.status && data.status.video_status === 'READY') {
                 return true;
             }
-        } catch (e) { console.warn("Polling video status failed", e); }
+            
+            if (data.status && data.status.video_status === 'ERROR') {
+                console.error("Meta Video Processing Failed:", data);
+                return false;
+            }
+            
+            // Optional: Log progress
+            // if (data.processing_progress) console.debug(`Video Processing: ${data.processing_progress}%`);
+
+        } catch (e: any) { 
+            console.warn("Polling video status exception", e);
+            if (e.message && e.message.includes("Session expired")) throw e;
+        }
         await new Promise(r => setTimeout(r, 3000)); // Wait 3s (Total ~6 mins)
     }
     return false;
