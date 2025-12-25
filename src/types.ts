@@ -12,26 +12,26 @@ export interface UserSettings {
   // Auth Info
   userId?: string;
   email?: string;
-  
+
   // App State
   isConnected: boolean;
   businessName: string;
-  
+
   // AI Config
   selectedAiProvider: AiProvider;
   selectedModel: string;
   apiKey: string; // Will be decrypted on load
-  
+
   // Meta Config
   fbAppId: string;
   fbAccessToken: string;
   adAccountId: string;
-  
+
   // UI Preferences
   dashboardViewMode?: 'SALES' | 'TRAFFIC';
-  
+
   // Runtime Only
-  availableAccounts: MetaAdAccount[]; 
+  availableAccounts: MetaAdAccount[];
 }
 
 export interface AdvantagePlusConfig {
@@ -81,6 +81,7 @@ export interface AdMetrics {
   results: number;
   costPerResult: number;
   inline_link_click_ctr: number;
+  totalLeads: number;
 }
 
 export interface BaseEntity {

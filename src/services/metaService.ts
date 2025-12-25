@@ -308,7 +308,8 @@ const mapInsightsToMetrics = (data: any) => {
         purchases: parseInt(purchaseAction),
         costPerPurchase: purchaseAction > 0 ? parseFloat((spend / purchaseAction).toFixed(2)) : 0,
         results: finalResults,
-        costPerResult: finalResults > 0 ? parseFloat((spend / finalResults).toFixed(2)) : 0
+        costPerResult: finalResults > 0 ? parseFloat((spend / finalResults).toFixed(2)) : 0,
+        totalLeads: parseInt(leads) + parseInt(messagingStarted) + parseInt(messagingInitiated)
     };
 };
 
