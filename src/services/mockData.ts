@@ -29,7 +29,8 @@ export const MOCK_CAMPAIGNS: AdCampaign[] = [
       costPerPurchase: 25.00,
       results: 50,
       costPerResult: 25.00,
-      inline_link_click_ctr: 1.5
+      inline_link_click_ctr: 1.5,
+      totalLeads: 0
     },
     history: generateHistory(2.5, 7)
   },
@@ -53,7 +54,8 @@ export const MOCK_CAMPAIGNS: AdCampaign[] = [
       costPerPurchase: 12.50,
       results: 32,
       costPerResult: 12.50,
-      inline_link_click_ctr: 2.5
+      inline_link_click_ctr: 2.5,
+      totalLeads: 0
     },
     history: generateHistory(4.0, 7)
   },
@@ -77,7 +79,8 @@ export const MOCK_CAMPAIGNS: AdCampaign[] = [
       costPerPurchase: 63.63,
       results: 22,
       costPerResult: 63.63,
-      inline_link_click_ctr: 1.0
+      inline_link_click_ctr: 1.0,
+      totalLeads: 0
     },
     history: generateHistory(1.1, 7)
   },
@@ -101,7 +104,8 @@ export const MOCK_CAMPAIGNS: AdCampaign[] = [
       costPerPurchase: 150.00,
       results: 1,
       costPerResult: 150.00,
-      inline_link_click_ctr: 0.8
+      inline_link_click_ctr: 0.8,
+      totalLeads: 0
     },
     history: generateHistory(0.5, 7)
   }
