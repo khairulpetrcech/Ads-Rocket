@@ -277,7 +277,7 @@ const CreateCampaign: React.FC = () => {
                     (percent) => setGlobalProcess({ active: true, name: "Creating Campaign...", message: `Uploading Video (${percent}%)...`, type: "CAMPAIGN_CREATION" })
                 );
                 
-                setGlobalProcess({ active: true, name: "Creating Campaign...", message: "Processing Video on Meta...", type: "CAMPAIGN_CREATION" });
+                setGlobalProcess({ active: true, name: "Creating Campaign...", message: "Processing Video on Meta (This may take a few minutes)...", type: "CAMPAIGN_CREATION" });
                 const isReady = await waitForVideoReady(videoId, fbAccessToken);
                 if (!isReady) throw new Error("Video processing timed out. Try smaller file.");
                 assetId = videoId;

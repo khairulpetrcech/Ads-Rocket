@@ -611,9 +611,6 @@ export const uploadAdVideo = async (
     // 2. TRANSFER CHUNKS
     // Loop until start_offset matches end_offset (meaning range is empty/done)
     while (parseInt(start_offset) < parseInt(end_offset)) {
-        // Slice returns a blob for the range. End index is exclusive in slice, but inclusive in FB response logic usually. 
-        // FB: start_offset (inclusive), end_offset (exclusive). 
-        // Example: 0-100. Slice(0,100) gets bytes 0 to 99 (100 bytes). This matches.
         const chunk = file.slice(parseInt(start_offset), parseInt(end_offset));
         
         const transferForm = new FormData();
@@ -629,7 +626,16 @@ export const uploadAdVideo = async (
         
         while (retries > 0) {
             try {
-                const transRes = await fetch(url, { method: 'POST', body: transferForm });
+                const controller = new AbortController();
+                const id = setTimeout(() => controller.abort(), 60000); // 60s timeout per chunk upload
+                
+                const transRes = await fetch(url, { 
+                    method: 'POST', 
+                    body: transferForm,
+                    signal: controller.signal
+                });
+                clearTimeout(id);
+                
                 transData = await transRes.json();
                 handleApiError(transData);
                 break; // Success, exit retry loop
@@ -673,7 +679,7 @@ export const uploadAdVideo = async (
 };
 
 
-export const waitForVideoReady = async (videoId: string, accessToken: string, retries = 20): Promise<boolean> => {
+export const waitForVideoReady = async (videoId: string, accessToken: string, retries = 120): Promise<boolean> => {
     const url = `https://graph.facebook.com/v19.0/${videoId}?fields=status&access_token=${accessToken}`;
     for (let i = 0; i < retries; i++) {
         try {
@@ -683,7 +689,7 @@ export const waitForVideoReady = async (videoId: string, accessToken: string, re
                 return true;
             }
         } catch (e) { console.warn("Polling video status failed", e); }
-        await new Promise(r => setTimeout(r, 3000));
+        await new Promise(r => setTimeout(r, 3000)); // Wait 3s (Total ~6 mins)
     }
     return false;
 };
