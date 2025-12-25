@@ -1,15 +1,15 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useSettings } from '../App';
-import {
-    getRealCampaigns,
-    getAdSets,
-    createMetaCampaign,
-    createMetaAdSet,
-    createMetaAd,
+import { 
+    getRealCampaigns, 
+    getAdSets, 
+    createMetaCampaign, 
+    createMetaAdSet, 
+    createMetaAd, 
     uploadAdImage,
-    uploadAdVideo,
-    waitForVideoReady,
+    uploadAdVideo, 
+    waitForVideoReady, 
     createMetaCreative,
     getPages,
     getPixels
@@ -30,7 +30,7 @@ const ToggleSwitch = ({ checked, onChange, label, subtext }: { checked: boolean,
             <span className={`text-sm font-medium transition-colors ${checked ? 'text-slate-800' : 'text-slate-500'}`}>{label}</span>
             {subtext && <span className="text-[10px] text-slate-400">{subtext}</span>}
         </div>
-        <button
+        <button 
             onClick={() => onChange(!checked)}
             className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none ${checked ? 'bg-indigo-600' : 'bg-slate-200'}`}
         >
@@ -72,10 +72,10 @@ const CreateCampaign: React.FC = () => {
     const [adName, setAdName] = useState('');
     const [primaryText, setPrimaryText] = useState('');
     const [headline, setHeadline] = useState('');
-    const [description, setDescription] = useState('');
+    const [description, setDescription] = useState(''); 
     const [destinationUrl, setDestinationUrl] = useState('');
-    const [callToAction, setCallToAction] = useState('LEARN_MORE');
-
+    const [callToAction, setCallToAction] = useState('LEARN_MORE'); 
+    
     // ADVANTAGE+ CREATIVE STATE
     const [advPlusConfig, setAdvPlusConfig] = useState<AdvantagePlusConfig>({
         enabled: true, // Default On (Standard Meta Behavior)
@@ -84,7 +84,7 @@ const CreateCampaign: React.FC = () => {
         mediaCropping: true,
         music: true
     });
-
+    
     const [mediaFile, setMediaFile] = useState<File | null>(null);
     const [mediaType, setMediaType] = useState<'image' | 'video'>('image');
     const [filePreview, setFilePreview] = useState<string | null>(null);
@@ -185,7 +185,7 @@ const CreateCampaign: React.FC = () => {
             data: {
                 campaignMode, newCampaignName, objective,
                 adSetMode, newAdSetName, dailyBudget, optimizationGoal, selectedPixelId,
-                selectedPageId,
+                selectedPageId, 
                 adName,
                 primaryText, headline, description, destinationUrl, callToAction,
                 advPlusConfig // Save Adv+ Config
@@ -212,7 +212,7 @@ const CreateCampaign: React.FC = () => {
         if (d.adName) setAdName(d.adName);
         if (d.primaryText) setPrimaryText(d.primaryText);
         if (d.headline) setHeadline(d.headline);
-        if (d.description) setDescription(d.description);
+        if (d.description) setDescription(d.description); 
         if (d.destinationUrl) setDestinationUrl(d.destinationUrl);
         if (d.callToAction) setCallToAction(d.callToAction);
         if (d.advPlusConfig) setAdvPlusConfig(d.advPlusConfig); // Load Adv+ Config
@@ -243,12 +243,12 @@ const CreateCampaign: React.FC = () => {
 
         setLoading(true);
         setError('');
-
+        
         setGlobalProcess({ active: true, name: "Creating Campaign...", message: "Initializing...", type: "CAMPAIGN_CREATION" });
 
         try {
             const { adAccountId, fbAccessToken } = settings;
-
+            
             let finalCampaignId = selectedCampaignId;
             if (campaignMode === 'new') {
                 setGlobalProcess({ active: true, name: "Creating Campaign...", message: "Creating Campaign Structure...", type: "CAMPAIGN_CREATION" });
@@ -271,36 +271,36 @@ const CreateCampaign: React.FC = () => {
             } else {
                 setGlobalProcess({ active: true, name: "Creating Campaign...", message: "Uploading Video (0%)...", type: "CAMPAIGN_CREATION" });
                 const videoId = await uploadAdVideo(
-                    adAccountId,
-                    mediaFile!,
-                    fbAccessToken,
+                    adAccountId, 
+                    mediaFile!, 
+                    fbAccessToken, 
                     (percent) => setGlobalProcess({ active: true, name: "Creating Campaign...", message: `Uploading Video (${percent}%)...`, type: "CAMPAIGN_CREATION" })
                 );
-
+                
                 setGlobalProcess({ active: true, name: "Creating Campaign...", message: "Processing Video on Meta...", type: "CAMPAIGN_CREATION" });
                 const isReady = await waitForVideoReady(
-                    videoId,
+                    videoId, 
                     fbAccessToken,
                     (status) => setGlobalProcess({ active: true, name: "Creating Campaign...", message: status, type: "CAMPAIGN_CREATION" })
                 );
-                if (!isReady) throw new Error("Video processing timed out. Facebook is still processing your video - this may take longer for larger files. Please try again with a smaller/shorter video, or wait a few minutes and try again.");
+                if (!isReady) throw new Error("Video processing failed or timed out.");
                 assetId = videoId;
             }
 
             setGlobalProcess({ active: true, name: "Creating Campaign...", message: "Finalizing Creative...", type: "CAMPAIGN_CREATION" });
             const creativeId = await createMetaCreative(
-                adAccountId,
-                adName,
-                selectedPageId,
-                assetId,
-                primaryText,
-                headline,
-                destinationUrl,
-                fbAccessToken,
-                mediaType,
-                callToAction,
+                adAccountId, 
+                adName, 
+                selectedPageId, 
+                assetId, 
+                primaryText, 
+                headline, 
+                destinationUrl, 
+                fbAccessToken, 
+                mediaType, 
+                callToAction, 
                 description,
-                advPlusConfig
+                advPlusConfig 
             );
 
             setGlobalProcess({ active: true, name: "Creating Campaign...", message: "Publishing Final Ad...", type: "CAMPAIGN_CREATION" });
@@ -308,15 +308,15 @@ const CreateCampaign: React.FC = () => {
 
             setSuccessMsg("Campaign Created Successfully! Check your Dashboard.");
             window.scrollTo(0, 0);
-
+            
             setTimeout(() => {
                 setGlobalProcess({ active: false, name: "", message: "", type: "NONE" });
             }, 2000);
-
+            
         } catch (e: any) {
             console.error(e);
             setError(e.message || "Failed to create campaign. Check parameters.");
-            window.scrollTo(0, 0);
+            window.scrollTo(0, 0); 
             setGlobalProcess({ active: false, name: "", message: "", type: "NONE" });
         } finally {
             setLoading(false);
@@ -327,10 +327,10 @@ const CreateCampaign: React.FC = () => {
         <div className="max-w-4xl mx-auto pb-20">
             <div className="flex justify-between items-center mb-6">
                 <h1 className="text-2xl font-bold text-slate-800">Create New Campaign</h1>
-
+                
                 <div className="flex gap-2 relative">
                     <div className="relative" ref={dropdownRef}>
-                        <button
+                        <button 
                             onClick={() => setShowTemplatesDropdown(!showTemplatesDropdown)}
                             className="flex items-center gap-2 bg-white border border-slate-200 text-slate-600 px-3 py-2 rounded-lg hover:bg-slate-50 shadow-sm"
                         >
@@ -354,7 +354,7 @@ const CreateCampaign: React.FC = () => {
                         )}
                     </div>
 
-                    <button
+                    <button 
                         onClick={() => setShowSaveTemplate(!showSaveTemplate)}
                         className="flex items-center gap-2 bg-indigo-50 text-indigo-600 px-3 py-2 rounded-lg hover:bg-indigo-100 border border-indigo-200 font-medium"
                     >
@@ -365,8 +365,8 @@ const CreateCampaign: React.FC = () => {
 
             {showSaveTemplate && (
                 <div className="mb-6 bg-white p-4 rounded-xl border border-indigo-100 shadow-sm flex gap-2 animate-fadeIn items-center">
-                    <input
-                        type="text"
+                    <input 
+                        type="text" 
                         value={templateName}
                         onChange={(e) => setTemplateName(e.target.value)}
                         placeholder="Template Name (e.g. Winning Scale Setup)"
@@ -379,39 +379,39 @@ const CreateCampaign: React.FC = () => {
 
             {error && (
                 <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 flex items-start gap-3 shadow-sm animate-fadeIn">
-                    <AlertTriangle size={20} className="mt-0.5 flex-shrink-0 text-red-500" />
+                    <AlertTriangle size={20} className="mt-0.5 flex-shrink-0 text-red-500"/> 
                     <div>
                         <p className="font-bold mb-1">Error Creating Campaign</p>
                         <p className="text-sm opacity-90">{error}</p>
                     </div>
                 </div>
             )}
-
+            
             {successMsg && (
                 <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-xl text-green-700 flex items-center gap-2 animate-fadeIn shadow-sm">
-                    <CheckCircle size={20} className="text-green-500" /> <span className="font-medium">{successMsg}</span>
+                    <CheckCircle size={20} className="text-green-500"/> <span className="font-medium">{successMsg}</span>
                 </div>
             )}
 
             <div className="space-y-6">
-
+                
                 {/* --- SECTION 1: CAMPAIGN --- */}
                 <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
                     <h2 className="text-lg font-bold text-slate-800 mb-4 border-b border-slate-100 pb-2">1. Campaign Settings</h2>
                     <div className="grid md:grid-cols-2 gap-6">
-                        <div className="space-y-4">
+                         <div className="space-y-4">
                             <label className="text-sm font-semibold text-slate-500">Campaign Mode</label>
                             <div className="flex bg-slate-100 rounded-lg p-1 border border-slate-200">
                                 <button onClick={() => setCampaignMode('new')} className={`flex-1 py-2 text-sm font-medium rounded-md transition-all ${campaignMode === 'new' ? 'bg-white text-indigo-600 shadow-sm border border-slate-200' : 'text-slate-500 hover:text-slate-800'}`}>Create New</button>
                                 <button onClick={() => setCampaignMode('existing')} className={`flex-1 py-2 text-sm font-medium rounded-md transition-all ${campaignMode === 'existing' ? 'bg-white text-indigo-600 shadow-sm border border-slate-200' : 'text-slate-500 hover:text-slate-800'}`}>Use Existing</button>
                             </div>
-                        </div>
+                         </div>
 
-                        {campaignMode === 'new' ? (
-                            <>
+                         {campaignMode === 'new' ? (
+                             <>
                                 <div>
                                     <label className="block text-sm font-medium text-slate-600 mb-1.5">Campaign Name</label>
-                                    <input type="text" value={newCampaignName} onChange={(e) => setNewCampaignName(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-slate-800 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 outline-none transition-all" placeholder="e.g. Raya Promo" />
+                                    <input type="text" value={newCampaignName} onChange={(e) => setNewCampaignName(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-slate-800 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 outline-none transition-all" placeholder="e.g. Raya Promo"/>
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-slate-600 mb-1.5">Objective</label>
@@ -421,16 +421,16 @@ const CreateCampaign: React.FC = () => {
                                         <option value="OUTCOME_AWARENESS">Awareness</option>
                                     </select>
                                 </div>
-                            </>
-                        ) : (
-                            <div className="md:col-span-2">
+                             </>
+                         ) : (
+                             <div className="md:col-span-2">
                                 <label className="block text-sm font-medium text-slate-600 mb-1.5">Select Campaign</label>
                                 <select value={selectedCampaignId} onChange={(e) => setSelectedCampaignId(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-slate-800 outline-none focus:border-indigo-500">
                                     <option value="">-- Select Campaign --</option>
                                     {existingCampaigns.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                                 </select>
-                            </div>
-                        )}
+                             </div>
+                         )}
                     </div>
                 </div>
 
@@ -444,17 +444,17 @@ const CreateCampaign: React.FC = () => {
                                 <button onClick={() => setAdSetMode('new')} className={`flex-1 py-2 text-sm font-medium rounded-md transition-all ${adSetMode === 'new' ? 'bg-white text-indigo-600 shadow-sm border border-slate-200' : 'text-slate-500 hover:text-slate-800'}`}>Create New</button>
                                 <button onClick={() => setAdSetMode('existing')} className={`flex-1 py-2 text-sm font-medium rounded-md transition-all ${adSetMode === 'existing' ? 'bg-white text-indigo-600 shadow-sm border border-slate-200' : 'text-slate-500 hover:text-slate-800'}`}>Use Existing</button>
                             </div>
-                        </div>
+                         </div>
 
-                        {adSetMode === 'new' ? (
-                            <>
+                         {adSetMode === 'new' ? (
+                             <>
                                 <div>
                                     <label className="block text-sm font-medium text-slate-600 mb-1.5">Ad Set Name</label>
-                                    <input type="text" value={newAdSetName} onChange={(e) => setNewAdSetName(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-slate-800 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 outline-none transition-all" placeholder="e.g. Broad Targeting" />
+                                    <input type="text" value={newAdSetName} onChange={(e) => setNewAdSetName(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-slate-800 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 outline-none transition-all" placeholder="e.g. Broad Targeting"/>
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-slate-600 mb-1.5">Daily Budget (RM)</label>
-                                    <input type="number" value={dailyBudget} onChange={(e) => setDailyBudget(parseFloat(e.target.value))} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-slate-800 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 outline-none transition-all" />
+                                    <input type="number" value={dailyBudget} onChange={(e) => setDailyBudget(parseFloat(e.target.value))} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-slate-800 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 outline-none transition-all"/>
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-slate-600 mb-1.5">Optimization</label>
@@ -464,7 +464,7 @@ const CreateCampaign: React.FC = () => {
                                         <option value="IMPRESSIONS">Impressions</option>
                                     </select>
                                 </div>
-
+                                
                                 {objective === 'OUTCOME_SALES' && (
                                     <div className="animate-fadeIn">
                                         <label className="block text-sm font-semibold text-green-600 mb-1.5">Pixel (Required for Sales)</label>
@@ -477,16 +477,16 @@ const CreateCampaign: React.FC = () => {
                                         )}
                                     </div>
                                 )}
-                            </>
-                        ) : (
-                            <div className="md:col-span-2">
+                             </>
+                         ) : (
+                             <div className="md:col-span-2">
                                 <label className="block text-sm font-medium text-slate-600 mb-1.5">Select Ad Set</label>
                                 <select value={selectedAdSetId} onChange={(e) => setSelectedAdSetId(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-slate-800 outline-none focus:border-indigo-500">
                                     <option value="">-- Select Ad Set --</option>
                                     {existingAdSets.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
                                 </select>
-                            </div>
-                        )}
+                             </div>
+                         )}
                     </div>
                 </div>
 
@@ -494,7 +494,7 @@ const CreateCampaign: React.FC = () => {
                 <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
                     <h2 className="text-lg font-bold text-slate-800 mb-4 border-b border-slate-100 pb-2">3. Ad Creative</h2>
                     <div className="grid md:grid-cols-2 gap-6">
-
+                        
                         <div>
                             <label className="block text-sm font-medium text-slate-600 mb-1.5">Facebook Page</label>
                             {userPages.length > 0 ? (
@@ -509,54 +509,54 @@ const CreateCampaign: React.FC = () => {
 
                         <div>
                             <label className="block text-sm font-medium text-slate-600 mb-1.5">Ad Name</label>
-                            <input type="text" value={adName} onChange={(e) => setAdName(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-slate-800 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 outline-none transition-all" placeholder="Ad Name" />
+                            <input type="text" value={adName} onChange={(e) => setAdName(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-slate-800 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 outline-none transition-all" placeholder="Ad Name"/>
                         </div>
-
+                        
                         <div className="md:col-span-2">
-                            <div className="border-2 border-dashed border-slate-300 rounded-xl p-8 text-center hover:bg-slate-50 hover:border-indigo-400 transition-all cursor-pointer relative overflow-hidden group">
-                                <input
-                                    type="file"
-                                    accept="image/*,video/mp4,video/x-m4v,video/*,.heic,.avi"
-                                    onChange={handleFileChange}
-                                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-                                />
-
-                                {mediaFile ? (
-                                    <div className="flex flex-col items-center justify-center">
-                                        {filePreview ? (
-                                            mediaType === 'image' ? (
+                             <div className="border-2 border-dashed border-slate-300 rounded-xl p-8 text-center hover:bg-slate-50 hover:border-indigo-400 transition-all cursor-pointer relative overflow-hidden group">
+                                 <input 
+                                    type="file" 
+                                    accept="image/*,video/mp4,video/x-m4v,video/*,.heic,.avi" 
+                                    onChange={handleFileChange} 
+                                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" 
+                                 />
+                                 
+                                 {mediaFile ? (
+                                     <div className="flex flex-col items-center justify-center">
+                                         {filePreview ? (
+                                             mediaType === 'image' ? (
                                                 <img src={filePreview} className="h-40 object-contain rounded-lg mb-3 shadow-sm border border-slate-200" alt="Preview" />
-                                            ) : (
+                                             ) : (
                                                 <video src={filePreview} className="h-40 rounded-lg mb-3 shadow-sm border border-slate-200" controls muted />
-                                            )
-                                        ) : (
-                                            <div className="h-24 w-32 flex items-center justify-center bg-slate-100 rounded-lg mb-3 border border-slate-200">
-                                                {mediaType === 'image' ? <ImageIcon size={32} className="text-slate-400" /> : <Video size={32} className="text-slate-400" />}
-                                            </div>
-                                        )}
-                                        <p className="text-indigo-600 text-sm font-bold">{mediaFile.name}</p>
-                                        <p className="text-xs text-slate-500 font-medium">{mediaType === 'video' ? 'Video File (Chunked Upload)' : 'Image File'}</p>
-                                    </div>
-                                ) : (
-                                    <>
+                                             )
+                                         ) : (
+                                             <div className="h-24 w-32 flex items-center justify-center bg-slate-100 rounded-lg mb-3 border border-slate-200">
+                                                 {mediaType === 'image' ? <ImageIcon size={32} className="text-slate-400" /> : <Video size={32} className="text-slate-400" />}
+                                             </div>
+                                         )}
+                                         <p className="text-indigo-600 text-sm font-bold">{mediaFile.name}</p>
+                                         <p className="text-xs text-slate-500 font-medium">{mediaType === 'video' ? 'Video File (Chunked Upload)' : 'Image File'}</p>
+                                     </div>
+                                 ) : (
+                                     <>
                                         <div className="w-12 h-12 bg-indigo-50 rounded-full flex items-center justify-center mx-auto mb-3 text-indigo-500 group-hover:scale-110 transition-transform">
                                             <Upload size={24} />
                                         </div>
                                         <p className="text-slate-700 text-sm font-bold">Click to upload Media</p>
                                         <p className="text-xs text-slate-400 mt-1">Supports Images (JPG, PNG) & Videos (MP4)</p>
-                                    </>
-                                )}
+                                     </>
+                                 )}
                             </div>
                         </div>
 
                         <div className="md:col-span-2">
                             <label className="block text-sm font-medium text-slate-600 mb-1.5">Primary Text (Caption)</label>
-                            <textarea value={primaryText} onChange={(e) => setPrimaryText(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-slate-800 h-24 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 outline-none resize-none" placeholder="The main ad copy above the creative..." />
+                            <textarea value={primaryText} onChange={(e) => setPrimaryText(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-slate-800 h-24 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 outline-none resize-none" placeholder="The main ad copy above the creative..."/>
                         </div>
 
                         <div>
                             <label className="block text-sm font-medium text-slate-600 mb-1.5">Headline</label>
-                            <input type="text" value={headline} onChange={(e) => setHeadline(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-slate-800 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 outline-none transition-all" placeholder="Bold Headline" />
+                            <input type="text" value={headline} onChange={(e) => setHeadline(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-slate-800 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 outline-none transition-all" placeholder="Bold Headline"/>
                         </div>
 
                         <div>
@@ -572,15 +572,15 @@ const CreateCampaign: React.FC = () => {
                                 <option value="WATCH_MORE">Watch More</option>
                             </select>
                         </div>
-
+                        
                         <div className="md:col-span-2">
                             <label className="block text-sm font-medium text-slate-600 mb-1.5">Link Description (Optional)</label>
-                            <input type="text" value={description} onChange={(e) => setDescription(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-slate-800 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 outline-none transition-all" placeholder="Small text below headline (e.g. 50% Off Today)" />
+                            <input type="text" value={description} onChange={(e) => setDescription(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-slate-800 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 outline-none transition-all" placeholder="Small text below headline (e.g. 50% Off Today)"/>
                         </div>
 
                         <div className="md:col-span-2">
                             <label className="block text-sm font-medium text-slate-600 mb-1.5">Destination URL</label>
-                            <input type="text" value={destinationUrl} onChange={(e) => setDestinationUrl(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-slate-800 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 outline-none transition-all" placeholder="https://..." />
+                            <input type="text" value={destinationUrl} onChange={(e) => setDestinationUrl(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-slate-800 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 outline-none transition-all" placeholder="https://..."/>
                         </div>
 
                     </div>
@@ -604,38 +604,38 @@ const CreateCampaign: React.FC = () => {
                     </div>
 
                     <div className="space-y-4 relative z-10">
-                        <ToggleSwitch
-                            label="Enable Advantage+ Creative"
-                            checked={advPlusConfig.enabled}
-                            onChange={(val) => setAdvPlusConfig({ ...advPlusConfig, enabled: val })}
+                        <ToggleSwitch 
+                            label="Enable Advantage+ Creative" 
+                            checked={advPlusConfig.enabled} 
+                            onChange={(val) => setAdvPlusConfig({...advPlusConfig, enabled: val})}
                             subtext="Allow Meta to automatically improve creative performance."
                         />
 
                         {advPlusConfig.enabled && (
                             <div className="pl-4 ml-2 border-l-2 border-indigo-100 space-y-1 animate-fadeIn">
-                                <ToggleSwitch
-                                    label="Visual Touchups"
-                                    checked={advPlusConfig.visualTouchups}
-                                    onChange={(val) => setAdvPlusConfig({ ...advPlusConfig, visualTouchups: val })}
+                                <ToggleSwitch 
+                                    label="Visual Touchups" 
+                                    checked={advPlusConfig.visualTouchups} 
+                                    onChange={(val) => setAdvPlusConfig({...advPlusConfig, visualTouchups: val})}
                                     subtext="Adjust brightness, contrast and aspect ratio."
                                 />
-                                <ToggleSwitch
-                                    label="Text Optimizations"
-                                    checked={advPlusConfig.textOptimizations}
-                                    onChange={(val) => setAdvPlusConfig({ ...advPlusConfig, textOptimizations: val })}
+                                <ToggleSwitch 
+                                    label="Text Optimizations" 
+                                    checked={advPlusConfig.textOptimizations} 
+                                    onChange={(val) => setAdvPlusConfig({...advPlusConfig, textOptimizations: val})}
                                     subtext="Swap text between headline, primary, and description."
                                 />
-                                <ToggleSwitch
-                                    label="Media Cropping"
-                                    checked={advPlusConfig.mediaCropping}
-                                    onChange={(val) => setAdvPlusConfig({ ...advPlusConfig, mediaCropping: val })}
+                                <ToggleSwitch 
+                                    label="Media Cropping" 
+                                    checked={advPlusConfig.mediaCropping} 
+                                    onChange={(val) => setAdvPlusConfig({...advPlusConfig, mediaCropping: val})}
                                     subtext="Auto-crop images/videos for stories and reels."
                                 />
                                 {mediaType === 'video' && (
-                                    <ToggleSwitch
-                                        label="Music"
-                                        checked={advPlusConfig.music}
-                                        onChange={(val) => setAdvPlusConfig({ ...advPlusConfig, music: val })}
+                                    <ToggleSwitch 
+                                        label="Music" 
+                                        checked={advPlusConfig.music} 
+                                        onChange={(val) => setAdvPlusConfig({...advPlusConfig, music: val})}
                                         subtext="Automatically add music to video ads."
                                     />
                                 )}
@@ -645,12 +645,12 @@ const CreateCampaign: React.FC = () => {
                 </div>
 
                 <div className="pt-6 border-t border-slate-200">
-                    <button
+                     <button 
                         onClick={handleSubmit}
                         disabled={loading}
                         className="w-full bg-green-600 hover:bg-green-700 text-white text-lg font-bold py-4 rounded-xl shadow-lg shadow-green-200 flex items-center justify-center gap-3 disabled:opacity-70 disabled:cursor-not-allowed transition-all transform hover:scale-[1.005]"
                     >
-                        {loading && <Loader2 className="animate-spin" size={24} />}
+                        {loading && <Loader2 className="animate-spin" size={24}/>}
                         {loading ? 'Creating Campaign...' : 'PUBLISH CAMPAIGN NOW'}
                     </button>
                     <p className="text-center text-xs text-slate-400 mt-3 font-medium">This will create the campaign in your Ads Manager. Default status: PAUSED.</p>
