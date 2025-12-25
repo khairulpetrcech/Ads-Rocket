@@ -845,6 +845,7 @@ export const createMetaCreative = async (
                 // Video features
                 video_auto_crop: { enroll_status: 'OPT_OUT' },
                 enhance_cta: { enroll_status: 'OPT_OUT' },
+                video_filtering: { enroll_status: 'OPT_OUT' }, // "Add video effects"
                 // Text features
                 text_optimizations: { enroll_status: 'OPT_OUT' },
                 inline_comment: { enroll_status: 'OPT_OUT' }
