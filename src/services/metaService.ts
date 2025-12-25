@@ -612,7 +612,6 @@ export const uploadAdVideo = async (
     
     // 2. TRANSFER CHUNKS
     while (parseInt(start_offset) < parseInt(end_offset)) {
-        // STEP: Strict chunk slicing (end is exclusive in slice, inclusive in Meta logic usually, but here we trust Meta's end_offset return)
         const chunk = file.slice(parseInt(start_offset), parseInt(end_offset));
         
         // DEBUG STEP: Log every chunk details
@@ -639,7 +638,7 @@ export const uploadAdVideo = async (
                 retries--;
                 console.warn(`[Upload] Chunk failed. Retries left: ${retries}`, e);
                 if (retries === 0) throw new Error("Video chunk upload failed after 3 attempts.");
-                await new Promise(r => setTimeout(r, 3000)); // Wait before retry
+                await new Promise(r => setTimeout(r, 2000)); // Wait before retry
             }
         }
 
@@ -692,8 +691,9 @@ export const waitForVideoReady = async (
     onProgressUpdate?: (status: string) => void,
     retries = 120
 ): Promise<boolean> => {
-    // STEP: Poll correct status fields
-    const url = `https://graph.facebook.com/v19.0/${videoId}?fields=status,processing_progress,processing_phase&access_token=${accessToken}`;
+    // FIX: Only request 'status'. 'processing_progress' is typically inside the status object
+    // or not available as a top-level field on generic Video nodes in v19.0.
+    const url = `https://graph.facebook.com/v19.0/${videoId}?fields=status&access_token=${accessToken}`;
     
     for (let i = 0; i < retries; i++) {
         try {
@@ -703,20 +703,24 @@ export const waitForVideoReady = async (
             if (data.error) {
                 console.error("Video Polling API Error:", data.error);
                 if (data.error.code === 190) throw new Error("Session expired during video processing.");
-                // Continue polling if transient error, else throw? For now log.
+                // Retry other errors, but fail fast if critical
+                if (data.error.code === 100) throw new Error(data.error.message); // Invalid Parameter
             }
 
-            const status = data.status?.video_status;
-            const progress = data.processing_progress || 0;
-            const phase = data.processing_phase;
+            const statusObj = data.status || {};
+            const status = statusObj.video_status;
+            // processing_progress is often nested in status, or simply unavailable.
+            const progress = statusObj.processing_progress || 0; 
 
             // STEP: Debug Log Status
-            console.debug(`[Video Poll] Status: ${status}, Progress: ${progress}%, Phase: ${phase}`);
+            console.debug(`[Video Poll] Status: ${status}, Progress: ${progress}%`);
 
             // Update UI with granular status if callback provided
             if (onProgressUpdate) {
                 if (status === 'PROCESSING') {
-                    onProgressUpdate(`Processing Video: ${progress}% (${phase?.type || 'encoding'})...`);
+                    onProgressUpdate(`Processing Video: ${progress}%...`);
+                } else if (status === 'READY') {
+                    onProgressUpdate('Video Ready.');
                 } else {
                     onProgressUpdate(`Video Status: ${status}...`);
                 }
@@ -728,9 +732,8 @@ export const waitForVideoReady = async (
             }
             
             // STEP: Fail Fast on Error
-            if (status === 'ERROR' || (phase && phase.status === 'error')) {
-                const errorDetail = phase?.errors?.[0]?.message || "Unknown encoding error";
-                throw new Error(`Meta Video Processing Failed: ${errorDetail}`);
+            if (status === 'ERROR') {
+                throw new Error(`Meta Video Processing Failed. Status: ERROR.`);
             }
 
         } catch (e: any) { 
