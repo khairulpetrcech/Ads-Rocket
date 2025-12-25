@@ -689,7 +689,7 @@ export const waitForVideoReady = async (
     videoId: string, 
     accessToken: string, 
     onProgressUpdate?: (status: string) => void,
-    retries = 120
+    retries = 200 // ~10 minutes (200 x 3s = 600s) to handle larger videos
 ): Promise<boolean> => {
     // FIX: Only request 'status'. 'processing_progress' is typically inside the status object
     // or not available as a top-level field on generic Video nodes in v19.0.
@@ -742,6 +742,8 @@ export const waitForVideoReady = async (
         }
         await new Promise(r => setTimeout(r, 3000)); // Wait 3s
     }
+    // Log timeout for debugging
+    console.error(`[Video Poll] Timeout after ${retries} attempts (~${Math.round(retries * 3 / 60)} minutes) for video ${videoId}`);
     return false;
 };
 
