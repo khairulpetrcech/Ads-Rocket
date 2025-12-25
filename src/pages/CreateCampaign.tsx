@@ -269,12 +269,12 @@ const CreateCampaign: React.FC = () => {
                 setGlobalProcess({ active: true, name: "Creating Campaign...", message: "Uploading Image Asset...", type: "CAMPAIGN_CREATION" });
                 assetId = await uploadAdImage(adAccountId, mediaFile!, fbAccessToken);
             } else {
-                setGlobalProcess({ active: true, name: "Creating Campaign...", message: "Uploading Video (Chunked)...", type: "CAMPAIGN_CREATION" });
+                setGlobalProcess({ active: true, name: "Creating Campaign...", message: "Uploading Video (0%)...", type: "CAMPAIGN_CREATION" });
                 const videoId = await uploadAdVideo(
                     adAccountId, 
                     mediaFile!, 
                     fbAccessToken, 
-                    (msg) => setGlobalProcess({ active: true, name: "Creating Campaign...", message: msg, type: "CAMPAIGN_CREATION" })
+                    (percent) => setGlobalProcess({ active: true, name: "Creating Campaign...", message: `Uploading Video (${percent}%)...`, type: "CAMPAIGN_CREATION" })
                 );
                 
                 setGlobalProcess({ active: true, name: "Creating Campaign...", message: "Processing Video on Meta...", type: "CAMPAIGN_CREATION" });

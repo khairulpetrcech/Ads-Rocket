@@ -584,71 +584,89 @@ export const uploadAdImage = async (accountId: string, file: File, accessToken: 
     throw new Error("Image upload failed: No hash returned");
 };
 
-// --- CHUNKED VIDEO UPLOAD ---
-// Essential for reliability and "speed" (prevents timeouts on large files)
-export const uploadAdVideo = async (accountId: string, file: File, accessToken: string, onProgress?: (msg: string) => void) => {
+// --- CHUNKED VIDEO UPLOAD (RESUMABLE) ---
+// Fixing Timeouts for Large Files
+export const uploadAdVideo = async (
+    accountId: string, 
+    file: File, 
+    accessToken: string, 
+    onProgress?: (percent: number) => void
+) => {
     const actId = accountId.startsWith('act_') ? accountId : `act_${accountId}`;
     const url = `https://graph-video.facebook.com/v19.0/${actId}/advideos`;
     
     // 1. START SESSION
-    onProgress?.("Initializing Video Upload...");
-    const startFormData = new FormData();
-    startFormData.append('access_token', accessToken);
-    startFormData.append('upload_phase', 'start');
-    startFormData.append('file_size', file.size.toString());
+    const startForm = new FormData();
+    startForm.append('access_token', accessToken);
+    startForm.append('upload_phase', 'start');
+    startForm.append('file_size', file.size.toString());
     
-    const startRes = await fetch(url, { method: 'POST', body: startFormData });
+    const startRes = await fetch(url, { method: 'POST', body: startForm });
     const startData = await startRes.json();
     handleApiError(startData);
     
-    const { upload_session_id, start_offset, end_offset, video_id } = startData;
-    const finalVideoId = video_id; // Usually returned here
+    const { upload_session_id, video_id } = startData;
+    let { start_offset, end_offset } = startData;
     
-    let currentStartOffset = parseInt(start_offset);
-    let currentEndOffset = parseInt(end_offset);
-
     // 2. TRANSFER CHUNKS
-    const chunkReader = file.stream().getReader();
-    let uploadedBytes = 0;
-    
-    // Fallback: If browser doesn't support stream well, use slicing
-    // Standard chunk size usually ~1MB to 4MB from Meta, but let's loop based on offsets
-    
-    while (uploadedBytes < file.size) {
-        onProgress?.(`Uploading... ${Math.floor((uploadedBytes/file.size)*100)}%`);
+    // Loop until start_offset matches end_offset (meaning range is empty/done)
+    while (parseInt(start_offset) < parseInt(end_offset)) {
+        // Slice returns a blob for the range. End index is exclusive in slice, but inclusive in FB response logic usually. 
+        // FB: start_offset (inclusive), end_offset (exclusive). 
+        // Example: 0-100. Slice(0,100) gets bytes 0 to 99 (100 bytes). This matches.
+        const chunk = file.slice(parseInt(start_offset), parseInt(end_offset));
         
-        const chunkBlob = file.slice(currentStartOffset, currentEndOffset);
+        const transferForm = new FormData();
+        transferForm.append('access_token', accessToken);
+        transferForm.append('upload_phase', 'transfer');
+        transferForm.append('upload_session_id', upload_session_id);
+        transferForm.append('start_offset', start_offset);
+        transferForm.append('video_file_chunk', chunk);
         
-        const transferFormData = new FormData();
-        transferFormData.append('access_token', accessToken);
-        transferFormData.append('upload_phase', 'transfer');
-        transferFormData.append('upload_session_id', upload_session_id);
-        transferFormData.append('start_offset', currentStartOffset.toString());
-        transferFormData.append('video_file_chunk', chunkBlob);
+        // RETRY LOGIC FOR CHUNKS (Prevents timeout failures)
+        let retries = 3;
+        let transData = null;
+        
+        while (retries > 0) {
+            try {
+                const transRes = await fetch(url, { method: 'POST', body: transferForm });
+                transData = await transRes.json();
+                handleApiError(transData);
+                break; // Success, exit retry loop
+            } catch (e) {
+                retries--;
+                console.warn(`Chunk upload failed. Retries left: ${retries}`, e);
+                if (retries === 0) throw new Error("Video chunk upload failed after 3 attempts. Check network.");
+                await new Promise(r => setTimeout(r, 2000)); // Wait 2s
+            }
+        }
 
-        const transRes = await fetch(url, { method: 'POST', body: transferFormData });
-        const transData = await transRes.json();
-        handleApiError(transData);
+        // Update Progress
+        if (onProgress) {
+            const percent = Math.round((parseInt(start_offset) / file.size) * 100);
+            onProgress(percent);
+        }
 
-        currentStartOffset = parseInt(transData.start_offset);
-        currentEndOffset = parseInt(transData.end_offset);
-        uploadedBytes = currentStartOffset;
-
-        if (currentStartOffset === currentEndOffset) break; // Finished
+        // Prepare next loop
+        start_offset = transData.start_offset;
+        end_offset = transData.end_offset;
+        
+        if (start_offset === end_offset) break; // Finished
     }
-
-    // 3. FINISH SESSION
-    onProgress?.("Finalizing Video...");
-    const finishFormData = new FormData();
-    finishFormData.append('access_token', accessToken);
-    finishFormData.append('upload_phase', 'finish');
-    finishFormData.append('upload_session_id', upload_session_id);
     
-    const finishRes = await fetch(url, { method: 'POST', body: finishFormData });
+    // 3. FINISH SESSION
+    const finishForm = new FormData();
+    finishForm.append('access_token', accessToken);
+    finishForm.append('upload_phase', 'finish');
+    finishForm.append('upload_session_id', upload_session_id);
+    
+    const finishRes = await fetch(url, { method: 'POST', body: finishForm });
     const finishData = await finishRes.json();
     handleApiError(finishData);
     
-    if (finalVideoId) return finalVideoId;
+    if (onProgress) onProgress(100);
+    
+    if (video_id) return video_id;
     if (finishData.id) return finishData.id;
     
     throw new Error("Video upload finished but no ID returned");
