@@ -832,23 +832,28 @@ export const createMetaCreative = async (
         published: false,
     };
 
-    // --- ADVANTAGE+ / STANDARD ENHANCEMENTS LOGIC ---
-    // If config exists, use it. Otherwise rely on default (Meta usually defaults to OPT_IN for new creatives)
-    // To strictly support "Turn Off", we check the enabled flag.
-    if (advantagePlusConfig) {
-        // Construct the degrees_of_freedom_spec to control Standard Enhancements
+    // --- ADVANTAGE+ / CREATIVE FEATURES LOGIC ---
+    // As of API v22.0, standard_enhancements bundle is DEPRECATED.
+    // Must set individual features: image_touchups, text_optimizations, etc.
+    if (advantagePlusConfig && !advantagePlusConfig.enabled) {
+        // OPT OUT of all Advantage+ Creative features when disabled
         body.degrees_of_freedom_spec = {
             creative_features_spec: {
-                standard_enhancements: {
-                    enroll_status: advantagePlusConfig.enabled ? 'OPT_IN' : 'OPT_OUT'
-                }
+                image_touchups: { enroll_status: 'OPT_OUT' },
+                text_optimizations: { enroll_status: 'OPT_OUT' },
+                image_templates: { enroll_status: 'OPT_OUT' },
+                image_uncrop: { enroll_status: 'OPT_OUT' },
+                adapt_to_placement: { enroll_status: 'OPT_OUT' },
+                media_liquidity: { enroll_status: 'OPT_OUT' },
+                image_background_gen: { enroll_status: 'OPT_OUT' },
+                product_extensions: { enroll_status: 'OPT_OUT' },
+                description_automation: { enroll_status: 'OPT_OUT' },
+                inline_comment: { enroll_status: 'OPT_OUT' },
+                site_extensions: { enroll_status: 'OPT_OUT' }
             }
         };
-        // NOTE: Granular exclusion (e.g. specifically turning off Text Overlay while keeping others)
-        // is not fully supported in the standard adcreatives endpoint without using Asset Feeds.
-        // We prioritize the 'enroll_status' to ensure the API call succeeds without 400 errors.
-        // The backend treats the sub-toggles as indicators for the bundle.
     }
+    // If enabled or not specified, Meta defaults to OPT_IN automatically
 
     if (mediaType === 'image') {
         body.object_story_spec = {
