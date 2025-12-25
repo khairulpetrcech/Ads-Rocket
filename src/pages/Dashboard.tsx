@@ -199,8 +199,8 @@ const Dashboard: React.FC = () => {
     const [showAllCampaigns, setShowAllCampaigns] = useState(false);
     const [showHiddenAdSets, setShowHiddenAdSets] = useState<Set<string>>(new Set());
 
-    // View Control
-    const [viewMode, setViewMode] = useState<ViewMode>(settings.dashboardViewMode || 'SALES');
+    // View Control - Auto-detected based on campaign objectives
+    const [viewMode, setViewMode] = useState<ViewMode>('TRAFFIC');
 
     // Loading States for Actions
     const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -322,13 +322,14 @@ const Dashboard: React.FC = () => {
     };
 
     // --- VIEW MODE AUTO-DETECTION ---
+    // Always auto-detect based on majority of campaign objectives
     useEffect(() => {
         if (campaigns.length > 0) {
             let trafficCount = 0;
             let salesCount = 0;
 
-            // Prioritize ACTIVE campaigns for decision making
-            const activeCampaigns = campaigns.filter(c => c.status === 'ACTIVE');
+            // Prioritize ACTIVE campaigns with spend for decision making
+            const activeCampaigns = campaigns.filter(c => c.status === 'ACTIVE' && c.metrics.spend > 0);
             const targetList = activeCampaigns.length > 0 ? activeCampaigns : campaigns;
 
             targetList.forEach(c => {
@@ -338,12 +339,9 @@ const Dashboard: React.FC = () => {
 
             // Auto-switch based on majority
             const detectedMode = trafficCount >= salesCount ? 'TRAFFIC' : 'SALES';
+            setViewMode(detectedMode);
 
-            if (viewMode !== detectedMode) {
-                setViewMode(detectedMode);
-                // Update settings to remember preference, but allow auto-detect to override next time if data changes significantly
-                updateSettings({ dashboardViewMode: detectedMode });
-            }
+            console.log(`[Auto-Detect] Traffic: ${trafficCount}, Sales: ${salesCount} => Mode: ${detectedMode}`);
         }
     }, [campaigns]);
 
@@ -356,12 +354,7 @@ const Dashboard: React.FC = () => {
         }
     }, [commentModalOpen]);
 
-    // --- ACTIONS ---
 
-    const handleViewModeToggle = (mode: ViewMode) => {
-        setViewMode(mode);
-        updateSettings({ dashboardViewMode: mode });
-    };
 
     const toggleExpandCampaign = async (campaignId: string) => {
         const newSet = new Set(expandedCampaigns);
@@ -628,20 +621,6 @@ const Dashboard: React.FC = () => {
                     )}
 
                     <div className="flex items-center gap-2">
-                        <div className="bg-white p-1 rounded-lg border border-slate-200 shadow-sm flex mr-2">
-                            <button
-                                onClick={() => handleViewModeToggle('SALES')}
-                                className={`px-3 py-1.5 rounded-md text-xs font-bold flex items-center gap-1 transition-all ${viewMode === 'SALES' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:bg-slate-50'}`}
-                            >
-                                <ShoppingCart size={14} /> Sales
-                            </button>
-                            <button
-                                onClick={() => handleViewModeToggle('TRAFFIC')}
-                                className={`px-3 py-1.5 rounded-md text-xs font-bold flex items-center gap-1 transition-all ${viewMode === 'TRAFFIC' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:bg-slate-50'}`}
-                            >
-                                <MessageCircle size={14} /> Leads
-                            </button>
-                        </div>
 
                         <div className="relative">
                             <Calendar className="absolute left-3 top-2.5 text-slate-400" size={14} />
@@ -874,8 +853,8 @@ const Dashboard: React.FC = () => {
                                                                                                                                             disabled={isCommented}
                                                                                                                                             title="Launch Comment"
                                                                                                                                             className={`w-5 h-5 flex items-center justify-center rounded-full text-[10px] font-bold border transition-colors ${isCommented
-                                                                                                                                                    ? "bg-green-100 text-green-600 border-green-200 cursor-not-allowed"
-                                                                                                                                                    : "bg-white text-indigo-600 border-indigo-200 hover:bg-indigo-600 hover:text-white hover:border-indigo-600"
+                                                                                                                                                ? "bg-green-100 text-green-600 border-green-200 cursor-not-allowed"
+                                                                                                                                                : "bg-white text-indigo-600 border-indigo-200 hover:bg-indigo-600 hover:text-white hover:border-indigo-600"
                                                                                                                                                 }`}
                                                                                                                                         >
                                                                                                                                             {isCommented ? <Check size={10} /> : "C"}
