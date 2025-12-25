@@ -585,7 +585,7 @@ export const uploadAdImage = async (accountId: string, file: File, accessToken: 
 };
 
 // --- CHUNKED VIDEO UPLOAD (RESUMABLE) ---
-// Fixing Timeouts for Large Files and removing aggressive Aborts to prevent connection drops
+// DEBUG: Using strict steps from user request
 export const uploadAdVideo = async (
     accountId: string, 
     file: File, 
@@ -595,11 +595,13 @@ export const uploadAdVideo = async (
     const actId = accountId.startsWith('act_') ? accountId : `act_${accountId}`;
     const url = `https://graph-video.facebook.com/v19.0/${actId}/advideos`;
     
+    console.debug(`[Upload] Starting upload for ${file.name} (${file.size} bytes)`);
+
     // 1. START SESSION
     const startForm = new FormData();
     startForm.append('access_token', accessToken);
     startForm.append('upload_phase', 'start');
-    startForm.append('file_size', file.size.toString());
+    startForm.append('file_size', file.size.toString()); // STEP: Ensure exact bytes as string
     
     const startRes = await fetch(url, { method: 'POST', body: startForm });
     const startData = await startRes.json();
@@ -609,10 +611,13 @@ export const uploadAdVideo = async (
     let { start_offset, end_offset } = startData;
     
     // 2. TRANSFER CHUNKS
-    // Loop until start_offset matches end_offset (meaning range is empty/done)
     while (parseInt(start_offset) < parseInt(end_offset)) {
+        // STEP: Strict chunk slicing (end is exclusive in slice, inclusive in Meta logic usually, but here we trust Meta's end_offset return)
         const chunk = file.slice(parseInt(start_offset), parseInt(end_offset));
         
+        // DEBUG STEP: Log every chunk details
+        console.debug(`[Upload] Transfer: start=${start_offset}, end=${end_offset}, chunk_size=${chunk.size}`);
+
         const transferForm = new FormData();
         transferForm.append('access_token', accessToken);
         transferForm.append('upload_phase', 'transfer');
@@ -620,36 +625,30 @@ export const uploadAdVideo = async (
         transferForm.append('start_offset', start_offset);
         transferForm.append('video_file_chunk', chunk);
         
-        // RETRY LOGIC FOR CHUNKS (Prevents timeout failures)
         let retries = 3;
         let transData = null;
         
         while (retries > 0) {
             try {
-                // Removed AbortController to reduce browser connection errors
-                const transRes = await fetch(url, { 
-                    method: 'POST', 
-                    body: transferForm
-                });
-                
+                // STEP: No AbortController to prevent "Receiving end does not exist" in Chrome
+                const transRes = await fetch(url, { method: 'POST', body: transferForm });
                 transData = await transRes.json();
                 handleApiError(transData);
-                break; // Success, exit retry loop
+                break; // Success
             } catch (e) {
                 retries--;
-                console.warn(`Chunk upload failed. Retries left: ${retries}`, e);
-                if (retries === 0) throw new Error("Video chunk upload failed after 3 attempts. Check network.");
-                await new Promise(r => setTimeout(r, 2000)); // Wait 2s
+                console.warn(`[Upload] Chunk failed. Retries left: ${retries}`, e);
+                if (retries === 0) throw new Error("Video chunk upload failed after 3 attempts.");
+                await new Promise(r => setTimeout(r, 3000)); // Wait before retry
             }
         }
 
-        // Update Progress
         if (onProgress) {
             const percent = Math.round((parseInt(start_offset) / file.size) * 100);
             onProgress(percent);
         }
 
-        // Prepare next loop
+        // Prepare next loop from response
         start_offset = transData.start_offset;
         end_offset = transData.end_offset;
         
@@ -657,12 +656,12 @@ export const uploadAdVideo = async (
     }
     
     // 3. FINISH SESSION
+    console.debug(`[Upload] Finishing session ${upload_session_id}`);
     const finishForm = new FormData();
     finishForm.append('access_token', accessToken);
     finishForm.append('upload_phase', 'finish');
     finishForm.append('upload_session_id', upload_session_id);
     
-    // Retry logic for Finish as well, as it triggers encoding start
     let finishRetries = 3;
     let finishData = null;
     while(finishRetries > 0) {
@@ -687,41 +686,58 @@ export const uploadAdVideo = async (
 };
 
 
-export const waitForVideoReady = async (videoId: string, accessToken: string, retries = 120): Promise<boolean> => {
-    // Adding processing_progress to fields to monitor status
-    const url = `https://graph.facebook.com/v19.0/${videoId}?fields=status,processing_progress&access_token=${accessToken}`;
+export const waitForVideoReady = async (
+    videoId: string, 
+    accessToken: string, 
+    onProgressUpdate?: (status: string) => void,
+    retries = 120
+): Promise<boolean> => {
+    // STEP: Poll correct status fields
+    const url = `https://graph.facebook.com/v19.0/${videoId}?fields=status,processing_progress,processing_phase&access_token=${accessToken}`;
+    
     for (let i = 0; i < retries; i++) {
         try {
             const res = await fetch(url);
             const data = await res.json();
             
-            // Explicitly check for error object to avoid silent fail/timeout
             if (data.error) {
-                console.error("Video Polling Error:", data.error);
-                if (data.error.code === 190) { // Session expired
-                    throw new Error("Session expired during video processing.");
-                }
-                // If it's another error, we might want to fail fast or retry.
-                // For now, logging and continuing unless it's a fatal permanent error.
+                console.error("Video Polling API Error:", data.error);
+                if (data.error.code === 190) throw new Error("Session expired during video processing.");
+                // Continue polling if transient error, else throw? For now log.
             }
 
-            if (data.status && data.status.video_status === 'READY') {
+            const status = data.status?.video_status;
+            const progress = data.processing_progress || 0;
+            const phase = data.processing_phase;
+
+            // STEP: Debug Log Status
+            console.debug(`[Video Poll] Status: ${status}, Progress: ${progress}%, Phase: ${phase}`);
+
+            // Update UI with granular status if callback provided
+            if (onProgressUpdate) {
+                if (status === 'PROCESSING') {
+                    onProgressUpdate(`Processing Video: ${progress}% (${phase?.type || 'encoding'})...`);
+                } else {
+                    onProgressUpdate(`Video Status: ${status}...`);
+                }
+            }
+
+            // STEP: Only proceed if READY
+            if (status === 'READY') {
                 return true;
             }
             
-            if (data.status && data.status.video_status === 'ERROR') {
-                console.error("Meta Video Processing Failed:", data);
-                return false;
+            // STEP: Fail Fast on Error
+            if (status === 'ERROR' || (phase && phase.status === 'error')) {
+                const errorDetail = phase?.errors?.[0]?.message || "Unknown encoding error";
+                throw new Error(`Meta Video Processing Failed: ${errorDetail}`);
             }
-            
-            // Optional: Log progress
-            // if (data.processing_progress) console.debug(`Video Processing: ${data.processing_progress}%`);
 
         } catch (e: any) { 
-            console.warn("Polling video status exception", e);
-            if (e.message && e.message.includes("Session expired")) throw e;
+            console.warn("Polling exception", e);
+            if (e.message && (e.message.includes("Session expired") || e.message.includes("Processing Failed"))) throw e;
         }
-        await new Promise(r => setTimeout(r, 3000)); // Wait 3s (Total ~6 mins)
+        await new Promise(r => setTimeout(r, 3000)); // Wait 3s
     }
     return false;
 };
