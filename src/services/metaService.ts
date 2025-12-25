@@ -834,22 +834,16 @@ export const createMetaCreative = async (
 
     // --- ADVANTAGE+ / CREATIVE FEATURES LOGIC ---
     // As of API v22.0, standard_enhancements bundle is DEPRECATED.
-    // Must set individual features: image_touchups, text_optimizations, etc.
+    // Must set only valid individual features: image_touchups, text_optimizations, image_templates, inline_comment
     if (advantagePlusConfig && !advantagePlusConfig.enabled) {
-        // OPT OUT of all Advantage+ Creative features when disabled
+        // OPT OUT of Advantage+ Creative features when disabled
+        // Only use validated feature keys to avoid API errors
         body.degrees_of_freedom_spec = {
             creative_features_spec: {
                 image_touchups: { enroll_status: 'OPT_OUT' },
                 text_optimizations: { enroll_status: 'OPT_OUT' },
                 image_templates: { enroll_status: 'OPT_OUT' },
-                image_uncrop: { enroll_status: 'OPT_OUT' },
-                adapt_to_placement: { enroll_status: 'OPT_OUT' },
-                media_liquidity: { enroll_status: 'OPT_OUT' },
-                image_background_gen: { enroll_status: 'OPT_OUT' },
-                product_extensions: { enroll_status: 'OPT_OUT' },
-                description_automation: { enroll_status: 'OPT_OUT' },
-                inline_comment: { enroll_status: 'OPT_OUT' },
-                site_extensions: { enroll_status: 'OPT_OUT' }
+                inline_comment: { enroll_status: 'OPT_OUT' }
             }
         };
     }
