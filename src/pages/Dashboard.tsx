@@ -322,26 +322,39 @@ const Dashboard: React.FC = () => {
     };
 
     // --- VIEW MODE AUTO-DETECTION ---
-    // Always auto-detect based on majority of campaign objectives
+    // Auto-detect based on actual METRICS, not objectives
+    // Because Meta returns OUTCOME_SALES for both online purchases AND Whatsapp/Lead campaigns
     useEffect(() => {
         if (campaigns.length > 0) {
-            let trafficCount = 0;
-            let salesCount = 0;
+            // Sum up total leads vs total purchases across all campaigns
+            let totalLeadsSum = 0;
+            let totalPurchasesSum = 0;
 
-            // Prioritize ACTIVE campaigns with spend for decision making
-            const activeCampaigns = campaigns.filter(c => c.status === 'ACTIVE' && c.metrics.spend > 0);
-            const targetList = activeCampaigns.length > 0 ? activeCampaigns : campaigns;
-
-            targetList.forEach(c => {
-                if (isTrafficOrLeads(c.objective)) trafficCount++;
-                else salesCount++;
+            campaigns.forEach(c => {
+                totalLeadsSum += c.metrics.totalLeads || 0;
+                totalPurchasesSum += c.metrics.purchases || 0;
             });
 
-            // Auto-switch based on majority
-            const detectedMode = trafficCount >= salesCount ? 'TRAFFIC' : 'SALES';
-            setViewMode(detectedMode);
+            // If more leads than purchases, use TRAFFIC mode (Leads view)
+            // If more purchases OR both zero, check objectives as fallback
+            let detectedMode: ViewMode;
 
-            console.log(`[Auto-Detect] Traffic: ${trafficCount}, Sales: ${salesCount} => Mode: ${detectedMode}`);
+            if (totalLeadsSum > 0 || totalPurchasesSum > 0) {
+                // We have actual data - use metrics
+                detectedMode = totalLeadsSum >= totalPurchasesSum ? 'TRAFFIC' : 'SALES';
+            } else {
+                // No conversions yet - fallback to objective-based detection
+                let trafficCount = 0;
+                let salesCount = 0;
+                campaigns.forEach(c => {
+                    if (isTrafficOrLeads(c.objective)) trafficCount++;
+                    else salesCount++;
+                });
+                detectedMode = trafficCount >= salesCount ? 'TRAFFIC' : 'SALES';
+            }
+
+            setViewMode(detectedMode);
+            console.log(`[Auto-Detect] Leads: ${totalLeadsSum}, Purchases: ${totalPurchasesSum} => Mode: ${detectedMode}`);
         }
     }, [campaigns]);
 
