@@ -25,6 +25,7 @@ export interface UserSettings {
   // Meta Config
   fbAppId: string;
   fbAccessToken: string;
+  fbTokenExpiresAt?: string; // ISO date string for long-lived token expiry
   adAccountId: string;
 
   // UI Preferences
