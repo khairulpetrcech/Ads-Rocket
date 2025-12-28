@@ -63,15 +63,17 @@ export default async function handler(req: any, res: any) {
                 code: error.code
             });
 
-            // If table doesn't exist or RLS blocks access, return empty array instead of error
-            if (error.code === '42P01' || error.code === 'PGRST116' || error.message?.includes('does not exist')) {
-                console.log('Table may not exist yet, returning empty campaigns list');
-                return res.status(200).json({ campaigns: [], total: 0, hasMore: false });
-            }
-
-            return res.status(500).json({
-                error: error.message,
-                hint: error.hint || 'Check if tracked_campaigns table exists and RLS policies allow read access'
+            // Always return 200 with empty campaigns and debug info
+            return res.status(200).json({
+                campaigns: [],
+                total: 0,
+                hasMore: false,
+                debug: {
+                    error: error.message,
+                    code: error.code,
+                    hint: error.hint,
+                    details: error.details
+                }
             });
         }
 
