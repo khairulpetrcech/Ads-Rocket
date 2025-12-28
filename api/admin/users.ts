@@ -57,19 +57,16 @@ export default async function handler(req: any, res: any) {
                 code: error.code
             });
 
-            // If table doesn't exist, column doesn't exist, or RLS blocks access
-            if (error.code === '42P01' || error.code === 'PGRST116' ||
-                error.code === '42703' || error.code === 'PGRST301' ||
-                error.message?.includes('does not exist') ||
-                error.message?.includes('permission denied') ||
-                error.message?.includes('RLS')) {
-                console.log('Table/column issue or RLS blocking, returning empty users list');
-                return res.status(200).json({ users: [], total: 0 });
-            }
-
-            return res.status(500).json({
-                error: error.message,
-                hint: error.hint || 'Check if tracked_users table exists and RLS policies allow read access'
+            // Always return 200 with empty users and debug info to help diagnose
+            return res.status(200).json({
+                users: [],
+                total: 0,
+                debug: {
+                    error: error.message,
+                    code: error.code,
+                    hint: error.hint,
+                    details: error.details
+                }
             });
         }
 
