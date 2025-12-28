@@ -40,6 +40,44 @@ const ToggleSwitch = ({ checked, onChange, label, subtext }: { checked: boolean,
     </div>
 );
 
+// STEP PROGRESS COMPONENT - Rapid Ads Style
+const STEPS = [
+    { id: 1, label: 'Setup', icon: '📋' },
+    { id: 2, label: 'Upload', icon: '📤' },
+    { id: 3, label: 'Build', icon: '🔧' },
+    { id: 4, label: 'Launch', icon: '🚀' }
+];
+
+const StepProgress = ({ currentStep, processingMessage }: { currentStep: number; processingMessage?: string }) => (
+    <div className="bg-white rounded-xl border border-slate-200 p-4 mb-6 shadow-sm">
+        <div className="flex items-center justify-between">
+            {STEPS.map((step, index) => (
+                <div key={step.id} className="flex items-center flex-1">
+                    <div className="flex flex-col items-center">
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg transition-all ${currentStep > step.id
+                            ? 'bg-green-500 text-white'
+                            : currentStep === step.id
+                                ? 'bg-indigo-600 text-white ring-4 ring-indigo-100'
+                                : 'bg-slate-100 text-slate-400'
+                            }`}>
+                            {currentStep > step.id ? '✓' : step.icon}
+                        </div>
+                        <span className={`text-xs mt-1.5 font-medium ${currentStep >= step.id ? 'text-slate-700' : 'text-slate-400'
+                            }`}>{step.label}</span>
+                        {currentStep === step.id && processingMessage && (
+                            <span className="text-[10px] text-indigo-500 mt-0.5 animate-pulse">{processingMessage}</span>
+                        )}
+                    </div>
+                    {index < STEPS.length - 1 && (
+                        <div className={`flex-1 h-1 mx-2 rounded-full transition-all ${currentStep > step.id ? 'bg-green-500' : 'bg-slate-100'
+                            }`} />
+                    )}
+                </div>
+            ))}
+        </div>
+    </div>
+);
+
 const CreateCampaign: React.FC = () => {
     const { settings, globalProcess, setGlobalProcess } = useSettings();
     const [loading, setLoading] = useState(false);
@@ -89,6 +127,7 @@ const CreateCampaign: React.FC = () => {
     const [mediaFile, setMediaFile] = useState<File | null>(null);
     const [mediaType, setMediaType] = useState<'image' | 'video'>('image');
     const [filePreview, setFilePreview] = useState<string | null>(null);
+    const [currentStep, setCurrentStep] = useState(1); // Progress tracking
 
     const lastPublishTime = useRef<number>(0);
 
@@ -244,6 +283,7 @@ const CreateCampaign: React.FC = () => {
 
         setLoading(true);
         setError('');
+        setCurrentStep(2); // Upload step
 
         setGlobalProcess({ active: true, name: "Creating Campaign...", message: "Initializing...", type: "CAMPAIGN_CREATION" });
 
@@ -289,6 +329,7 @@ const CreateCampaign: React.FC = () => {
                 assetId = videoId;
             }
 
+            setCurrentStep(3); // Build step
             setGlobalProcess({ active: true, name: "Creating Campaign...", message: "Finalizing Creative...", type: "CAMPAIGN_CREATION" });
             const creativeId = await createMetaCreative(
                 adAccountId,
@@ -306,10 +347,12 @@ const CreateCampaign: React.FC = () => {
                 thumbnailHash // Pass thumbnail for video ads
             );
 
+            setCurrentStep(4); // Launch step
             setGlobalProcess({ active: true, name: "Creating Campaign...", message: "Publishing Final Ad...", type: "CAMPAIGN_CREATION" });
             await createMetaAd(adAccountId, finalAdSetId, adName, creativeId, fbAccessToken);
 
             setSuccessMsg("Campaign Created Successfully! Check your Dashboard.");
+            setCurrentStep(1); // Reset
             window.scrollTo(0, 0);
 
             // Log campaign to Vercel KV for admin tracking
@@ -359,6 +402,9 @@ const CreateCampaign: React.FC = () => {
 
     return (
         <div className="max-w-4xl mx-auto pb-20">
+            {/* Progress Bar - Rapid Ads Style */}
+            {loading && <StepProgress currentStep={currentStep} processingMessage={globalProcess.message} />}
+
             <div className="flex justify-between items-center mb-6">
                 <h1 className="text-2xl font-bold text-slate-800">Create New Campaign</h1>
 

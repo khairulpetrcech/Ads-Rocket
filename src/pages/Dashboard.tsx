@@ -853,7 +853,19 @@ const Dashboard: React.FC = () => {
                                                                 onToggle={() => handleStatusToggle(camp.id, camp.status, 'campaign')}
                                                             />
                                                             <div className="min-w-0 flex-1">
-                                                                <div className="font-bold text-slate-800 truncate max-w-[200px] lg:max-w-xs text-sm" title={camp.name}>{camp.name}</div>
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className="font-bold text-slate-800 truncate max-w-[160px] lg:max-w-[200px] text-sm" title={camp.name}>{camp.name}</span>
+                                                                    {/* Objective Pill Badge */}
+                                                                    <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wide ${camp.objective?.includes('TRAFFIC') ? 'bg-blue-100 text-blue-600' :
+                                                                            camp.objective?.includes('SALES') ? 'bg-green-100 text-green-600' :
+                                                                                camp.objective?.includes('LEADS') ? 'bg-amber-100 text-amber-600' :
+                                                                                    camp.objective?.includes('AWARENESS') ? 'bg-purple-100 text-purple-600' :
+                                                                                        camp.objective?.includes('ENGAGEMENT') ? 'bg-pink-100 text-pink-600' :
+                                                                                            'bg-slate-100 text-slate-500'
+                                                                        }`}>
+                                                                        {camp.objective?.replace('OUTCOME_', '') || 'N/A'}
+                                                                    </span>
+                                                                </div>
                                                                 <div className="flex items-center gap-2 text-[10px] text-slate-500 mt-0.5 group-hover:text-slate-700 transition-colors">
                                                                     <span className="uppercase font-semibold tracking-wider">Budget: {formatMYR(camp.dailyBudget)}</span>
                                                                     <button onClick={() => handleBudgetEdit(camp.id, camp.dailyBudget, 'campaign')} className="text-indigo-500 hover:text-indigo-700 opacity-0 group-hover:opacity-100 transition-opacity">
