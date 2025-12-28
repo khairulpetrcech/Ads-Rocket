@@ -35,11 +35,19 @@ export default async function handler(req: any, res: any) {
     try {
         // Get all users with campaign counts
         console.log('Admin API: Fetching users from tracked_users table...');
-        
-        const { data: users, error } = await supabase
+
+        // First try with ordering by created_at (more reliable column)
+        let users: any[] | null = null;
+        let error: any = null;
+
+        // Try fetching users - order by id desc as fallback (always exists)
+        const result = await supabase
             .from('tracked_users')
             .select('*')
-            .order('last_active', { ascending: false });
+            .order('id', { ascending: false });
+
+        users = result.data;
+        error = result.error;
 
         if (error) {
             console.error('Supabase error fetching users:', {
@@ -48,14 +56,18 @@ export default async function handler(req: any, res: any) {
                 hint: error.hint,
                 code: error.code
             });
-            
-            // If table doesn't exist or RLS blocks access, return empty array instead of error
-            if (error.code === '42P01' || error.code === 'PGRST116' || error.message?.includes('does not exist')) {
-                console.log('Table may not exist yet, returning empty users list');
+
+            // If table doesn't exist, column doesn't exist, or RLS blocks access
+            if (error.code === '42P01' || error.code === 'PGRST116' ||
+                error.code === '42703' || error.code === 'PGRST301' ||
+                error.message?.includes('does not exist') ||
+                error.message?.includes('permission denied') ||
+                error.message?.includes('RLS')) {
+                console.log('Table/column issue or RLS blocking, returning empty users list');
                 return res.status(200).json({ users: [], total: 0 });
             }
-            
-            return res.status(500).json({ 
+
+            return res.status(500).json({
                 error: error.message,
                 hint: error.hint || 'Check if tracked_users table exists and RLS policies allow read access'
             });
@@ -79,16 +91,16 @@ export default async function handler(req: any, res: any) {
             });
         }
 
-        // Map to expected format
+        // Map to expected format - handle missing columns gracefully
         const formattedUsers = (users || []).map((u: any) => ({
-            fbId: u.fb_id,
-            fbName: u.fb_name,
-            profilePicture: u.profile_picture,
-            connectedAt: u.created_at,
-            tokenExpiresAt: u.token_expires_at,
-            adAccountId: u.ad_account_id,
-            adAccountName: u.ad_account_name,
-            lastActive: u.last_active,
+            fbId: u.fb_id || '',
+            fbName: u.fb_name || 'Unknown User',
+            profilePicture: u.profile_picture || '',
+            connectedAt: u.created_at || new Date().toISOString(),
+            tokenExpiresAt: u.token_expires_at || null,
+            adAccountId: u.ad_account_id || '',
+            adAccountName: u.ad_account_name || '',
+            lastActive: u.last_active || u.created_at || new Date().toISOString(),
             campaignCount: campaignCounts[u.fb_id] || 0
         }));
 
@@ -99,7 +111,7 @@ export default async function handler(req: any, res: any) {
 
     } catch (error: any) {
         console.error('Get Users Error:', error);
-        return res.status(500).json({ 
+        return res.status(500).json({
             error: error.message || 'Internal server error',
             stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
         });
