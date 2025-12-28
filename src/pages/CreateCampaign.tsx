@@ -402,8 +402,8 @@ const CreateCampaign: React.FC = () => {
 
     return (
         <div className="max-w-4xl mx-auto pb-20">
-            {/* Progress Bar - Rapid Ads Style */}
-            {loading && <StepProgress currentStep={currentStep} processingMessage={globalProcess.message} />}
+            {/* Progress Bar - Always Visible (Rapid Ads Style) */}
+            <StepProgress currentStep={currentStep} processingMessage={loading ? globalProcess.message : undefined} />
 
             <div className="flex justify-between items-center mb-6">
                 <h1 className="text-2xl font-bold text-slate-800">Create New Campaign</h1>
