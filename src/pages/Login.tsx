@@ -73,9 +73,9 @@ const LoginPage: React.FC = () => {
       <div className="absolute inset-0 bg-[radial-gradient(#e2e8f0_1px,transparent_1px)] [background-size:16px_16px] opacity-50"></div>
 
       <div className="max-w-md w-full bg-white rounded-2xl border border-slate-200 shadow-xl p-8 z-10 text-center relative">
-        
+
         {/* Clickable Logo for Demo Mode */}
-        <div 
+        <div
           onClick={handleDemoMode}
           className="w-20 h-20 rounded-xl bg-indigo-600 mx-auto mb-6 flex items-center justify-center shadow-lg shadow-indigo-200 cursor-pointer hover:scale-105 transition-transform group relative"
           title="Click to enter Demo Mode"
@@ -138,6 +138,7 @@ const LoginPage: React.FC = () => {
 
           {/* Terms and Conditions Link */}
           <div className="text-center pt-1">
+            <span className="text-sm text-slate-500">Please Read Before You Login : </span>
             <button
               type="button"
               onClick={() => setShowTermsModal(true)}
@@ -157,8 +158,8 @@ const LoginPage: React.FC = () => {
             <span>Login</span>
           </button>
         </form>
-        
-        <button 
+
+        <button
           onClick={handleDemoMode}
           disabled={loading}
           className="mt-4 w-full bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 font-bold py-3 px-4 rounded-xl transition-all flex items-center justify-center gap-2 text-sm shadow-sm"
@@ -173,18 +174,18 @@ const LoginPage: React.FC = () => {
 
       {/* Terms and Conditions Modal */}
       {showTermsModal && (
-        <div 
+        <div
           className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 animate-fadeIn"
           onClick={() => setShowTermsModal(false)}
         >
-          <div 
+          <div
             className="bg-white rounded-2xl max-w-lg w-full max-h-[80vh] overflow-hidden shadow-2xl animate-scaleIn"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal Header */}
             <div className="flex items-center justify-between p-4 border-b border-slate-200 bg-slate-50">
               <h2 className="text-lg font-bold text-slate-800">Terms and Conditions</h2>
-              <button 
+              <button
                 onClick={() => setShowTermsModal(false)}
                 className="p-1.5 rounded-lg hover:bg-slate-200 text-slate-500 hover:text-slate-700 transition-colors"
               >
