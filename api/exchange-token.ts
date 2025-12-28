@@ -1,5 +1,3 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node';
-
 /**
  * Vercel Serverless Function to exchange short-lived FB token for long-lived token.
  * This keeps the App Secret secure on the server side.
@@ -10,19 +8,20 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 const FB_APP_ID = '861724536220118'; // Your public App ID
 const FB_APP_SECRET = process.env.FB_APP_SECRET; // Set this in Vercel Environment Variables
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
-    // Only allow POST requests
-    if (req.method !== 'POST') {
-        return res.status(405).json({ error: 'Method not allowed' });
-    }
-
+export default async function handler(req: any, res: any) {
     // CORS headers
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
+    // Handle preflight
     if (req.method === 'OPTIONS') {
         return res.status(200).end();
+    }
+
+    // Only allow POST requests
+    if (req.method !== 'POST') {
+        return res.status(405).json({ error: 'Method not allowed' });
     }
 
     const { shortLivedToken } = req.body;
