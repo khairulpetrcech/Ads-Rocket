@@ -52,10 +52,10 @@ export const useSettings = () => {
 const DEFAULT_SETTINGS: UserSettings = {
   isConnected: false,
   businessName: '',
-  selectedAiProvider: AiProvider.CLAUDE, 
-  selectedModel: 'claude-3-5-sonnet-20241022', 
+  selectedAiProvider: AiProvider.CLAUDE,
+  selectedModel: 'claude-3-5-sonnet-20241022',
   apiKey: '',
-  fbAppId: '', 
+  fbAppId: '',
   fbAccessToken: '',
   adAccountId: '',
   availableAccounts: []
@@ -123,7 +123,7 @@ const App: React.FC = () => {
         // 1. Check Auth
         const auth = localStorage.getItem('ar_auth');
         if (auth === 'true') {
-            setIsAuthenticated(true);
+          setIsAuthenticated(true);
         }
 
         // 2. Check Settings
@@ -132,7 +132,7 @@ const App: React.FC = () => {
           const parsed = JSON.parse(savedSettings);
           // Decrypt API key if present so the app can use it
           if (parsed.apiKey) {
-              parsed.apiKey = decryptKey(parsed.apiKey);
+            parsed.apiKey = decryptKey(parsed.apiKey);
           }
           setSettings(prev => ({ ...prev, ...parsed }));
         }
@@ -159,21 +159,21 @@ const App: React.FC = () => {
 
   const updateSettings = (newSettings: Partial<UserSettings>) => {
     setSettings(prev => {
-        const next = { ...prev, ...newSettings };
-        
-        // Trim API Key if it exists in the update
-        if (next.apiKey) {
-            next.apiKey = next.apiKey.trim();
-        }
+      const next = { ...prev, ...newSettings };
 
-        // Encrypt API Key before saving to LocalStorage
-        const toSave = { ...next };
-        if (toSave.apiKey) {
-            toSave.apiKey = encryptKey(toSave.apiKey);
-        }
-        
-        localStorage.setItem('ar_settings', JSON.stringify(toSave));
-        return next;
+      // Trim API Key if it exists in the update
+      if (next.apiKey) {
+        next.apiKey = next.apiKey.trim();
+      }
+
+      // Encrypt API Key before saving to LocalStorage
+      const toSave = { ...next };
+      if (toSave.apiKey) {
+        toSave.apiKey = encryptKey(toSave.apiKey);
+      }
+
+      localStorage.setItem('ar_settings', JSON.stringify(toSave));
+      return next;
     });
   };
 
@@ -189,55 +189,65 @@ const App: React.FC = () => {
     if (!isAuthenticated || !settings.isConnected || !settings.fbAppId) return;
 
     const checkToken = () => {
-        // Safety check to ensure window.FB is available and not in a disconnected state
-        if (typeof window.FB !== 'undefined' && window.FB.getLoginStatus && settings.fbAccessToken !== 'dummy_token') {
-            try {
-                // The 'true' flag forces a roundtrip to FB servers.
-                // We wrap this in a try-catch because if the extension context is invalidated (common in 'sleeping' tabs),
-                // accessing window.FB might throw a "Receiving end does not exist" error.
-                window.FB.getLoginStatus((response: any) => {
-                    if (response.status === 'connected' && response.authResponse) {
-                        const newToken = response.authResponse.accessToken;
-                        // Only update if different to avoid infinite loops
-                        if (newToken && newToken !== settings.fbAccessToken) {
-                            console.log("Refreshing token in background...");
-                            updateSettings({ fbAccessToken: newToken });
-                        }
-                    } else if (response.status === 'unknown' || response.status === 'not_authorized') {
-                        console.warn("Session lost during background check.");
-                    }
-                }, true); 
-            } catch (e) {
-                // Silently ignore connection errors during background checks to prevent console noise
-                // This usually happens when the browser cleans up the extension context.
-                console.debug("Background token check skipped due to browser state.");
+      // Safety check to ensure window.FB is available and not in a disconnected state
+      if (typeof window.FB !== 'undefined' && window.FB.getLoginStatus && settings.fbAccessToken !== 'dummy_token') {
+        try {
+          // The 'true' flag forces a roundtrip to FB servers.
+          // We wrap this in a try-catch because if the extension context is invalidated (common in 'sleeping' tabs),
+          // accessing window.FB might throw a "Receiving end does not exist" error.
+          window.FB.getLoginStatus((response: any) => {
+            if (response.status === 'connected' && response.authResponse) {
+              const newToken = response.authResponse.accessToken;
+              // Only update if different to avoid infinite loops
+              if (newToken && newToken !== settings.fbAccessToken) {
+                console.log("Refreshing token in background...");
+                updateSettings({ fbAccessToken: newToken });
+              }
+            } else if (response.status === 'unknown' || response.status === 'not_authorized') {
+              console.warn("Session lost during background check.");
             }
+          }, true);
+        } catch (e) {
+          // Silently ignore connection errors during background checks to prevent console noise
+          // This usually happens when the browser cleans up the extension context.
+          console.debug("Background token check skipped due to browser state.");
         }
+      }
     };
 
     // 1. Regular Interval (Stops when tab sleeps)
     const interval = setInterval(checkToken, 5 * 60 * 1000); // Check every 5 mins
 
     // 2. Visibility Change Listener (Triggers when tab wakes up)
-    const handleVisibilityChange = () => {
-        if (document.visibilityState === 'visible') {
-            console.log("Tab woke up: Checking token status...");
-            // Small delay to allow extensions/iframes to reconnect
-            setTimeout(checkToken, 1000);
+    const handleVisibilityChange = async () => {
+      if (document.visibilityState === 'visible') {
+        console.log("Tab woke up: Re-initializing FB SDK and checking token...");
+        // Longer delay for desktop browsers to fully restore connections after sleep
+        await new Promise(r => setTimeout(r, 2000));
+
+        // Try to re-init FB SDK first (important for long idle periods on desktop)
+        try {
+          await initFacebookSdk(settings.fbAppId);
+        } catch (e) {
+          console.debug("FB SDK re-init skipped:", e);
         }
+
+        // Then check token
+        setTimeout(checkToken, 500);
+      }
     };
 
     // 3. User Interaction Listener (Extra safety for desktop idle)
     // We debounce this so it doesn't fire constantly
     let lastInteractionCheck = Date.now();
     const handleInteraction = () => {
-        const now = Date.now();
-        // Only check if it's been more than 10 minutes since last check AND user is active
-        if (now - lastInteractionCheck > 10 * 60 * 1000) {
-            lastInteractionCheck = now;
-            console.log("User active after idle: Checking token...");
-            checkToken();
-        }
+      const now = Date.now();
+      // Only check if it's been more than 10 minutes since last check AND user is active
+      if (now - lastInteractionCheck > 10 * 60 * 1000) {
+        lastInteractionCheck = now;
+        console.log("User active after idle: Checking token...");
+        checkToken();
+      }
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
@@ -246,11 +256,11 @@ const App: React.FC = () => {
     window.addEventListener('keydown', handleInteraction);
 
     return () => {
-        clearInterval(interval);
-        document.removeEventListener('visibilitychange', handleVisibilityChange);
-        window.removeEventListener('focus', handleVisibilityChange);
-        window.removeEventListener('click', handleInteraction);
-        window.removeEventListener('keydown', handleInteraction);
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleVisibilityChange);
+      window.removeEventListener('click', handleInteraction);
+      window.removeEventListener('keydown', handleInteraction);
     };
   }, [isAuthenticated, settings.isConnected, settings.fbAppId, settings.fbAccessToken]);
 
@@ -273,7 +283,7 @@ const App: React.FC = () => {
         <p className="text-slate-500 mb-8 max-w-md leading-relaxed">
           To use the powerful AI features powered by Gemini, you must select a paid API key from your Google Cloud Project.
         </p>
-        <button 
+        <button
           onClick={handleSelectKey}
           className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 px-8 rounded-xl transition-all transform hover:scale-105 shadow-lg shadow-indigo-200"
         >
@@ -299,13 +309,13 @@ const App: React.FC = () => {
       <HashRouter>
         <Routes>
           <Route path="/login" element={
-             isAuthenticated ? <Navigate to="/connect" replace /> : <LoginPage />
+            isAuthenticated ? <Navigate to="/connect" replace /> : <LoginPage />
           } />
-          
+
           <Route path="/connect" element={
             isAuthenticated ? <ConnectPage /> : <Navigate to="/login" replace />
           } />
-          
+
           <Route path="/" element={
             isAuthenticated ? (
               settings.isConnected ? <Layout /> : <Navigate to="/connect" replace />

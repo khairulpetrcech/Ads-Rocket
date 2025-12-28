@@ -280,7 +280,16 @@ const Dashboard: React.FC = () => {
             // AUTO REFRESH LOGIC: If Session expired, try to refresh first
             if (err.message === "SESSION_EXPIRED" || (err.message || "").toLowerCase().includes("session")) {
                 console.log("Session expired, attempting silent refresh...");
-                // Try to get a fresh token silently
+
+                // Step 1: Try to re-initialize Facebook SDK (important for desktop idle tabs)
+                try {
+                    await initFacebookSdk(settings.fbAppId);
+                    console.log("FB SDK re-initialized after idle.");
+                } catch (sdkErr) {
+                    console.warn("FB SDK re-init failed:", sdkErr);
+                }
+
+                // Step 2: Try to get a fresh token silently
                 const newToken = await refreshFacebookToken();
                 if (newToken && newToken !== settings.fbAccessToken) {
                     console.log("Session refreshed successfully.");
@@ -289,9 +298,11 @@ const Dashboard: React.FC = () => {
                     return;
                 }
 
-                // If refresh failed, then redirect
-                setAuthError(true);
-                navigate('/connect');
+                // Step 3: If refresh failed, DON'T redirect - just show error and use mock data
+                // This prevents unwanted logouts on desktop when tab has been idle
+                console.warn("Session refresh failed. Using offline data mode.");
+                setFetchError("Meta session expired. Click 'Retry Sync' or reconnect your account in Settings.");
+                setCampaigns(MOCK_CAMPAIGNS);
                 return;
             } else {
                 setFetchError("Data sync failed. Using offline data.");
