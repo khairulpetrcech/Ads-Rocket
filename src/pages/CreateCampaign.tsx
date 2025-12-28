@@ -15,7 +15,7 @@ import {
     extractVideoThumbnail,
     uploadAdImageBlob
 } from '../services/metaService';
-import { CheckCircle, Loader2, Upload, AlertTriangle, Save, FolderOpen, Trash2, ChevronDown, Video, Image as ImageIcon, Sparkles, Wand2 } from 'lucide-react';
+import { CheckCircle, Loader2, Upload, AlertTriangle, Save, FolderOpen, Trash2, ChevronDown, Video, Image as ImageIcon, Sparkles, Wand2, ArrowRight, ArrowLeft, Zap } from 'lucide-react';
 import { AdvantagePlusConfig } from '../types';
 
 interface Template {
@@ -24,7 +24,96 @@ interface Template {
     data: any;
 }
 
-// TOGGLE SWITCH COMPONENT
+// ============================================================
+// RAPID ADS STYLE STEP PROGRESS BAR
+// ============================================================
+const STEPS = [
+    { id: 1, label: 'Campaign', desc: 'Setup campaign & budget' },
+    { id: 2, label: 'Creative', desc: 'Add media & text' },
+    { id: 3, label: 'Launch', desc: 'Review & publish' }
+];
+
+const StepProgressBar = ({ currentStep, onStepClick }: { currentStep: number; onStepClick?: (step: number) => void }) => (
+    <div className="bg-white rounded-2xl border border-slate-200 p-6 mb-8 shadow-sm">
+        <div className="flex items-center justify-between relative">
+            {/* Background Line */}
+            <div className="absolute top-5 left-0 right-0 h-0.5 bg-slate-100 mx-16" />
+            <div
+                className="absolute top-5 left-0 h-0.5 bg-blue-500 mx-16 transition-all duration-500"
+                style={{ width: `${((currentStep - 1) / (STEPS.length - 1)) * (100 - 20)}%` }}
+            />
+
+            {STEPS.map((step) => (
+                <div
+                    key={step.id}
+                    className="flex flex-col items-center z-10 cursor-pointer group"
+                    onClick={() => onStepClick && step.id < currentStep && onStepClick(step.id)}
+                >
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold transition-all duration-300 ${currentStep > step.id
+                            ? 'bg-green-500 text-white'
+                            : currentStep === step.id
+                                ? 'bg-blue-600 text-white ring-4 ring-blue-100 scale-110'
+                                : 'bg-slate-100 text-slate-400 group-hover:bg-slate-200'
+                        }`}>
+                        {currentStep > step.id ? '✓' : step.id}
+                    </div>
+                    <span className={`text-sm font-semibold mt-2 ${currentStep >= step.id ? 'text-slate-800' : 'text-slate-400'
+                        }`}>{step.label}</span>
+                    <span className="text-[10px] text-slate-400 mt-0.5 hidden md:block">{step.desc}</span>
+                </div>
+            ))}
+        </div>
+    </div>
+);
+
+// ============================================================
+// RAPID ADS STYLE INPUT COMPONENTS
+// ============================================================
+const InputField = ({ label, value, onChange, placeholder, type = 'text', required = false }: any) => (
+    <div className="space-y-1.5">
+        <label className="text-sm font-medium text-slate-700">
+            {label} {required && <span className="text-red-500">*</span>}
+        </label>
+        <input
+            type={type}
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder={placeholder}
+            className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-slate-800 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 outline-none transition-all placeholder:text-slate-400"
+        />
+    </div>
+);
+
+const SelectField = ({ label, value, onChange, options, required = false }: any) => (
+    <div className="space-y-1.5">
+        <label className="text-sm font-medium text-slate-700">
+            {label} {required && <span className="text-red-500">*</span>}
+        </label>
+        <select
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-slate-800 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 outline-none transition-all appearance-none cursor-pointer"
+        >
+            {options.map((opt: any) => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+        </select>
+    </div>
+);
+
+const TextAreaField = ({ label, value, onChange, placeholder, rows = 3 }: any) => (
+    <div className="space-y-1.5">
+        <label className="text-sm font-medium text-slate-700">{label}</label>
+        <textarea
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder={placeholder}
+            rows={rows}
+            className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-slate-800 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 outline-none transition-all resize-none placeholder:text-slate-400"
+        />
+    </div>
+);
+
 const ToggleSwitch = ({ checked, onChange, label, subtext }: { checked: boolean, onChange: (val: boolean) => void, label: string, subtext?: string }) => (
     <div className="flex items-center justify-between py-2 group">
         <div className="flex flex-col">
@@ -33,56 +122,22 @@ const ToggleSwitch = ({ checked, onChange, label, subtext }: { checked: boolean,
         </div>
         <button
             onClick={() => onChange(!checked)}
-            className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none ${checked ? 'bg-indigo-600' : 'bg-slate-200'}`}
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${checked ? 'bg-blue-600' : 'bg-slate-200'}`}
         >
-            <span className={`inline-block h-3 w-3 transform rounded-full bg-white shadow-sm transition-transform ${checked ? 'translate-x-5' : 'translate-x-1'}`} />
+            <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform ${checked ? 'translate-x-6' : 'translate-x-1'}`} />
         </button>
     </div>
 );
 
-// STEP PROGRESS COMPONENT - Rapid Ads Style
-const STEPS = [
-    { id: 1, label: 'Setup', icon: '📋' },
-    { id: 2, label: 'Upload', icon: '📤' },
-    { id: 3, label: 'Build', icon: '🔧' },
-    { id: 4, label: 'Launch', icon: '🚀' }
-];
-
-const StepProgress = ({ currentStep, processingMessage }: { currentStep: number; processingMessage?: string }) => (
-    <div className="bg-white rounded-xl border border-slate-200 p-4 mb-6 shadow-sm">
-        <div className="flex items-center justify-between">
-            {STEPS.map((step, index) => (
-                <div key={step.id} className="flex items-center flex-1">
-                    <div className="flex flex-col items-center">
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg transition-all ${currentStep > step.id
-                            ? 'bg-green-500 text-white'
-                            : currentStep === step.id
-                                ? 'bg-indigo-600 text-white ring-4 ring-indigo-100'
-                                : 'bg-slate-100 text-slate-400'
-                            }`}>
-                            {currentStep > step.id ? '✓' : step.icon}
-                        </div>
-                        <span className={`text-xs mt-1.5 font-medium ${currentStep >= step.id ? 'text-slate-700' : 'text-slate-400'
-                            }`}>{step.label}</span>
-                        {currentStep === step.id && processingMessage && (
-                            <span className="text-[10px] text-indigo-500 mt-0.5 animate-pulse">{processingMessage}</span>
-                        )}
-                    </div>
-                    {index < STEPS.length - 1 && (
-                        <div className={`flex-1 h-1 mx-2 rounded-full transition-all ${currentStep > step.id ? 'bg-green-500' : 'bg-slate-100'
-                            }`} />
-                    )}
-                </div>
-            ))}
-        </div>
-    </div>
-);
-
+// ============================================================
+// MAIN COMPONENT
+// ============================================================
 const CreateCampaign: React.FC = () => {
     const { settings, globalProcess, setGlobalProcess } = useSettings();
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [successMsg, setSuccessMsg] = useState('');
+    const [currentStep, setCurrentStep] = useState(1);
 
     const [templates, setTemplates] = useState<Template[]>([]);
     const [templateName, setTemplateName] = useState('');
@@ -115,9 +170,8 @@ const CreateCampaign: React.FC = () => {
     const [destinationUrl, setDestinationUrl] = useState('');
     const [callToAction, setCallToAction] = useState('LEARN_MORE');
 
-    // ADVANTAGE+ CREATIVE STATE - Default OFF to disable all enhancements
     const [advPlusConfig, setAdvPlusConfig] = useState<AdvantagePlusConfig>({
-        enabled: false, // Default OFF - user can enable if wanted
+        enabled: false,
         visualTouchups: false,
         textOptimizations: false,
         mediaCropping: false,
@@ -127,10 +181,10 @@ const CreateCampaign: React.FC = () => {
     const [mediaFile, setMediaFile] = useState<File | null>(null);
     const [mediaType, setMediaType] = useState<'image' | 'video'>('image');
     const [filePreview, setFilePreview] = useState<string | null>(null);
-    const [currentStep, setCurrentStep] = useState(1); // Progress tracking
 
     const lastPublishTime = useRef<number>(0);
 
+    // Effects
     useEffect(() => {
         if (globalProcess.type === 'CAMPAIGN_CREATION' && globalProcess.active) {
             setLoading(true);
@@ -169,9 +223,7 @@ const CreateCampaign: React.FC = () => {
             }
         };
         document.addEventListener("mousedown", handleClickOutside);
-        return () => {
-            document.removeEventListener("mousedown", handleClickOutside);
-        };
+        return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
 
     useEffect(() => {
@@ -225,10 +277,7 @@ const CreateCampaign: React.FC = () => {
             data: {
                 campaignMode, newCampaignName, objective,
                 adSetMode, newAdSetName, dailyBudget, optimizationGoal, selectedPixelId,
-                selectedPageId,
-                adName,
-                primaryText, headline, description, destinationUrl, callToAction,
-                advPlusConfig // Save Adv+ Config
+                selectedPageId, adName, primaryText, headline, description, destinationUrl, callToAction, advPlusConfig
             }
         };
         const updated = [...templates, newTemplate];
@@ -255,7 +304,7 @@ const CreateCampaign: React.FC = () => {
         if (d.description) setDescription(d.description);
         if (d.destinationUrl) setDestinationUrl(d.destinationUrl);
         if (d.callToAction) setCallToAction(d.callToAction);
-        if (d.advPlusConfig) setAdvPlusConfig(d.advPlusConfig); // Load Adv+ Config
+        if (d.advPlusConfig) setAdvPlusConfig(d.advPlusConfig);
         setShowTemplatesDropdown(false);
     };
 
@@ -266,14 +315,38 @@ const CreateCampaign: React.FC = () => {
         localStorage.setItem('ar_templates', JSON.stringify(updated));
     };
 
+    const validateStep = (step: number): boolean => {
+        if (step === 1) {
+            if (campaignMode === 'new' && !newCampaignName) { setError('Enter campaign name'); return false; }
+            if (campaignMode === 'existing' && !selectedCampaignId) { setError('Select a campaign'); return false; }
+            if (adSetMode === 'new' && !newAdSetName) { setError('Enter Ad Set name'); return false; }
+            if (adSetMode === 'existing' && !selectedAdSetId) { setError('Select an Ad Set'); return false; }
+        }
+        if (step === 2) {
+            if (!mediaFile) { setError('Upload an image or video'); return false; }
+            if (!adName) { setError('Enter Ad name'); return false; }
+            if (!primaryText) { setError('Enter Primary Text'); return false; }
+            if (!headline) { setError('Enter Headline'); return false; }
+            if (!destinationUrl) { setError('Enter Destination URL'); return false; }
+            if (!selectedPageId) { setError('Select a Facebook Page'); return false; }
+        }
+        return true;
+    };
+
+    const handleNext = () => {
+        setError('');
+        if (validateStep(currentStep)) {
+            setCurrentStep(prev => Math.min(prev + 1, STEPS.length));
+        }
+    };
+
+    const handleBack = () => {
+        setError('');
+        setCurrentStep(prev => Math.max(prev - 1, 1));
+    };
+
     const handleSubmit = async () => {
-        if (campaignMode === 'new' && !newCampaignName) return setError("Enter campaign name");
-        if (campaignMode === 'existing' && !selectedCampaignId) return setError("Select a campaign");
-        if (adSetMode === 'new' && !newAdSetName) return setError("Enter Ad Set Name");
-        if (adSetMode === 'existing' && !selectedAdSetId) return setError("Select an Ad Set");
-        if (!adName || !primaryText || !headline || !destinationUrl) return setError("Fill all ad details");
-        if (!selectedPageId) return setError("Select a Facebook Page");
-        if (!mediaFile) return setError("Upload an image or video");
+        if (!validateStep(1) || !validateStep(2)) return;
 
         const now = Date.now();
         if (now - lastPublishTime.current < 5000) {
@@ -283,7 +356,6 @@ const CreateCampaign: React.FC = () => {
 
         setLoading(true);
         setError('');
-        setCurrentStep(2); // Upload step
 
         setGlobalProcess({ active: true, name: "Creating Campaign...", message: "Initializing...", type: "CAMPAIGN_CREATION" });
 
@@ -309,10 +381,9 @@ const CreateCampaign: React.FC = () => {
             let thumbnailHash: string | undefined = undefined;
 
             if (mediaType === 'image') {
-                setGlobalProcess({ active: true, name: "Creating Campaign...", message: "Uploading Image Asset...", type: "CAMPAIGN_CREATION" });
+                setGlobalProcess({ active: true, name: "Creating Campaign...", message: "Uploading Image...", type: "CAMPAIGN_CREATION" });
                 assetId = await uploadAdImage(adAccountId, mediaFile!, fbAccessToken);
             } else {
-                // For video: Extract thumbnail first, then upload video
                 setGlobalProcess({ active: true, name: "Creating Campaign...", message: "Generating Thumbnail...", type: "CAMPAIGN_CREATION" });
                 const thumbnailBlob = await extractVideoThumbnail(mediaFile!);
                 thumbnailHash = await uploadAdImageBlob(adAccountId, thumbnailBlob, fbAccessToken);
@@ -324,40 +395,24 @@ const CreateCampaign: React.FC = () => {
                     fbAccessToken,
                     (percent) => setGlobalProcess({ active: true, name: "Creating Campaign...", message: `Uploading Video (${percent}%)...`, type: "CAMPAIGN_CREATION" })
                 );
-
-                // Skip waiting for video processing - video will process in background
                 assetId = videoId;
             }
 
-            setCurrentStep(3); // Build step
-            setGlobalProcess({ active: true, name: "Creating Campaign...", message: "Finalizing Creative...", type: "CAMPAIGN_CREATION" });
+            setGlobalProcess({ active: true, name: "Creating Campaign...", message: "Creating Ad Creative...", type: "CAMPAIGN_CREATION" });
             const creativeId = await createMetaCreative(
-                adAccountId,
-                adName,
-                selectedPageId,
-                assetId,
-                primaryText,
-                headline,
-                destinationUrl,
-                fbAccessToken,
-                mediaType,
-                callToAction,
-                description,
-                advPlusConfig,
-                thumbnailHash // Pass thumbnail for video ads
+                adAccountId, adName, selectedPageId, assetId, primaryText, headline, destinationUrl,
+                fbAccessToken, mediaType, callToAction, description, advPlusConfig, thumbnailHash
             );
 
-            setCurrentStep(4); // Launch step
-            setGlobalProcess({ active: true, name: "Creating Campaign...", message: "Publishing Final Ad...", type: "CAMPAIGN_CREATION" });
+            setGlobalProcess({ active: true, name: "Creating Campaign...", message: "Publishing Ad...", type: "CAMPAIGN_CREATION" });
             await createMetaAd(adAccountId, finalAdSetId, adName, creativeId, fbAccessToken);
 
-            setSuccessMsg("Campaign Created Successfully! Check your Dashboard.");
-            setCurrentStep(1); // Reset
+            setSuccessMsg("🎉 Campaign Created Successfully!");
+            setCurrentStep(1);
             window.scrollTo(0, 0);
 
-            // Log campaign to Vercel KV for admin tracking
+            // Log campaign to admin tracking
             try {
-                // Get FB user info
                 const fbUser = await new Promise<{ id: string; name: string }>((resolve, reject) => {
                     if (window.FB && window.FB.api) {
                         window.FB.api('/me', { fields: 'id,name' }, (response: any) => {
@@ -368,7 +423,6 @@ const CreateCampaign: React.FC = () => {
                         reject('FB SDK not available');
                     }
                 });
-
                 await fetch('/api/log-campaign', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -381,9 +435,8 @@ const CreateCampaign: React.FC = () => {
                         adAccountId: settings.adAccountId
                     })
                 });
-                console.log('Campaign logged to admin tracking');
             } catch (logErr) {
-                console.warn('Failed to log campaign (non-critical):', logErr);
+                console.warn('Failed to log campaign:', logErr);
             }
 
             setTimeout(() => {
@@ -392,7 +445,7 @@ const CreateCampaign: React.FC = () => {
 
         } catch (e: any) {
             console.error(e);
-            setError(e.message || "Failed to create campaign. Check parameters.");
+            setError(e.message || "Failed to create campaign.");
             window.scrollTo(0, 0);
             setGlobalProcess({ active: false, name: "", message: "", type: "NONE" });
         } finally {
@@ -400,31 +453,34 @@ const CreateCampaign: React.FC = () => {
         }
     };
 
+    // ============================================================
+    // RENDER
+    // ============================================================
     return (
-        <div className="max-w-4xl mx-auto pb-20">
-            {/* Progress Bar - Always Visible (Rapid Ads Style) */}
-            <StepProgress currentStep={currentStep} processingMessage={loading ? globalProcess.message : undefined} />
-
+        <div className="max-w-3xl mx-auto pb-20">
+            {/* Header */}
             <div className="flex justify-between items-center mb-6">
-                <h1 className="text-2xl font-bold text-slate-800">Create New Campaign</h1>
-
-                <div className="flex gap-2 relative">
-                    <div className="relative" ref={dropdownRef}>
+                <div>
+                    <h1 className="text-2xl font-bold text-slate-900">Create Campaign</h1>
+                    <p className="text-sm text-slate-500 mt-0.5">Launch your ad in 3 simple steps</p>
+                </div>
+                <div className="flex gap-2" ref={dropdownRef}>
+                    <div className="relative">
                         <button
                             onClick={() => setShowTemplatesDropdown(!showTemplatesDropdown)}
-                            className="flex items-center gap-2 bg-white border border-slate-200 text-slate-600 px-3 py-2 rounded-lg hover:bg-slate-50 shadow-sm"
+                            className="flex items-center gap-2 bg-white border border-slate-200 text-slate-600 px-3 py-2 rounded-xl text-sm hover:bg-slate-50 transition-all"
                         >
                             <FolderOpen size={16} /> Templates <ChevronDown size={14} />
                         </button>
                         {showTemplatesDropdown && (
-                            <div className="absolute right-0 top-full mt-2 w-56 bg-white border border-slate-200 rounded-lg shadow-xl z-50 animate-fadeIn">
+                            <div className="absolute right-0 top-full mt-2 w-56 bg-white border border-slate-200 rounded-xl shadow-xl z-50">
                                 {templates.length === 0 ? (
-                                    <div className="p-3 text-xs text-slate-400">No templates saved.</div>
+                                    <div className="p-4 text-sm text-slate-400 text-center">No templates saved</div>
                                 ) : (
-                                    <div className="max-h-60 overflow-y-auto custom-scrollbar">
+                                    <div className="max-h-60 overflow-y-auto">
                                         {templates.map(t => (
-                                            <div key={t.id} onClick={() => handleLoadTemplate(t)} className="px-4 py-3 hover:bg-slate-50 text-sm cursor-pointer flex justify-between items-center text-slate-600 border-b border-slate-100 last:border-0">
-                                                <span className="truncate max-w-[140px] font-medium">{t.name}</span>
+                                            <div key={t.id} onClick={() => handleLoadTemplate(t)} className="px-4 py-3 hover:bg-slate-50 text-sm cursor-pointer flex justify-between items-center border-b border-slate-100 last:border-0">
+                                                <span className="truncate font-medium text-slate-700">{t.name}</span>
                                                 <Trash2 size={14} className="hover:text-red-500 text-slate-400" onClick={(e) => deleteTemplate(t.id, e)} />
                                             </div>
                                         ))}
@@ -433,310 +489,314 @@ const CreateCampaign: React.FC = () => {
                             </div>
                         )}
                     </div>
-
                     <button
                         onClick={() => setShowSaveTemplate(!showSaveTemplate)}
-                        className="flex items-center gap-2 bg-indigo-50 text-indigo-600 px-3 py-2 rounded-lg hover:bg-indigo-100 border border-indigo-200 font-medium"
+                        className="flex items-center gap-2 bg-blue-50 text-blue-600 px-3 py-2 rounded-xl text-sm hover:bg-blue-100 transition-all font-medium"
                     >
-                        <Save size={16} /> Save Config
+                        <Save size={16} /> Save
                     </button>
                 </div>
             </div>
 
+            {/* Save Template Modal */}
             {showSaveTemplate && (
-                <div className="mb-6 bg-white p-4 rounded-xl border border-indigo-100 shadow-sm flex gap-2 animate-fadeIn items-center">
+                <div className="mb-6 bg-white p-4 rounded-xl border border-blue-200 flex gap-2 items-center shadow-sm">
                     <input
                         type="text"
                         value={templateName}
                         onChange={(e) => setTemplateName(e.target.value)}
-                        placeholder="Template Name (e.g. Winning Scale Setup)"
-                        className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                        placeholder="Template Name"
+                        className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                     />
-                    <button onClick={handleSaveTemplate} className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-md shadow-indigo-200 hover:bg-indigo-700">Save</button>
+                    <button onClick={handleSaveTemplate} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700">Save</button>
                     <button onClick={() => setShowSaveTemplate(false)} className="text-slate-500 px-2 text-sm hover:text-slate-800">Cancel</button>
                 </div>
             )}
 
+            {/* Alerts */}
             {error && (
-                <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 flex items-start gap-3 shadow-sm animate-fadeIn">
-                    <AlertTriangle size={20} className="mt-0.5 flex-shrink-0 text-red-500" />
-                    <div>
-                        <p className="font-bold mb-1">Error Creating Campaign</p>
-                        <p className="text-sm opacity-90">{error}</p>
-                    </div>
+                <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 flex items-center gap-3">
+                    <AlertTriangle size={20} className="text-red-500 flex-shrink-0" />
+                    <span className="text-sm">{error}</span>
                 </div>
             )}
 
             {successMsg && (
-                <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-xl text-green-700 flex items-center gap-2 animate-fadeIn shadow-sm">
-                    <CheckCircle size={20} className="text-green-500" /> <span className="font-medium">{successMsg}</span>
+                <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-xl text-green-700 flex items-center gap-3">
+                    <CheckCircle size={20} className="text-green-500" />
+                    <span className="font-medium">{successMsg}</span>
                 </div>
             )}
 
-            <div className="space-y-6">
+            {/* Progress Bar */}
+            <StepProgressBar currentStep={currentStep} onStepClick={setCurrentStep} />
 
-                {/* --- SECTION 1: CAMPAIGN --- */}
-                <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
-                    <h2 className="text-lg font-bold text-slate-800 mb-4 border-b border-slate-100 pb-2">1. Campaign Settings</h2>
-                    <div className="grid md:grid-cols-2 gap-6">
-                        <div className="space-y-4">
-                            <label className="text-sm font-semibold text-slate-500">Campaign Mode</label>
-                            <div className="flex bg-slate-100 rounded-lg p-1 border border-slate-200">
-                                <button onClick={() => setCampaignMode('new')} className={`flex-1 py-2 text-sm font-medium rounded-md transition-all ${campaignMode === 'new' ? 'bg-white text-indigo-600 shadow-sm border border-slate-200' : 'text-slate-500 hover:text-slate-800'}`}>Create New</button>
-                                <button onClick={() => setCampaignMode('existing')} className={`flex-1 py-2 text-sm font-medium rounded-md transition-all ${campaignMode === 'existing' ? 'bg-white text-indigo-600 shadow-sm border border-slate-200' : 'text-slate-500 hover:text-slate-800'}`}>Use Existing</button>
-                            </div>
-                        </div>
-
-                        {campaignMode === 'new' ? (
-                            <>
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-600 mb-1.5">Campaign Name</label>
-                                    <input type="text" value={newCampaignName} onChange={(e) => setNewCampaignName(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-slate-800 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 outline-none transition-all" placeholder="e.g. Raya Promo" />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-600 mb-1.5">Objective</label>
-                                    <select value={objective} onChange={(e) => setObjective(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-slate-800 outline-none focus:border-indigo-500">
-                                        <option value="OUTCOME_TRAFFIC">Traffic (Link Clicks)</option>
-                                        <option value="OUTCOME_SALES">Sales (Conversions)</option>
-                                        <option value="OUTCOME_AWARENESS">Awareness</option>
-                                    </select>
-                                </div>
-                            </>
-                        ) : (
-                            <div className="md:col-span-2">
-                                <label className="block text-sm font-medium text-slate-600 mb-1.5">Select Campaign</label>
-                                <select value={selectedCampaignId} onChange={(e) => setSelectedCampaignId(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-slate-800 outline-none focus:border-indigo-500">
-                                    <option value="">-- Select Campaign --</option>
-                                    {existingCampaigns.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                                </select>
-                            </div>
-                        )}
-                    </div>
+            {/* Loading Overlay */}
+            {loading && (
+                <div className="mb-6 p-6 bg-blue-50 border border-blue-200 rounded-2xl text-center">
+                    <Loader2 className="animate-spin text-blue-600 w-10 h-10 mx-auto mb-3" />
+                    <p className="font-semibold text-blue-800">{globalProcess.message || 'Processing...'}</p>
+                    <p className="text-sm text-blue-600 mt-1">Please wait, do not close this page</p>
                 </div>
+            )}
 
-                {/* --- SECTION 2: AD SET --- */}
-                <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
-                    <h2 className="text-lg font-bold text-slate-800 mb-4 border-b border-slate-100 pb-2">2. Ad Set Settings</h2>
-                    <div className="grid md:grid-cols-2 gap-6">
+            {/* STEP 1: Campaign & Ad Set Settings */}
+            {currentStep === 1 && !loading && (
+                <div className="space-y-6 animate-fadeIn">
+                    <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+                        <h2 className="text-lg font-bold text-slate-900 mb-5 flex items-center gap-2">
+                            <span className="w-7 h-7 bg-blue-100 text-blue-600 rounded-lg flex items-center justify-center text-sm font-bold">1</span>
+                            Campaign Settings
+                        </h2>
+
                         <div className="space-y-4">
-                            <label className="text-sm font-semibold text-slate-500">Ad Set Mode</label>
-                            <div className="flex bg-slate-100 rounded-lg p-1 border border-slate-200">
-                                <button onClick={() => setAdSetMode('new')} className={`flex-1 py-2 text-sm font-medium rounded-md transition-all ${adSetMode === 'new' ? 'bg-white text-indigo-600 shadow-sm border border-slate-200' : 'text-slate-500 hover:text-slate-800'}`}>Create New</button>
-                                <button onClick={() => setAdSetMode('existing')} className={`flex-1 py-2 text-sm font-medium rounded-md transition-all ${adSetMode === 'existing' ? 'bg-white text-indigo-600 shadow-sm border border-slate-200' : 'text-slate-500 hover:text-slate-800'}`}>Use Existing</button>
+                            <div className="flex bg-slate-100 rounded-xl p-1 mb-4">
+                                <button onClick={() => setCampaignMode('new')} className={`flex-1 py-2.5 text-sm font-medium rounded-lg transition-all ${campaignMode === 'new' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'}`}>
+                                    Create New
+                                </button>
+                                <button onClick={() => setCampaignMode('existing')} className={`flex-1 py-2.5 text-sm font-medium rounded-lg transition-all ${campaignMode === 'existing' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'}`}>
+                                    Use Existing
+                                </button>
                             </div>
-                        </div>
 
-                        {adSetMode === 'new' ? (
-                            <>
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-600 mb-1.5">Ad Set Name</label>
-                                    <input type="text" value={newAdSetName} onChange={(e) => setNewAdSetName(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-slate-800 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 outline-none transition-all" placeholder="e.g. Broad Targeting" />
+                            {campaignMode === 'new' ? (
+                                <div className="grid md:grid-cols-2 gap-4">
+                                    <InputField label="Campaign Name" value={newCampaignName} onChange={setNewCampaignName} placeholder="e.g. Raya Sale 2025" required />
+                                    <SelectField label="Objective" value={objective} onChange={setObjective} options={[
+                                        { value: 'OUTCOME_TRAFFIC', label: '🔗 Traffic (Link Clicks)' },
+                                        { value: 'OUTCOME_SALES', label: '💰 Sales (Conversions)' },
+                                        { value: 'OUTCOME_AWARENESS', label: '👁️ Awareness' }
+                                    ]} />
                                 </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-600 mb-1.5">Daily Budget (RM)</label>
-                                    <input type="number" value={dailyBudget} onChange={(e) => setDailyBudget(parseFloat(e.target.value))} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-slate-800 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 outline-none transition-all" />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-600 mb-1.5">Optimization</label>
-                                    <select value={optimizationGoal} onChange={(e) => setOptimizationGoal(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-slate-800 outline-none focus:border-indigo-500">
-                                        <option value="LINK_CLICKS">Link Clicks</option>
-                                        <option value="OFFSITE_CONVERSIONS">Conversions (Sales)</option>
-                                        <option value="IMPRESSIONS">Impressions</option>
-                                    </select>
-                                </div>
-
-                                {objective === 'OUTCOME_SALES' && (
-                                    <div className="animate-fadeIn">
-                                        <label className="block text-sm font-semibold text-green-600 mb-1.5">Pixel (Required for Sales)</label>
-                                        {userPixels.length > 0 ? (
-                                            <select value={selectedPixelId} onChange={(e) => setSelectedPixelId(e.target.value)} className="w-full bg-slate-50 border border-green-200 rounded-lg px-4 py-2.5 text-slate-800 outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-500">
-                                                {userPixels.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                                            </select>
-                                        ) : (
-                                            <p className="text-xs text-red-600 bg-red-50 p-3 rounded border border-red-200">No Pixels found. Please create one in Events Manager.</p>
-                                        )}
-                                    </div>
-                                )}
-                            </>
-                        ) : (
-                            <div className="md:col-span-2">
-                                <label className="block text-sm font-medium text-slate-600 mb-1.5">Select Ad Set</label>
-                                <select value={selectedAdSetId} onChange={(e) => setSelectedAdSetId(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-slate-800 outline-none focus:border-indigo-500">
-                                    <option value="">-- Select Ad Set --</option>
-                                    {existingAdSets.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-                                </select>
-                            </div>
-                        )}
-                    </div>
-                </div>
-
-                {/* --- SECTION 3: CREATIVE --- */}
-                <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
-                    <h2 className="text-lg font-bold text-slate-800 mb-4 border-b border-slate-100 pb-2">3. Ad Creative</h2>
-                    <div className="grid md:grid-cols-2 gap-6">
-
-                        <div>
-                            <label className="block text-sm font-medium text-slate-600 mb-1.5">Facebook Page</label>
-                            {userPages.length > 0 ? (
-                                <select value={selectedPageId} onChange={(e) => setSelectedPageId(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-slate-800 outline-none focus:border-indigo-500">
-                                    <option value="">-- Select Page --</option>
-                                    {userPages.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                                </select>
                             ) : (
-                                <p className="text-xs text-amber-600 bg-amber-50 p-2 rounded">No Pages found. Re-login with 'Manage Pages' access.</p>
+                                <SelectField label="Select Campaign" value={selectedCampaignId} onChange={setSelectedCampaignId} required options={[
+                                    { value: '', label: '-- Select Campaign --' },
+                                    ...existingCampaigns.map(c => ({ value: c.id, label: c.name }))
+                                ]} />
                             )}
                         </div>
+                    </div>
 
-                        <div>
-                            <label className="block text-sm font-medium text-slate-600 mb-1.5">Ad Name</label>
-                            <input type="text" value={adName} onChange={(e) => setAdName(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-slate-800 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 outline-none transition-all" placeholder="Ad Name" />
+                    <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+                        <h2 className="text-lg font-bold text-slate-900 mb-5 flex items-center gap-2">
+                            <span className="w-7 h-7 bg-blue-100 text-blue-600 rounded-lg flex items-center justify-center text-sm font-bold">2</span>
+                            Ad Set Settings
+                        </h2>
+
+                        <div className="space-y-4">
+                            <div className="flex bg-slate-100 rounded-xl p-1 mb-4">
+                                <button onClick={() => setAdSetMode('new')} className={`flex-1 py-2.5 text-sm font-medium rounded-lg transition-all ${adSetMode === 'new' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'}`}>
+                                    Create New
+                                </button>
+                                <button onClick={() => setAdSetMode('existing')} className={`flex-1 py-2.5 text-sm font-medium rounded-lg transition-all ${adSetMode === 'existing' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'}`}>
+                                    Use Existing
+                                </button>
+                            </div>
+
+                            {adSetMode === 'new' ? (
+                                <>
+                                    <div className="grid md:grid-cols-2 gap-4">
+                                        <InputField label="Ad Set Name" value={newAdSetName} onChange={setNewAdSetName} placeholder="e.g. Broad Targeting" required />
+                                        <InputField label="Daily Budget (RM)" value={dailyBudget} onChange={(v: string) => setDailyBudget(parseFloat(v) || 0)} type="number" />
+                                    </div>
+                                    <SelectField label="Optimization Goal" value={optimizationGoal} onChange={setOptimizationGoal} options={[
+                                        { value: 'LINK_CLICKS', label: 'Link Clicks' },
+                                        { value: 'OFFSITE_CONVERSIONS', label: 'Conversions' },
+                                        { value: 'IMPRESSIONS', label: 'Impressions' }
+                                    ]} />
+                                    {objective === 'OUTCOME_SALES' && userPixels.length > 0 && (
+                                        <SelectField label="Meta Pixel" value={selectedPixelId} onChange={setSelectedPixelId} options={userPixels.map(p => ({ value: p.id, label: p.name }))} />
+                                    )}
+                                </>
+                            ) : (
+                                <SelectField label="Select Ad Set" value={selectedAdSetId} onChange={setSelectedAdSetId} required options={[
+                                    { value: '', label: '-- Select Ad Set --' },
+                                    ...existingAdSets.map(a => ({ value: a.id, label: a.name }))
+                                ]} />
+                            )}
                         </div>
+                    </div>
 
-                        <div className="md:col-span-2">
-                            <div className="border-2 border-dashed border-slate-300 rounded-xl p-8 text-center hover:bg-slate-50 hover:border-indigo-400 transition-all cursor-pointer relative overflow-hidden group">
+                    <button onClick={handleNext} className="w-full bg-blue-600 hover:bg-blue-700 text-white text-lg font-semibold py-4 rounded-xl flex items-center justify-center gap-2 transition-all">
+                        Continue <ArrowRight size={20} />
+                    </button>
+                </div>
+            )}
+
+            {/* STEP 2: Creative */}
+            {currentStep === 2 && !loading && (
+                <div className="space-y-6 animate-fadeIn">
+                    <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+                        <h2 className="text-lg font-bold text-slate-900 mb-5 flex items-center gap-2">
+                            <span className="w-7 h-7 bg-blue-100 text-blue-600 rounded-lg flex items-center justify-center text-sm font-bold">3</span>
+                            Ad Creative
+                        </h2>
+
+                        <div className="space-y-5">
+                            {/* Media Upload */}
+                            <div className="border-2 border-dashed border-slate-200 rounded-2xl p-8 text-center hover:border-blue-400 hover:bg-blue-50/30 transition-all cursor-pointer relative group">
                                 <input
                                     type="file"
                                     accept="image/*,video/mp4,video/x-m4v,video/*,.heic,.avi"
                                     onChange={handleFileChange}
                                     className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
                                 />
-
                                 {mediaFile ? (
-                                    <div className="flex flex-col items-center justify-center">
+                                    <div className="flex flex-col items-center">
                                         {filePreview ? (
                                             mediaType === 'image' ? (
-                                                <img src={filePreview} className="h-40 object-contain rounded-lg mb-3 shadow-sm border border-slate-200" alt="Preview" />
+                                                <img src={filePreview} className="h-40 object-contain rounded-xl mb-3" alt="Preview" />
                                             ) : (
-                                                <video src={filePreview} className="h-40 rounded-lg mb-3 shadow-sm border border-slate-200" controls muted />
+                                                <video src={filePreview} className="h-40 rounded-xl mb-3" controls muted />
                                             )
                                         ) : (
-                                            <div className="h-24 w-32 flex items-center justify-center bg-slate-100 rounded-lg mb-3 border border-slate-200">
+                                            <div className="h-24 w-32 flex items-center justify-center bg-slate-100 rounded-xl mb-3">
                                                 {mediaType === 'image' ? <ImageIcon size={32} className="text-slate-400" /> : <Video size={32} className="text-slate-400" />}
                                             </div>
                                         )}
-                                        <p className="text-indigo-600 text-sm font-bold">{mediaFile.name}</p>
-                                        <p className="text-xs text-slate-500 font-medium">{mediaType === 'video' ? 'Video File (Chunked Upload)' : 'Image File'}</p>
+                                        <p className="text-blue-600 font-semibold">{mediaFile.name}</p>
+                                        <p className="text-xs text-slate-500">{mediaType === 'video' ? 'Video' : 'Image'} • Click to change</p>
                                     </div>
                                 ) : (
                                     <>
-                                        <div className="w-12 h-12 bg-indigo-50 rounded-full flex items-center justify-center mx-auto mb-3 text-indigo-500 group-hover:scale-110 transition-transform">
-                                            <Upload size={24} />
+                                        <div className="w-14 h-14 bg-blue-100 rounded-2xl flex items-center justify-center mx-auto mb-3 text-blue-500 group-hover:scale-110 transition-transform">
+                                            <Upload size={28} />
                                         </div>
-                                        <p className="text-slate-700 text-sm font-bold">Click to upload Media</p>
-                                        <p className="text-xs text-slate-400 mt-1">Supports Images (JPG, PNG) & Videos (MP4)</p>
+                                        <p className="text-slate-800 font-semibold">Click to upload media</p>
+                                        <p className="text-xs text-slate-400 mt-1">Supports JPG, PNG, MP4</p>
                                     </>
                                 )}
                             </div>
-                        </div>
 
-                        <div className="md:col-span-2">
-                            <label className="block text-sm font-medium text-slate-600 mb-1.5">Primary Text (Caption)</label>
-                            <textarea value={primaryText} onChange={(e) => setPrimaryText(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-slate-800 h-24 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 outline-none resize-none" placeholder="The main ad copy above the creative..." />
-                        </div>
+                            <div className="grid md:grid-cols-2 gap-4">
+                                <SelectField label="Facebook Page" value={selectedPageId} onChange={setSelectedPageId} required options={[
+                                    { value: '', label: '-- Select Page --' },
+                                    ...userPages.map(p => ({ value: p.id, label: p.name }))
+                                ]} />
+                                <InputField label="Ad Name" value={adName} onChange={setAdName} placeholder="My Ad" required />
+                            </div>
 
-                        <div>
-                            <label className="block text-sm font-medium text-slate-600 mb-1.5">Headline</label>
-                            <input type="text" value={headline} onChange={(e) => setHeadline(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-slate-800 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 outline-none transition-all" placeholder="Bold Headline" />
-                        </div>
+                            <TextAreaField label="Primary Text (Caption)" value={primaryText} onChange={setPrimaryText} placeholder="Write your ad copy here..." rows={4} />
 
-                        <div>
-                            <label className="block text-sm font-medium text-slate-600 mb-1.5">Call To Action</label>
-                            <select value={callToAction} onChange={(e) => setCallToAction(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-slate-800 outline-none focus:border-indigo-500">
-                                <option value="LEARN_MORE">Learn More</option>
-                                <option value="SHOP_NOW">Shop Now</option>
-                                <option value="WHATSAPP_MESSAGE">Send WhatsApp Message</option>
-                                <option value="SIGN_UP">Sign Up</option>
-                                <option value="GET_OFFER">Get Offer</option>
-                                <option value="CONTACT_US">Contact Us</option>
-                                <option value="ORDER_NOW">Order Now</option>
-                                <option value="WATCH_MORE">Watch More</option>
-                            </select>
-                        </div>
+                            <div className="grid md:grid-cols-2 gap-4">
+                                <InputField label="Headline" value={headline} onChange={setHeadline} placeholder="Catchy headline" required />
+                                <SelectField label="Call To Action" value={callToAction} onChange={setCallToAction} options={[
+                                    { value: 'LEARN_MORE', label: 'Learn More' },
+                                    { value: 'SHOP_NOW', label: 'Shop Now' },
+                                    { value: 'WHATSAPP_MESSAGE', label: 'WhatsApp Message' },
+                                    { value: 'SIGN_UP', label: 'Sign Up' },
+                                    { value: 'GET_OFFER', label: 'Get Offer' },
+                                    { value: 'ORDER_NOW', label: 'Order Now' }
+                                ]} />
+                            </div>
 
-                        <div className="md:col-span-2">
-                            <label className="block text-sm font-medium text-slate-600 mb-1.5">Link Description (Optional)</label>
-                            <input type="text" value={description} onChange={(e) => setDescription(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-slate-800 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 outline-none transition-all" placeholder="Small text below headline (e.g. 50% Off Today)" />
-                        </div>
-
-                        <div className="md:col-span-2">
-                            <label className="block text-sm font-medium text-slate-600 mb-1.5">Destination URL</label>
-                            <input type="text" value={destinationUrl} onChange={(e) => setDestinationUrl(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-slate-800 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 outline-none transition-all" placeholder="https://..." />
-                        </div>
-
-                    </div>
-                </div>
-
-                {/* --- ADVANTAGE+ CREATIVE SECTION --- */}
-                <div className="bg-gradient-to-br from-indigo-50 to-white rounded-xl border border-indigo-100 p-6 shadow-sm relative overflow-hidden">
-                    {/* Decorative Background Icon */}
-                    <div className="absolute top-0 right-0 p-6 opacity-5 pointer-events-none">
-                        <Wand2 size={100} className="text-indigo-600" />
-                    </div>
-
-                    <div className="flex items-center gap-3 mb-4">
-                        <div className="p-2 bg-indigo-100 rounded-lg text-indigo-600">
-                            <Sparkles size={20} />
-                        </div>
-                        <div>
-                            <h2 className="text-lg font-bold text-slate-800">Advantage+ Creative</h2>
-                            <p className="text-xs text-slate-500">Automatically optimize creative for each person.</p>
+                            <InputField label="Link Description (Optional)" value={description} onChange={setDescription} placeholder="e.g. Limited time offer" />
+                            <InputField label="Destination URL" value={destinationUrl} onChange={setDestinationUrl} placeholder="https://..." required />
                         </div>
                     </div>
 
-                    <div className="space-y-4 relative z-10">
-                        <ToggleSwitch
-                            label="Enable Advantage+ Creative"
-                            checked={advPlusConfig.enabled}
-                            onChange={(val) => setAdvPlusConfig({ ...advPlusConfig, enabled: val })}
-                            subtext="Allow Meta to automatically improve creative performance."
-                        />
-
+                    {/* Advantage+ */}
+                    <div className="bg-gradient-to-br from-purple-50 to-white rounded-2xl border border-purple-100 p-6 shadow-sm">
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="p-2.5 bg-purple-100 rounded-xl text-purple-600">
+                                <Sparkles size={20} />
+                            </div>
+                            <div>
+                                <h3 className="font-bold text-slate-900">Advantage+ Creative</h3>
+                                <p className="text-xs text-slate-500">Let Meta optimize your creative automatically</p>
+                            </div>
+                        </div>
+                        <ToggleSwitch label="Enable Advantage+" checked={advPlusConfig.enabled} onChange={(val) => setAdvPlusConfig({ ...advPlusConfig, enabled: val })} />
                         {advPlusConfig.enabled && (
-                            <div className="pl-4 ml-2 border-l-2 border-indigo-100 space-y-1 animate-fadeIn">
-                                <ToggleSwitch
-                                    label="Visual Touchups"
-                                    checked={advPlusConfig.visualTouchups}
-                                    onChange={(val) => setAdvPlusConfig({ ...advPlusConfig, visualTouchups: val })}
-                                    subtext="Adjust brightness, contrast and aspect ratio."
-                                />
-                                <ToggleSwitch
-                                    label="Text Optimizations"
-                                    checked={advPlusConfig.textOptimizations}
-                                    onChange={(val) => setAdvPlusConfig({ ...advPlusConfig, textOptimizations: val })}
-                                    subtext="Swap text between headline, primary, and description."
-                                />
-                                <ToggleSwitch
-                                    label="Media Cropping"
-                                    checked={advPlusConfig.mediaCropping}
-                                    onChange={(val) => setAdvPlusConfig({ ...advPlusConfig, mediaCropping: val })}
-                                    subtext="Auto-crop images/videos for stories and reels."
-                                />
+                            <div className="pl-4 border-l-2 border-purple-100 mt-3 space-y-1">
+                                <ToggleSwitch label="Visual Touchups" checked={advPlusConfig.visualTouchups} onChange={(val) => setAdvPlusConfig({ ...advPlusConfig, visualTouchups: val })} />
+                                <ToggleSwitch label="Text Optimizations" checked={advPlusConfig.textOptimizations} onChange={(val) => setAdvPlusConfig({ ...advPlusConfig, textOptimizations: val })} />
+                                <ToggleSwitch label="Media Cropping" checked={advPlusConfig.mediaCropping} onChange={(val) => setAdvPlusConfig({ ...advPlusConfig, mediaCropping: val })} />
                                 {mediaType === 'video' && (
-                                    <ToggleSwitch
-                                        label="Music"
-                                        checked={advPlusConfig.music}
-                                        onChange={(val) => setAdvPlusConfig({ ...advPlusConfig, music: val })}
-                                        subtext="Automatically add music to video ads."
-                                    />
+                                    <ToggleSwitch label="Music" checked={advPlusConfig.music} onChange={(val) => setAdvPlusConfig({ ...advPlusConfig, music: val })} />
                                 )}
                             </div>
                         )}
                     </div>
-                </div>
 
-                <div className="pt-6 border-t border-slate-200">
-                    <button
-                        onClick={handleSubmit}
-                        disabled={loading}
-                        className="w-full bg-green-600 hover:bg-green-700 text-white text-lg font-bold py-4 rounded-xl shadow-lg shadow-green-200 flex items-center justify-center gap-3 disabled:opacity-70 disabled:cursor-not-allowed transition-all transform hover:scale-[1.005]"
-                    >
-                        {loading && <Loader2 className="animate-spin" size={24} />}
-                        {loading ? 'Creating Campaign...' : 'PUBLISH CAMPAIGN NOW'}
-                    </button>
-                    <p className="text-center text-xs text-slate-400 mt-3 font-medium">This will create the campaign in your Ads Manager. Default status: PAUSED.</p>
+                    <div className="flex gap-3">
+                        <button onClick={handleBack} className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-lg font-semibold py-4 rounded-xl flex items-center justify-center gap-2 transition-all">
+                            <ArrowLeft size={20} /> Back
+                        </button>
+                        <button onClick={handleNext} className="flex-[2] bg-blue-600 hover:bg-blue-700 text-white text-lg font-semibold py-4 rounded-xl flex items-center justify-center gap-2 transition-all">
+                            Continue <ArrowRight size={20} />
+                        </button>
+                    </div>
                 </div>
+            )}
 
-            </div>
+            {/* STEP 3: Review & Launch */}
+            {currentStep === 3 && !loading && (
+                <div className="space-y-6 animate-fadeIn">
+                    <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+                        <h2 className="text-lg font-bold text-slate-900 mb-5 flex items-center gap-2">
+                            <span className="w-7 h-7 bg-green-100 text-green-600 rounded-lg flex items-center justify-center text-sm font-bold">✓</span>
+                            Review & Launch
+                        </h2>
+
+                        <div className="space-y-4">
+                            {/* Summary Cards */}
+                            <div className="bg-slate-50 rounded-xl p-4 space-y-2">
+                                <h4 className="font-semibold text-slate-700 text-sm">Campaign</h4>
+                                <div className="text-sm text-slate-600">
+                                    <span className="font-medium">{campaignMode === 'new' ? newCampaignName : 'Using Existing'}</span>
+                                    <span className="text-xs bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full ml-2">
+                                        {objective.replace('OUTCOME_', '')}
+                                    </span>
+                                </div>
+                            </div>
+
+                            <div className="bg-slate-50 rounded-xl p-4 space-y-2">
+                                <h4 className="font-semibold text-slate-700 text-sm">Ad Set</h4>
+                                <div className="text-sm text-slate-600">
+                                    <span className="font-medium">{adSetMode === 'new' ? newAdSetName : 'Using Existing'}</span>
+                                    {adSetMode === 'new' && <span className="text-xs text-slate-400 ml-2">RM{dailyBudget}/day</span>}
+                                </div>
+                            </div>
+
+                            <div className="bg-slate-50 rounded-xl p-4">
+                                <h4 className="font-semibold text-slate-700 text-sm mb-3">Creative Preview</h4>
+                                <div className="flex gap-4">
+                                    {filePreview && (
+                                        <div className="w-20 h-20 flex-shrink-0">
+                                            {mediaType === 'image' ? (
+                                                <img src={filePreview} className="w-full h-full object-cover rounded-lg" alt="" />
+                                            ) : (
+                                                <video src={filePreview} className="w-full h-full object-cover rounded-lg" muted />
+                                            )}
+                                        </div>
+                                    )}
+                                    <div className="flex-1 min-w-0">
+                                        <p className="font-semibold text-slate-800 text-sm">{headline}</p>
+                                        <p className="text-xs text-slate-500 mt-1 line-clamp-2">{primaryText}</p>
+                                        <p className="text-xs text-blue-600 mt-2 truncate">{destinationUrl}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="flex gap-3">
+                        <button onClick={handleBack} className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-lg font-semibold py-4 rounded-xl flex items-center justify-center gap-2 transition-all">
+                            <ArrowLeft size={20} /> Edit
+                        </button>
+                        <button
+                            onClick={handleSubmit}
+                            disabled={loading}
+                            className="flex-[2] bg-green-600 hover:bg-green-700 text-white text-lg font-bold py-4 rounded-xl flex items-center justify-center gap-3 transition-all disabled:opacity-50"
+                        >
+                            <Zap size={20} /> Launch Campaign
+                        </button>
+                    </div>
+
+                    <p className="text-center text-xs text-slate-400">Campaign will be created with PAUSED status. You can activate it from Ads Manager.</p>
+                </div>
+            )}
         </div>
     );
 };
