@@ -15,7 +15,7 @@ import {
     extractVideoThumbnail,
     uploadAdImageBlob
 } from '../services/metaService';
-import { CheckCircle, Loader2, Upload, AlertTriangle, Save, FolderOpen, Trash2, ChevronDown, Video, Image as ImageIcon, Sparkles, Wand2, ArrowRight, ArrowLeft, Zap } from 'lucide-react';
+import { CheckCircle, Loader2, Upload, AlertTriangle, Save, FolderOpen, Trash2, ChevronDown, Video, Image as ImageIcon, Sparkles, Zap } from 'lucide-react';
 import { AdvantagePlusConfig } from '../types';
 
 interface Template {
@@ -25,49 +25,7 @@ interface Template {
 }
 
 // ============================================================
-// RAPID ADS STYLE STEP PROGRESS BAR
-// ============================================================
-const STEPS = [
-    { id: 1, label: 'Campaign', desc: 'Setup campaign & budget' },
-    { id: 2, label: 'Creative', desc: 'Add media & text' },
-    { id: 3, label: 'Launch', desc: 'Review & publish' }
-];
-
-const StepProgressBar = ({ currentStep, onStepClick }: { currentStep: number; onStepClick?: (step: number) => void }) => (
-    <div className="bg-white rounded-2xl border border-slate-200 p-6 mb-8 shadow-sm">
-        <div className="flex items-center justify-between relative">
-            {/* Background Line */}
-            <div className="absolute top-5 left-0 right-0 h-0.5 bg-slate-100 mx-16" />
-            <div
-                className="absolute top-5 left-0 h-0.5 bg-blue-500 mx-16 transition-all duration-500"
-                style={{ width: `${((currentStep - 1) / (STEPS.length - 1)) * (100 - 20)}%` }}
-            />
-
-            {STEPS.map((step) => (
-                <div
-                    key={step.id}
-                    className="flex flex-col items-center z-10 cursor-pointer group"
-                    onClick={() => onStepClick && step.id < currentStep && onStepClick(step.id)}
-                >
-                    <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold transition-all duration-300 ${currentStep > step.id
-                            ? 'bg-green-500 text-white'
-                            : currentStep === step.id
-                                ? 'bg-blue-600 text-white ring-4 ring-blue-100 scale-110'
-                                : 'bg-slate-100 text-slate-400 group-hover:bg-slate-200'
-                        }`}>
-                        {currentStep > step.id ? '✓' : step.id}
-                    </div>
-                    <span className={`text-sm font-semibold mt-2 ${currentStep >= step.id ? 'text-slate-800' : 'text-slate-400'
-                        }`}>{step.label}</span>
-                    <span className="text-[10px] text-slate-400 mt-0.5 hidden md:block">{step.desc}</span>
-                </div>
-            ))}
-        </div>
-    </div>
-);
-
-// ============================================================
-// RAPID ADS STYLE INPUT COMPONENTS
+// INPUT COMPONENTS
 // ============================================================
 const InputField = ({ label, value, onChange, placeholder, type = 'text', required = false }: any) => (
     <div className="space-y-1.5">
@@ -137,7 +95,6 @@ const CreateCampaign: React.FC = () => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [successMsg, setSuccessMsg] = useState('');
-    const [currentStep, setCurrentStep] = useState(1);
 
     const [templates, setTemplates] = useState<Template[]>([]);
     const [templateName, setTemplateName] = useState('');
@@ -315,38 +272,22 @@ const CreateCampaign: React.FC = () => {
         localStorage.setItem('ar_templates', JSON.stringify(updated));
     };
 
-    const validateStep = (step: number): boolean => {
-        if (step === 1) {
-            if (campaignMode === 'new' && !newCampaignName) { setError('Enter campaign name'); return false; }
-            if (campaignMode === 'existing' && !selectedCampaignId) { setError('Select a campaign'); return false; }
-            if (adSetMode === 'new' && !newAdSetName) { setError('Enter Ad Set name'); return false; }
-            if (adSetMode === 'existing' && !selectedAdSetId) { setError('Select an Ad Set'); return false; }
-        }
-        if (step === 2) {
-            if (!mediaFile) { setError('Upload an image or video'); return false; }
-            if (!adName) { setError('Enter Ad name'); return false; }
-            if (!primaryText) { setError('Enter Primary Text'); return false; }
-            if (!headline) { setError('Enter Headline'); return false; }
-            if (!destinationUrl) { setError('Enter Destination URL'); return false; }
-            if (!selectedPageId) { setError('Select a Facebook Page'); return false; }
-        }
+    const validateForm = (): boolean => {
+        if (campaignMode === 'new' && !newCampaignName) { setError('Enter campaign name'); return false; }
+        if (campaignMode === 'existing' && !selectedCampaignId) { setError('Select a campaign'); return false; }
+        if (adSetMode === 'new' && !newAdSetName) { setError('Enter Ad Set name'); return false; }
+        if (adSetMode === 'existing' && !selectedAdSetId) { setError('Select an Ad Set'); return false; }
+        if (!mediaFile) { setError('Upload an image or video'); return false; }
+        if (!adName) { setError('Enter Ad name'); return false; }
+        if (!primaryText) { setError('Enter Primary Text'); return false; }
+        if (!headline) { setError('Enter Headline'); return false; }
+        if (!destinationUrl) { setError('Enter Destination URL'); return false; }
+        if (!selectedPageId) { setError('Select a Facebook Page'); return false; }
         return true;
     };
 
-    const handleNext = () => {
-        setError('');
-        if (validateStep(currentStep)) {
-            setCurrentStep(prev => Math.min(prev + 1, STEPS.length));
-        }
-    };
-
-    const handleBack = () => {
-        setError('');
-        setCurrentStep(prev => Math.max(prev - 1, 1));
-    };
-
     const handleSubmit = async () => {
-        if (!validateStep(1) || !validateStep(2)) return;
+        if (!validateForm()) return;
 
         const now = Date.now();
         if (now - lastPublishTime.current < 5000) {
@@ -408,7 +349,6 @@ const CreateCampaign: React.FC = () => {
             await createMetaAd(adAccountId, finalAdSetId, adName, creativeId, fbAccessToken);
 
             setSuccessMsg("🎉 Campaign Created Successfully!");
-            setCurrentStep(1);
             window.scrollTo(0, 0);
 
             // Log campaign to admin tracking
@@ -462,7 +402,7 @@ const CreateCampaign: React.FC = () => {
             <div className="flex justify-between items-center mb-6">
                 <div>
                     <h1 className="text-2xl font-bold text-slate-900">Create Campaign</h1>
-                    <p className="text-sm text-slate-500 mt-0.5">Launch your ad in 3 simple steps</p>
+                    <p className="text-sm text-slate-500 mt-0.5">Launch your ad quickly</p>
                 </div>
                 <div className="flex gap-2" ref={dropdownRef}>
                     <div className="relative">
@@ -528,9 +468,6 @@ const CreateCampaign: React.FC = () => {
                 </div>
             )}
 
-            {/* Progress Bar */}
-            <StepProgressBar currentStep={currentStep} onStepClick={setCurrentStep} />
-
             {/* Loading Overlay */}
             {loading && (
                 <div className="mb-6 p-6 bg-blue-50 border border-blue-200 rounded-2xl text-center">
@@ -540,9 +477,9 @@ const CreateCampaign: React.FC = () => {
                 </div>
             )}
 
-            {/* STEP 1: Campaign & Ad Set Settings */}
-            {currentStep === 1 && !loading && (
-                <div className="space-y-6 animate-fadeIn">
+            {!loading && (
+                <div className="space-y-6">
+                    {/* Campaign Settings */}
                     <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
                         <h2 className="text-lg font-bold text-slate-900 mb-5 flex items-center gap-2">
                             <span className="w-7 h-7 bg-blue-100 text-blue-600 rounded-lg flex items-center justify-center text-sm font-bold">1</span>
@@ -577,6 +514,7 @@ const CreateCampaign: React.FC = () => {
                         </div>
                     </div>
 
+                    {/* Ad Set Settings */}
                     <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
                         <h2 className="text-lg font-bold text-slate-900 mb-5 flex items-center gap-2">
                             <span className="w-7 h-7 bg-blue-100 text-blue-600 rounded-lg flex items-center justify-center text-sm font-bold">2</span>
@@ -617,15 +555,7 @@ const CreateCampaign: React.FC = () => {
                         </div>
                     </div>
 
-                    <button onClick={handleNext} className="w-full bg-blue-600 hover:bg-blue-700 text-white text-lg font-semibold py-4 rounded-xl flex items-center justify-center gap-2 transition-all">
-                        Continue <ArrowRight size={20} />
-                    </button>
-                </div>
-            )}
-
-            {/* STEP 2: Creative */}
-            {currentStep === 2 && !loading && (
-                <div className="space-y-6 animate-fadeIn">
+                    {/* Ad Creative */}
                     <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
                         <h2 className="text-lg font-bold text-slate-900 mb-5 flex items-center gap-2">
                             <span className="w-7 h-7 bg-blue-100 text-blue-600 rounded-lg flex items-center justify-center text-sm font-bold">3</span>
@@ -719,80 +649,14 @@ const CreateCampaign: React.FC = () => {
                         )}
                     </div>
 
-                    <div className="flex gap-3">
-                        <button onClick={handleBack} className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-lg font-semibold py-4 rounded-xl flex items-center justify-center gap-2 transition-all">
-                            <ArrowLeft size={20} /> Back
-                        </button>
-                        <button onClick={handleNext} className="flex-[2] bg-blue-600 hover:bg-blue-700 text-white text-lg font-semibold py-4 rounded-xl flex items-center justify-center gap-2 transition-all">
-                            Continue <ArrowRight size={20} />
-                        </button>
-                    </div>
-                </div>
-            )}
-
-            {/* STEP 3: Review & Launch */}
-            {currentStep === 3 && !loading && (
-                <div className="space-y-6 animate-fadeIn">
-                    <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
-                        <h2 className="text-lg font-bold text-slate-900 mb-5 flex items-center gap-2">
-                            <span className="w-7 h-7 bg-green-100 text-green-600 rounded-lg flex items-center justify-center text-sm font-bold">✓</span>
-                            Review & Launch
-                        </h2>
-
-                        <div className="space-y-4">
-                            {/* Summary Cards */}
-                            <div className="bg-slate-50 rounded-xl p-4 space-y-2">
-                                <h4 className="font-semibold text-slate-700 text-sm">Campaign</h4>
-                                <div className="text-sm text-slate-600">
-                                    <span className="font-medium">{campaignMode === 'new' ? newCampaignName : 'Using Existing'}</span>
-                                    <span className="text-xs bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full ml-2">
-                                        {objective.replace('OUTCOME_', '')}
-                                    </span>
-                                </div>
-                            </div>
-
-                            <div className="bg-slate-50 rounded-xl p-4 space-y-2">
-                                <h4 className="font-semibold text-slate-700 text-sm">Ad Set</h4>
-                                <div className="text-sm text-slate-600">
-                                    <span className="font-medium">{adSetMode === 'new' ? newAdSetName : 'Using Existing'}</span>
-                                    {adSetMode === 'new' && <span className="text-xs text-slate-400 ml-2">RM{dailyBudget}/day</span>}
-                                </div>
-                            </div>
-
-                            <div className="bg-slate-50 rounded-xl p-4">
-                                <h4 className="font-semibold text-slate-700 text-sm mb-3">Creative Preview</h4>
-                                <div className="flex gap-4">
-                                    {filePreview && (
-                                        <div className="w-20 h-20 flex-shrink-0">
-                                            {mediaType === 'image' ? (
-                                                <img src={filePreview} className="w-full h-full object-cover rounded-lg" alt="" />
-                                            ) : (
-                                                <video src={filePreview} className="w-full h-full object-cover rounded-lg" muted />
-                                            )}
-                                        </div>
-                                    )}
-                                    <div className="flex-1 min-w-0">
-                                        <p className="font-semibold text-slate-800 text-sm">{headline}</p>
-                                        <p className="text-xs text-slate-500 mt-1 line-clamp-2">{primaryText}</p>
-                                        <p className="text-xs text-blue-600 mt-2 truncate">{destinationUrl}</p>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="flex gap-3">
-                        <button onClick={handleBack} className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-lg font-semibold py-4 rounded-xl flex items-center justify-center gap-2 transition-all">
-                            <ArrowLeft size={20} /> Edit
-                        </button>
-                        <button
-                            onClick={handleSubmit}
-                            disabled={loading}
-                            className="flex-[2] bg-green-600 hover:bg-green-700 text-white text-lg font-bold py-4 rounded-xl flex items-center justify-center gap-3 transition-all disabled:opacity-50"
-                        >
-                            <Zap size={20} /> Launch Campaign
-                        </button>
-                    </div>
+                    {/* Submit Button */}
+                    <button
+                        onClick={handleSubmit}
+                        disabled={loading}
+                        className="w-full bg-green-600 hover:bg-green-700 text-white text-lg font-bold py-4 rounded-xl flex items-center justify-center gap-3 transition-all disabled:opacity-50"
+                    >
+                        <Zap size={20} /> Launch Campaign
+                    </button>
 
                     <p className="text-center text-xs text-slate-400">Campaign will be created with PAUSED status. You can activate it from Ads Manager.</p>
                 </div>
