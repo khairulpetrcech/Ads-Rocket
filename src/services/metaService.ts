@@ -487,7 +487,7 @@ export const createMetaCampaign = async (accountId: string, name: string, object
         const body1 = {
             name: cleanName,
             objective,
-            status: 'PAUSED',
+            status: 'ACTIVE',
             special_ad_categories: [],
             buying_type: "AUCTION",
             is_adset_budget_sharing_enabled: false,
@@ -502,7 +502,7 @@ export const createMetaCampaign = async (accountId: string, name: string, object
             const body2 = {
                 name: cleanName,
                 objective,
-                status: 'PAUSED',
+                status: 'ACTIVE',
                 special_ad_categories: [],
                 buying_type: "AUCTION",
                 advantage_plus_create: { enabled: false },
@@ -543,7 +543,7 @@ export const createMetaAdSet = async (
         campaign_id: campaignId,
         daily_budget: Math.floor(dailyBudget * 100),
         targeting: targeting,
-        status: 'PAUSED',
+        status: 'ACTIVE',
         start_time: startTime,
         access_token: accessToken,
         optimization_goal: optimizationGoal,
@@ -894,7 +894,7 @@ export const createMetaAd = async (accountId: string, adSetId: string, name: str
         name: sanitizeInput(name),
         adset_id: adSetId,
         creative: { creative_id: creativeId },
-        status: 'PAUSED',
+        status: 'ACTIVE',
         access_token: accessToken
     };
     const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });

@@ -986,7 +986,7 @@ const CreateCampaign: React.FC = () => {
                         <Zap size={20} /> Launch Campaign
                     </button>
 
-                    <p className="text-center text-xs text-slate-400">Campaign will be created with PAUSED status. You can activate it from Ads Manager.</p>
+                    <p className="text-center text-xs text-slate-400">Campaign will be created with ACTIVE status. It will start running immediately.</p>
                 </div>
             )}
         </div>
