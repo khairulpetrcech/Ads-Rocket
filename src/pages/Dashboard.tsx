@@ -298,16 +298,14 @@ const Dashboard: React.FC = () => {
                     return;
                 }
 
-                // Step 3: If refresh failed, DON'T redirect - just show error and use mock data
-                // This prevents unwanted logouts on desktop when tab has been idle
-                console.warn("Session refresh failed. Using offline data mode.");
-                setFetchError("Meta session expired. Click 'Retry Sync' or reconnect your account in Settings.");
-                setCampaigns(MOCK_CAMPAIGNS);
+                // Step 3: If refresh failed, show reconnect prompt (no mock data)
+                console.warn("Session refresh failed. Showing reconnect prompt.");
+                setAuthError(true);
+                setFetchError("Meta session expired. Please reconnect your account.");
                 return;
             } else {
-                setFetchError("Data sync failed. Using offline data.");
+                setFetchError("Data sync failed. Please try again.");
             }
-            setCampaigns(MOCK_CAMPAIGNS);
         } finally {
             setLoadingCampaigns(false);
         }
@@ -679,7 +677,29 @@ const Dashboard: React.FC = () => {
                 </div>
             </div>
 
-            {fetchError && (
+            {/* Session Expired - Reconnect Prompt */}
+            {authError && (
+                <div className="bg-red-50 border border-red-200 px-4 py-4 rounded-xl flex flex-col md:flex-row items-center justify-between gap-3 shadow-sm">
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
+                            <RefreshCw size={18} className="text-red-500" />
+                        </div>
+                        <div>
+                            <p className="text-red-800 font-bold text-sm">Meta Session Expired</p>
+                            <p className="text-red-600 text-xs">Please reconnect your account to continue viewing real data.</p>
+                        </div>
+                    </div>
+                    <button
+                        onClick={() => navigate('/connect')}
+                        className="px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-bold transition-colors flex items-center gap-2 shadow-sm"
+                    >
+                        <ArrowRight size={14} /> Reconnect Meta Account
+                    </button>
+                </div>
+            )}
+
+            {/* Other fetch errors (non-session) */}
+            {fetchError && !authError && (
                 <div className="text-xs text-amber-700 bg-amber-50 px-4 py-3 rounded-lg border border-amber-200 flex items-center justify-between gap-2 shadow-sm">
                     <div className="flex items-center gap-2">
                         <Filter size={14} className="text-amber-500" /> {fetchError}
