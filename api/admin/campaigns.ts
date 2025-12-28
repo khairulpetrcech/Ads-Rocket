@@ -36,6 +36,8 @@ export default async function handler(req: any, res: any) {
         // Get query params for filtering
         const { userId, limit = '50', offset = '0' } = req.query;
 
+        console.log('Admin API: Fetching campaigns from tracked_campaigns table...');
+
         let query = supabase
             .from('tracked_campaigns')
             .select('*', { count: 'exact' })
@@ -54,9 +56,26 @@ export default async function handler(req: any, res: any) {
         const { data: campaigns, error, count } = await query;
 
         if (error) {
-            console.error('Supabase error:', error);
-            return res.status(500).json({ error: error.message });
+            console.error('Supabase error fetching campaigns:', {
+                message: error.message,
+                details: error.details,
+                hint: error.hint,
+                code: error.code
+            });
+
+            // If table doesn't exist or RLS blocks access, return empty array instead of error
+            if (error.code === '42P01' || error.code === 'PGRST116' || error.message?.includes('does not exist')) {
+                console.log('Table may not exist yet, returning empty campaigns list');
+                return res.status(200).json({ campaigns: [], total: 0, hasMore: false });
+            }
+
+            return res.status(500).json({
+                error: error.message,
+                hint: error.hint || 'Check if tracked_campaigns table exists and RLS policies allow read access'
+            });
         }
+
+        console.log(`Admin API: Found ${campaigns?.length || 0} campaigns`);
 
         // Map to expected format
         const formattedCampaigns = (campaigns || []).map((c: any) => ({
@@ -78,6 +97,9 @@ export default async function handler(req: any, res: any) {
 
     } catch (error: any) {
         console.error('Get Campaigns Error:', error);
-        return res.status(500).json({ error: error.message || 'Internal server error' });
+        return res.status(500).json({
+            error: error.message || 'Internal server error',
+            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        });
     }
 }

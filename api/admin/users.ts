@@ -34,20 +34,43 @@ export default async function handler(req: any, res: any) {
 
     try {
         // Get all users with campaign counts
+        console.log('Admin API: Fetching users from tracked_users table...');
+        
         const { data: users, error } = await supabase
             .from('tracked_users')
             .select('*')
             .order('last_active', { ascending: false });
 
         if (error) {
-            console.error('Supabase error:', error);
-            return res.status(500).json({ error: error.message });
+            console.error('Supabase error fetching users:', {
+                message: error.message,
+                details: error.details,
+                hint: error.hint,
+                code: error.code
+            });
+            
+            // If table doesn't exist or RLS blocks access, return empty array instead of error
+            if (error.code === '42P01' || error.code === 'PGRST116' || error.message?.includes('does not exist')) {
+                console.log('Table may not exist yet, returning empty users list');
+                return res.status(200).json({ users: [], total: 0 });
+            }
+            
+            return res.status(500).json({ 
+                error: error.message,
+                hint: error.hint || 'Check if tracked_users table exists and RLS policies allow read access'
+            });
         }
+
+        console.log(`Admin API: Found ${users?.length || 0} users`);
 
         // Get campaign counts per user
         const { data: counts, error: countError } = await supabase
             .from('tracked_campaigns')
             .select('fb_user_id');
+
+        if (countError) {
+            console.warn('Warning: Could not fetch campaign counts:', countError.message);
+        }
 
         const campaignCounts: Record<string, number> = {};
         if (counts) {
@@ -76,6 +99,9 @@ export default async function handler(req: any, res: any) {
 
     } catch (error: any) {
         console.error('Get Users Error:', error);
-        return res.status(500).json({ error: error.message || 'Internal server error' });
+        return res.status(500).json({ 
+            error: error.message || 'Internal server error',
+            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        });
     }
 }
