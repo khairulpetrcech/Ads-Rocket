@@ -15,13 +15,39 @@ import {
     extractVideoThumbnail,
     uploadAdImageBlob
 } from '../services/metaService';
-import { CheckCircle, Loader2, Upload, AlertTriangle, Save, FolderOpen, Trash2, ChevronDown, Video, Image as ImageIcon, Sparkles, Zap } from 'lucide-react';
+import { CheckCircle, Loader2, Upload, AlertTriangle, Save, FolderOpen, Trash2, ChevronDown, ChevronUp, Video, Image as ImageIcon, Sparkles, Zap, Copy, Plus, X } from 'lucide-react';
 import { AdvantagePlusConfig } from '../types';
 
 interface Template {
     id: string;
     name: string;
     data: any;
+}
+
+// Interface for individual ad data
+interface AdData {
+    id: string;
+    adName: string;
+    primaryText: string;
+    headline: string;
+    description: string;
+    destinationUrl: string;
+    callToAction: string;
+    mediaFile: File | null;
+    mediaType: 'image' | 'video';
+    filePreview: string | null;
+    advPlusConfig: AdvantagePlusConfig;
+}
+
+// Interface for adset with multiple ads
+interface AdSetData {
+    id: string;
+    name: string;
+    dailyBudget: number;
+    optimizationGoal: string;
+    selectedPixelId: string;
+    ads: AdData[];
+    isExpanded: boolean;
 }
 
 // ============================================================
@@ -103,7 +129,7 @@ const CreateCampaign: React.FC = () => {
     const dropdownRef = useRef<HTMLDivElement>(null);
 
     const [existingCampaigns, setExistingCampaigns] = useState<any[]>([]);
-    const [existingAdSets, setExistingAdSets] = useState<any[]>([]);
+    const [existingAdSetsFromMeta, setExistingAdSetsFromMeta] = useState<any[]>([]);
     const [userPages, setUserPages] = useState<any[]>([]);
     const [userPixels, setUserPixels] = useState<any[]>([]);
 
@@ -112,36 +138,156 @@ const CreateCampaign: React.FC = () => {
     const [newCampaignName, setNewCampaignName] = useState('');
     const [objective, setObjective] = useState('OUTCOME_TRAFFIC');
 
+    // For existing adset mode
     const [adSetMode, setAdSetMode] = useState<'new' | 'existing'>('new');
     const [selectedAdSetId, setSelectedAdSetId] = useState('');
-    const [newAdSetName, setNewAdSetName] = useState('');
-    const [dailyBudget, setDailyBudget] = useState(50);
-    const [optimizationGoal, setOptimizationGoal] = useState('LINK_CLICKS');
-    const [selectedPixelId, setSelectedPixelId] = useState('');
 
     const [selectedPageId, setSelectedPageId] = useState('');
-    const [adName, setAdName] = useState('');
-    const [primaryText, setPrimaryText] = useState('');
-    const [headline, setHeadline] = useState('');
-    const [description, setDescription] = useState('');
-    const [destinationUrl, setDestinationUrl] = useState('');
-    const [callToAction, setCallToAction] = useState('LEARN_MORE');
-
-    const [advPlusConfig, setAdvPlusConfig] = useState<AdvantagePlusConfig>({
-        enabled: false,
-        visualTouchups: false,
-        textOptimizations: false,
-        mediaCropping: false,
-        music: false
-    });
-
-    const [mediaFile, setMediaFile] = useState<File | null>(null);
-    const [mediaType, setMediaType] = useState<'image' | 'video'>('image');
-    const [filePreview, setFilePreview] = useState<string | null>(null);
 
     const lastPublishTime = useRef<number>(0);
 
-    // Effects
+    // Helper to create a default ad
+    const createDefaultAd = (): AdData => ({
+        id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+        adName: '',
+        primaryText: '',
+        headline: '',
+        description: '',
+        destinationUrl: '',
+        callToAction: 'LEARN_MORE',
+        mediaFile: null,
+        mediaType: 'image',
+        filePreview: null,
+        advPlusConfig: {
+            enabled: false,
+            visualTouchups: false,
+            textOptimizations: false,
+            mediaCropping: false,
+            music: false
+        }
+    });
+
+    // Helper to create a default adset
+    const createDefaultAdSet = (): AdSetData => ({
+        id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+        name: '',
+        dailyBudget: 50,
+        optimizationGoal: 'LINK_CLICKS',
+        selectedPixelId: '',
+        ads: [createDefaultAd()],
+        isExpanded: true
+    });
+
+    // State for multiple adsets (each with multiple ads)
+    const [adSets, setAdSets] = useState<AdSetData[]>([createDefaultAdSet()]);
+
+    // ============================================================
+    // ADSET & AD MANAGEMENT FUNCTIONS
+    // ============================================================
+    const addAdSet = () => {
+        setAdSets([...adSets, createDefaultAdSet()]);
+    };
+
+    const duplicateAdSet = (adSetId: string) => {
+        const adSetToDuplicate = adSets.find(a => a.id === adSetId);
+        if (!adSetToDuplicate) return;
+
+        const duplicatedAds = adSetToDuplicate.ads.map(ad => ({
+            ...ad,
+            id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+            adName: ad.adName ? `${ad.adName} (Copy)` : ''
+        }));
+
+        const duplicatedAdSet: AdSetData = {
+            ...adSetToDuplicate,
+            id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+            name: adSetToDuplicate.name ? `${adSetToDuplicate.name} (Copy)` : '',
+            ads: duplicatedAds,
+            isExpanded: true
+        };
+
+        const index = adSets.findIndex(a => a.id === adSetId);
+        const newAdSets = [...adSets];
+        newAdSets.splice(index + 1, 0, duplicatedAdSet);
+        setAdSets(newAdSets);
+    };
+
+    const removeAdSet = (adSetId: string) => {
+        if (adSets.length <= 1) return;
+        setAdSets(adSets.filter(a => a.id !== adSetId));
+    };
+
+    const updateAdSet = (adSetId: string, updates: Partial<AdSetData>) => {
+        setAdSets(adSets.map(a => a.id === adSetId ? { ...a, ...updates } : a));
+    };
+
+    const toggleAdSetExpanded = (adSetId: string) => {
+        setAdSets(adSets.map(a => a.id === adSetId ? { ...a, isExpanded: !a.isExpanded } : a));
+    };
+
+    const addAd = (adSetId: string) => {
+        setAdSets(adSets.map(a =>
+            a.id === adSetId ? { ...a, ads: [...a.ads, createDefaultAd()] } : a
+        ));
+    };
+
+    const duplicateAd = (adSetId: string, adId: string) => {
+        setAdSets(adSets.map(adSet => {
+            if (adSet.id !== adSetId) return adSet;
+
+            const adToDuplicate = adSet.ads.find(ad => ad.id === adId);
+            if (!adToDuplicate) return adSet;
+
+            const duplicatedAd: AdData = {
+                ...adToDuplicate,
+                id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+                adName: adToDuplicate.adName ? `${adToDuplicate.adName} (Copy)` : ''
+            };
+
+            const index = adSet.ads.findIndex(ad => ad.id === adId);
+            const newAds = [...adSet.ads];
+            newAds.splice(index + 1, 0, duplicatedAd);
+
+            return { ...adSet, ads: newAds };
+        }));
+    };
+
+    const removeAd = (adSetId: string, adId: string) => {
+        setAdSets(adSets.map(adSet => {
+            if (adSet.id !== adSetId) return adSet;
+            if (adSet.ads.length <= 1) return adSet;
+            return { ...adSet, ads: adSet.ads.filter(ad => ad.id !== adId) };
+        }));
+    };
+
+    const updateAd = (adSetId: string, adId: string, updates: Partial<AdData>) => {
+        setAdSets(adSets.map(adSet => {
+            if (adSet.id !== adSetId) return adSet;
+            return {
+                ...adSet,
+                ads: adSet.ads.map(ad => ad.id === adId ? { ...ad, ...updates } : ad)
+            };
+        }));
+    };
+
+    const handleFileChange = (adSetId: string, adId: string, e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files[0]) {
+            const file = e.target.files[0];
+            let mediaType: 'image' | 'video' = 'image';
+            if (file.type.startsWith('video/') || file.name.endsWith('.avi')) {
+                mediaType = 'video';
+            }
+            let filePreview: string | null = null;
+            if (!file.name.toLowerCase().endsWith('.heic') && !file.name.toLowerCase().endsWith('.avi')) {
+                filePreview = URL.createObjectURL(file);
+            }
+            updateAd(adSetId, adId, { mediaFile: file, mediaType, filePreview });
+        }
+    };
+
+    // ============================================================
+    // EFFECTS
+    // ============================================================
     useEffect(() => {
         if (globalProcess.type === 'CAMPAIGN_CREATION' && globalProcess.active) {
             setLoading(true);
@@ -166,7 +312,6 @@ const CreateCampaign: React.FC = () => {
                     if (pages.length > 0) setSelectedPageId(pages[0].id);
                     const pixels = await getPixels(settings.adAccountId, settings.fbAccessToken);
                     setUserPixels(pixels);
-                    if (pixels.length > 0) setSelectedPixelId(prev => prev || (pixels[0] ? pixels[0].id : ''));
                 }
             } catch (e) { console.error(e); }
         };
@@ -184,10 +329,11 @@ const CreateCampaign: React.FC = () => {
     }, []);
 
     useEffect(() => {
+        // Update optimization goal for all adsets when objective changes
         if (objective === 'OUTCOME_SALES') {
-            setOptimizationGoal('OFFSITE_CONVERSIONS');
+            setAdSets(adSets.map(a => ({ ...a, optimizationGoal: 'OFFSITE_CONVERSIONS' })));
         } else if (objective === 'OUTCOME_TRAFFIC') {
-            setOptimizationGoal('LINK_CLICKS');
+            setAdSets(adSets.map(a => ({ ...a, optimizationGoal: 'LINK_CLICKS' })));
         }
     }, [objective]);
 
@@ -196,30 +342,16 @@ const CreateCampaign: React.FC = () => {
             const loadAdSets = async () => {
                 try {
                     const adsets = await getAdSets(selectedCampaignId, settings.fbAccessToken);
-                    setExistingAdSets(adsets);
+                    setExistingAdSetsFromMeta(adsets);
                 } catch (e) { console.error(e); }
             };
             loadAdSets();
         }
     }, [selectedCampaignId, campaignMode, settings.fbAccessToken]);
 
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files && e.target.files[0]) {
-            const file = e.target.files[0];
-            setMediaFile(file);
-            if (file.type.startsWith('video/') || file.name.endsWith('.avi')) {
-                setMediaType('video');
-            } else {
-                setMediaType('image');
-            }
-            if (file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.avi')) {
-                setFilePreview(null);
-            } else {
-                setFilePreview(URL.createObjectURL(file));
-            }
-        }
-    };
-
+    // ============================================================
+    // TEMPLATE HANDLERS
+    // ============================================================
     const handleSaveTemplate = () => {
         if (!templateName) return alert("Enter a template name");
         let finalName = templateName;
@@ -233,8 +365,7 @@ const CreateCampaign: React.FC = () => {
             name: finalName,
             data: {
                 campaignMode, newCampaignName, objective,
-                adSetMode, newAdSetName, dailyBudget, optimizationGoal, selectedPixelId,
-                selectedPageId, adName, primaryText, headline, description, destinationUrl, callToAction, advPlusConfig
+                adSetMode, selectedPageId, adSets
             }
         };
         const updated = [...templates, newTemplate];
@@ -250,18 +381,14 @@ const CreateCampaign: React.FC = () => {
         if (d.newCampaignName) setNewCampaignName(d.newCampaignName);
         if (d.objective) setObjective(d.objective);
         if (d.adSetMode) setAdSetMode(d.adSetMode);
-        if (d.newAdSetName) setNewAdSetName(d.newAdSetName);
-        if (d.dailyBudget) setDailyBudget(d.dailyBudget);
-        if (d.optimizationGoal) setOptimizationGoal(d.optimizationGoal);
-        if (d.selectedPixelId) setSelectedPixelId(d.selectedPixelId);
         if (d.selectedPageId) setSelectedPageId(d.selectedPageId);
-        if (d.adName) setAdName(d.adName);
-        if (d.primaryText) setPrimaryText(d.primaryText);
-        if (d.headline) setHeadline(d.headline);
-        if (d.description) setDescription(d.description);
-        if (d.destinationUrl) setDestinationUrl(d.destinationUrl);
-        if (d.callToAction) setCallToAction(d.callToAction);
-        if (d.advPlusConfig) setAdvPlusConfig(d.advPlusConfig);
+        if (d.adSets && Array.isArray(d.adSets)) {
+            // Note: mediaFile won't be restored from localStorage
+            setAdSets(d.adSets.map((a: any) => ({
+                ...a,
+                ads: a.ads?.map((ad: any) => ({ ...ad, mediaFile: null, filePreview: null })) || [createDefaultAd()]
+            })));
+        }
         setShowTemplatesDropdown(false);
     };
 
@@ -272,16 +399,37 @@ const CreateCampaign: React.FC = () => {
         localStorage.setItem('ar_templates', JSON.stringify(updated));
     };
 
+    // ============================================================
+    // VALIDATION & SUBMIT
+    // ============================================================
     const validateForm = (): boolean => {
         if (campaignMode === 'new' && !newCampaignName) { setError('Enter campaign name'); return false; }
         if (campaignMode === 'existing' && !selectedCampaignId) { setError('Select a campaign'); return false; }
-        if (adSetMode === 'new' && !newAdSetName) { setError('Enter Ad Set name'); return false; }
-        if (adSetMode === 'existing' && !selectedAdSetId) { setError('Select an Ad Set'); return false; }
-        if (!mediaFile) { setError('Upload an image or video'); return false; }
-        if (!adName) { setError('Enter Ad name'); return false; }
-        if (!primaryText) { setError('Enter Primary Text'); return false; }
-        if (!headline) { setError('Enter Headline'); return false; }
-        if (!destinationUrl) { setError('Enter Destination URL'); return false; }
+
+        if (adSetMode === 'new') {
+            for (const adSet of adSets) {
+                if (!adSet.name) { setError('Enter Ad Set name for all Ad Sets'); return false; }
+                for (const ad of adSet.ads) {
+                    if (!ad.mediaFile) { setError('Upload media for all ads'); return false; }
+                    if (!ad.adName) { setError('Enter Ad name for all ads'); return false; }
+                    if (!ad.primaryText) { setError('Enter Primary Text for all ads'); return false; }
+                    if (!ad.headline) { setError('Enter Headline for all ads'); return false; }
+                    if (!ad.destinationUrl) { setError('Enter Destination URL for all ads'); return false; }
+                }
+            }
+        } else {
+            if (!selectedAdSetId) { setError('Select an Ad Set'); return false; }
+            // For existing adset, validate ads in first adset
+            const firstAdSet = adSets[0];
+            for (const ad of firstAdSet.ads) {
+                if (!ad.mediaFile) { setError('Upload media for all ads'); return false; }
+                if (!ad.adName) { setError('Enter Ad name for all ads'); return false; }
+                if (!ad.primaryText) { setError('Enter Primary Text for all ads'); return false; }
+                if (!ad.headline) { setError('Enter Headline for all ads'); return false; }
+                if (!ad.destinationUrl) { setError('Enter Destination URL for all ads'); return false; }
+            }
+        }
+
         if (!selectedPageId) { setError('Select a Facebook Page'); return false; }
         return true;
     };
@@ -310,45 +458,59 @@ const CreateCampaign: React.FC = () => {
                 finalCampaignId = res.id;
             }
 
-            let finalAdSetId = selectedAdSetId;
-            if (adSetMode === 'new') {
-                setGlobalProcess({ active: true, name: "Creating Campaign...", message: "Configuring Ad Set...", type: "CAMPAIGN_CREATION" });
-                const pixelToUse = (objective === 'OUTCOME_SALES' && optimizationGoal === 'OFFSITE_CONVERSIONS') ? selectedPixelId : null;
-                const res = await createMetaAdSet(adAccountId, finalCampaignId, newAdSetName, dailyBudget, optimizationGoal, pixelToUse, fbAccessToken);
-                finalAdSetId = res.id;
+            const adSetsToProcess = adSetMode === 'new' ? adSets : [{ ...adSets[0], id: selectedAdSetId }];
+            let totalAds = adSetsToProcess.reduce((sum, a) => sum + a.ads.length, 0);
+            let processedAds = 0;
+
+            for (const adSet of adSetsToProcess) {
+                let finalAdSetId = adSet.id;
+
+                if (adSetMode === 'new') {
+                    setGlobalProcess({ active: true, name: "Creating Campaign...", message: `Creating Ad Set: ${adSet.name}...`, type: "CAMPAIGN_CREATION" });
+                    const pixelToUse = (objective === 'OUTCOME_SALES' && adSet.optimizationGoal === 'OFFSITE_CONVERSIONS') ? adSet.selectedPixelId : null;
+                    const res = await createMetaAdSet(adAccountId, finalCampaignId, adSet.name, adSet.dailyBudget, adSet.optimizationGoal, pixelToUse, fbAccessToken);
+                    finalAdSetId = res.id;
+                } else {
+                    finalAdSetId = selectedAdSetId;
+                }
+
+                for (const ad of adSet.ads) {
+                    processedAds++;
+                    setGlobalProcess({ active: true, name: "Creating Campaign...", message: `Processing Ad ${processedAds}/${totalAds}: ${ad.adName}...`, type: "CAMPAIGN_CREATION" });
+
+                    let assetId = '';
+                    let thumbnailHash: string | undefined = undefined;
+
+                    if (ad.mediaType === 'image') {
+                        setGlobalProcess({ active: true, name: "Creating Campaign...", message: `Uploading Image for ${ad.adName}...`, type: "CAMPAIGN_CREATION" });
+                        assetId = await uploadAdImage(adAccountId, ad.mediaFile!, fbAccessToken);
+                    } else {
+                        setGlobalProcess({ active: true, name: "Creating Campaign...", message: `Generating Thumbnail for ${ad.adName}...`, type: "CAMPAIGN_CREATION" });
+                        const thumbnailBlob = await extractVideoThumbnail(ad.mediaFile!);
+                        thumbnailHash = await uploadAdImageBlob(adAccountId, thumbnailBlob, fbAccessToken);
+
+                        setGlobalProcess({ active: true, name: "Creating Campaign...", message: `Uploading Video for ${ad.adName} (0%)...`, type: "CAMPAIGN_CREATION" });
+                        const videoId = await uploadAdVideo(
+                            adAccountId,
+                            ad.mediaFile!,
+                            fbAccessToken,
+                            (percent) => setGlobalProcess({ active: true, name: "Creating Campaign...", message: `Uploading Video for ${ad.adName} (${percent}%)...`, type: "CAMPAIGN_CREATION" })
+                        );
+                        assetId = videoId;
+                    }
+
+                    setGlobalProcess({ active: true, name: "Creating Campaign...", message: `Creating Creative for ${ad.adName}...`, type: "CAMPAIGN_CREATION" });
+                    const creativeId = await createMetaCreative(
+                        adAccountId, ad.adName, selectedPageId, assetId, ad.primaryText, ad.headline, ad.destinationUrl,
+                        fbAccessToken, ad.mediaType, ad.callToAction, ad.description, ad.advPlusConfig, thumbnailHash
+                    );
+
+                    setGlobalProcess({ active: true, name: "Creating Campaign...", message: `Publishing ${ad.adName}...`, type: "CAMPAIGN_CREATION" });
+                    await createMetaAd(adAccountId, finalAdSetId, ad.adName, creativeId, fbAccessToken);
+                }
             }
 
-            let assetId = '';
-            let thumbnailHash: string | undefined = undefined;
-
-            if (mediaType === 'image') {
-                setGlobalProcess({ active: true, name: "Creating Campaign...", message: "Uploading Image...", type: "CAMPAIGN_CREATION" });
-                assetId = await uploadAdImage(adAccountId, mediaFile!, fbAccessToken);
-            } else {
-                setGlobalProcess({ active: true, name: "Creating Campaign...", message: "Generating Thumbnail...", type: "CAMPAIGN_CREATION" });
-                const thumbnailBlob = await extractVideoThumbnail(mediaFile!);
-                thumbnailHash = await uploadAdImageBlob(adAccountId, thumbnailBlob, fbAccessToken);
-
-                setGlobalProcess({ active: true, name: "Creating Campaign...", message: "Uploading Video (0%)...", type: "CAMPAIGN_CREATION" });
-                const videoId = await uploadAdVideo(
-                    adAccountId,
-                    mediaFile!,
-                    fbAccessToken,
-                    (percent) => setGlobalProcess({ active: true, name: "Creating Campaign...", message: `Uploading Video (${percent}%)...`, type: "CAMPAIGN_CREATION" })
-                );
-                assetId = videoId;
-            }
-
-            setGlobalProcess({ active: true, name: "Creating Campaign...", message: "Creating Ad Creative...", type: "CAMPAIGN_CREATION" });
-            const creativeId = await createMetaCreative(
-                adAccountId, adName, selectedPageId, assetId, primaryText, headline, destinationUrl,
-                fbAccessToken, mediaType, callToAction, description, advPlusConfig, thumbnailHash
-            );
-
-            setGlobalProcess({ active: true, name: "Creating Campaign...", message: "Publishing Ad...", type: "CAMPAIGN_CREATION" });
-            await createMetaAd(adAccountId, finalAdSetId, adName, creativeId, fbAccessToken);
-
-            setSuccessMsg("🎉 Campaign Created Successfully!");
+            setSuccessMsg(`🎉 Campaign Created Successfully! (${totalAds} ads created)`);
             window.scrollTo(0, 0);
 
             // Log campaign to admin tracking
@@ -371,7 +533,7 @@ const CreateCampaign: React.FC = () => {
                         fbUserName: fbUser.name,
                         campaignName: campaignMode === 'new' ? newCampaignName : existingCampaigns.find(c => c.id === selectedCampaignId)?.name || 'Unknown',
                         objective,
-                        mediaType: mediaType.toUpperCase(),
+                        mediaType: 'MIXED',
                         adAccountId: settings.adAccountId
                     })
                 });
@@ -392,6 +554,145 @@ const CreateCampaign: React.FC = () => {
             setLoading(false);
         }
     };
+
+    // ============================================================
+    // RENDER AD COMPONENT
+    // ============================================================
+    const renderAd = (adSet: AdSetData, ad: AdData, adIndex: number) => (
+        <div key={ad.id} className="bg-slate-50 rounded-xl p-4 border border-slate-200">
+            {/* Ad Header */}
+            <div className="flex items-center justify-between mb-4">
+                <h4 className="font-semibold text-slate-700 flex items-center gap-2">
+                    <span className="w-5 h-5 bg-blue-500 text-white rounded text-xs flex items-center justify-center">{adIndex + 1}</span>
+                    Ad {adIndex + 1}
+                </h4>
+                <div className="flex items-center gap-1">
+                    <button
+                        onClick={() => duplicateAd(adSet.id, ad.id)}
+                        className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                        title="Duplicate Ad"
+                    >
+                        <Copy size={14} />
+                    </button>
+                    {adSet.ads.length > 1 && (
+                        <button
+                            onClick={() => removeAd(adSet.id, ad.id)}
+                            className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                            title="Remove Ad"
+                        >
+                            <X size={14} />
+                        </button>
+                    )}
+                </div>
+            </div>
+
+            {/* Media Upload */}
+            <div className="border-2 border-dashed border-slate-300 rounded-xl p-4 text-center hover:border-blue-400 hover:bg-blue-50/30 transition-all cursor-pointer relative group mb-4">
+                <input
+                    type="file"
+                    accept="image/*,video/mp4,video/x-m4v,video/*,.heic,.avi"
+                    onChange={(e) => handleFileChange(adSet.id, ad.id, e)}
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                />
+                {ad.mediaFile ? (
+                    <div className="flex flex-col items-center">
+                        {ad.filePreview ? (
+                            ad.mediaType === 'image' ? (
+                                <img src={ad.filePreview} className="h-24 object-contain rounded-lg mb-2" alt="Preview" />
+                            ) : (
+                                <video src={ad.filePreview} className="h-24 rounded-lg mb-2" controls muted />
+                            )
+                        ) : (
+                            <div className="h-16 w-20 flex items-center justify-center bg-slate-200 rounded-lg mb-2">
+                                {ad.mediaType === 'image' ? <ImageIcon size={24} className="text-slate-400" /> : <Video size={24} className="text-slate-400" />}
+                            </div>
+                        )}
+                        <p className="text-blue-600 font-medium text-sm truncate max-w-full">{ad.mediaFile.name}</p>
+                        <p className="text-xs text-slate-400">Click to change</p>
+                    </div>
+                ) : (
+                    <>
+                        <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center mx-auto mb-2 text-blue-500">
+                            <Upload size={20} />
+                        </div>
+                        <p className="text-slate-600 font-medium text-sm">Upload Media</p>
+                        <p className="text-xs text-slate-400">JPG, PNG, MP4</p>
+                    </>
+                )}
+            </div>
+
+            {/* Ad Fields */}
+            <div className="space-y-3">
+                <InputField
+                    label="Ad Name"
+                    value={ad.adName}
+                    onChange={(v: string) => updateAd(adSet.id, ad.id, { adName: v })}
+                    placeholder="My Ad"
+                    required
+                />
+                <TextAreaField
+                    label="Primary Text"
+                    value={ad.primaryText}
+                    onChange={(v: string) => updateAd(adSet.id, ad.id, { primaryText: v })}
+                    placeholder="Write your ad copy..."
+                    rows={2}
+                />
+                <div className="grid grid-cols-2 gap-3">
+                    <InputField
+                        label="Headline"
+                        value={ad.headline}
+                        onChange={(v: string) => updateAd(adSet.id, ad.id, { headline: v })}
+                        placeholder="Catchy headline"
+                        required
+                    />
+                    <SelectField
+                        label="CTA"
+                        value={ad.callToAction}
+                        onChange={(v: string) => updateAd(adSet.id, ad.id, { callToAction: v })}
+                        options={[
+                            { value: 'LEARN_MORE', label: 'Learn More' },
+                            { value: 'SHOP_NOW', label: 'Shop Now' },
+                            { value: 'WHATSAPP_MESSAGE', label: 'WhatsApp' },
+                            { value: 'SIGN_UP', label: 'Sign Up' },
+                            { value: 'ORDER_NOW', label: 'Order Now' }
+                        ]}
+                    />
+                </div>
+                <InputField
+                    label="Destination URL"
+                    value={ad.destinationUrl}
+                    onChange={(v: string) => updateAd(adSet.id, ad.id, { destinationUrl: v })}
+                    placeholder="https://..."
+                    required
+                />
+                <InputField
+                    label="Description (Optional)"
+                    value={ad.description}
+                    onChange={(v: string) => updateAd(adSet.id, ad.id, { description: v })}
+                    placeholder="e.g. Limited time offer"
+                />
+
+                {/* Advantage+ for this ad */}
+                <div className="bg-purple-50 rounded-lg p-3 mt-3">
+                    <ToggleSwitch
+                        label="Advantage+ Creative"
+                        checked={ad.advPlusConfig.enabled}
+                        onChange={(val) => updateAd(adSet.id, ad.id, { advPlusConfig: { ...ad.advPlusConfig, enabled: val } })}
+                    />
+                    {ad.advPlusConfig.enabled && (
+                        <div className="pl-3 mt-2 space-y-1 border-l-2 border-purple-200">
+                            <ToggleSwitch label="Visual Touchups" checked={ad.advPlusConfig.visualTouchups} onChange={(val) => updateAd(adSet.id, ad.id, { advPlusConfig: { ...ad.advPlusConfig, visualTouchups: val } })} />
+                            <ToggleSwitch label="Text Optimizations" checked={ad.advPlusConfig.textOptimizations} onChange={(val) => updateAd(adSet.id, ad.id, { advPlusConfig: { ...ad.advPlusConfig, textOptimizations: val } })} />
+                            <ToggleSwitch label="Media Cropping" checked={ad.advPlusConfig.mediaCropping} onChange={(val) => updateAd(adSet.id, ad.id, { advPlusConfig: { ...ad.advPlusConfig, mediaCropping: val } })} />
+                            {ad.mediaType === 'video' && (
+                                <ToggleSwitch label="Music" checked={ad.advPlusConfig.music} onChange={(val) => updateAd(adSet.id, ad.id, { advPlusConfig: { ...ad.advPlusConfig, music: val } })} />
+                            )}
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
 
     // ============================================================
     // RENDER
@@ -532,121 +833,148 @@ const CreateCampaign: React.FC = () => {
                             </div>
 
                             {adSetMode === 'new' ? (
+                                <div className="space-y-4">
+                                    {adSets.map((adSet, adSetIndex) => (
+                                        <div key={adSet.id} className="border border-slate-200 rounded-xl overflow-hidden">
+                                            {/* AdSet Header */}
+                                            <div
+                                                className="bg-slate-50 px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-slate-100 transition-colors"
+                                                onClick={() => toggleAdSetExpanded(adSet.id)}
+                                            >
+                                                <div className="flex items-center gap-3">
+                                                    {adSet.isExpanded ? <ChevronUp size={16} className="text-slate-400" /> : <ChevronDown size={16} className="text-slate-400" />}
+                                                    <span className="font-semibold text-slate-700">
+                                                        Ad Set {adSetIndex + 1}: {adSet.name || '(untitled)'}
+                                                    </span>
+                                                    <span className="text-xs bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full">
+                                                        {adSet.ads.length} ad{adSet.ads.length > 1 ? 's' : ''}
+                                                    </span>
+                                                </div>
+                                                <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                                                    <button
+                                                        onClick={() => duplicateAdSet(adSet.id)}
+                                                        className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-100 rounded-lg transition-colors"
+                                                        title="Duplicate Ad Set"
+                                                    >
+                                                        <Copy size={14} />
+                                                    </button>
+                                                    {adSets.length > 1 && (
+                                                        <button
+                                                            onClick={() => removeAdSet(adSet.id)}
+                                                            className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-100 rounded-lg transition-colors"
+                                                            title="Remove Ad Set"
+                                                        >
+                                                            <X size={14} />
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            {/* AdSet Content */}
+                                            {adSet.isExpanded && (
+                                                <div className="p-4 space-y-4">
+                                                    {/* AdSet Fields */}
+                                                    <div className="grid md:grid-cols-2 gap-4">
+                                                        <InputField
+                                                            label="Ad Set Name"
+                                                            value={adSet.name}
+                                                            onChange={(v: string) => updateAdSet(adSet.id, { name: v })}
+                                                            placeholder="e.g. Broad Targeting"
+                                                            required
+                                                        />
+                                                        <InputField
+                                                            label="Daily Budget (RM)"
+                                                            value={adSet.dailyBudget}
+                                                            onChange={(v: string) => updateAdSet(adSet.id, { dailyBudget: parseFloat(v) || 0 })}
+                                                            type="number"
+                                                        />
+                                                    </div>
+                                                    <SelectField
+                                                        label="Optimization Goal"
+                                                        value={adSet.optimizationGoal}
+                                                        onChange={(v: string) => updateAdSet(adSet.id, { optimizationGoal: v })}
+                                                        options={[
+                                                            { value: 'LINK_CLICKS', label: 'Link Clicks' },
+                                                            { value: 'OFFSITE_CONVERSIONS', label: 'Conversions' },
+                                                            { value: 'IMPRESSIONS', label: 'Impressions' }
+                                                        ]}
+                                                    />
+                                                    {objective === 'OUTCOME_SALES' && userPixels.length > 0 && (
+                                                        <SelectField
+                                                            label="Meta Pixel"
+                                                            value={adSet.selectedPixelId}
+                                                            onChange={(v: string) => updateAdSet(adSet.id, { selectedPixelId: v })}
+                                                            options={userPixels.map(p => ({ value: p.id, label: p.name }))}
+                                                        />
+                                                    )}
+
+                                                    {/* Ads */}
+                                                    <div className="mt-4">
+                                                        <div className="flex items-center justify-between mb-3">
+                                                            <h4 className="font-semibold text-slate-700">Ads</h4>
+                                                            <button
+                                                                onClick={() => addAd(adSet.id)}
+                                                                className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 font-medium"
+                                                            >
+                                                                <Plus size={14} /> Add Ad
+                                                            </button>
+                                                        </div>
+                                                        <div className="space-y-4">
+                                                            {adSet.ads.map((ad, adIndex) => renderAd(adSet, ad, adIndex))}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
+
+                                    {/* Add AdSet Button */}
+                                    <button
+                                        onClick={addAdSet}
+                                        className="w-full py-3 border-2 border-dashed border-slate-300 rounded-xl text-slate-500 hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50 transition-all flex items-center justify-center gap-2 font-medium"
+                                    >
+                                        <Plus size={18} /> Add Ad Set
+                                    </button>
+                                </div>
+                            ) : (
                                 <>
-                                    <div className="grid md:grid-cols-2 gap-4">
-                                        <InputField label="Ad Set Name" value={newAdSetName} onChange={setNewAdSetName} placeholder="e.g. Broad Targeting" required />
-                                        <InputField label="Daily Budget (RM)" value={dailyBudget} onChange={(v: string) => setDailyBudget(parseFloat(v) || 0)} type="number" />
-                                    </div>
-                                    <SelectField label="Optimization Goal" value={optimizationGoal} onChange={setOptimizationGoal} options={[
-                                        { value: 'LINK_CLICKS', label: 'Link Clicks' },
-                                        { value: 'OFFSITE_CONVERSIONS', label: 'Conversions' },
-                                        { value: 'IMPRESSIONS', label: 'Impressions' }
+                                    <SelectField label="Select Ad Set" value={selectedAdSetId} onChange={setSelectedAdSetId} required options={[
+                                        { value: '', label: '-- Select Ad Set --' },
+                                        ...existingAdSetsFromMeta.map(a => ({ value: a.id, label: a.name }))
                                     ]} />
-                                    {objective === 'OUTCOME_SALES' && userPixels.length > 0 && (
-                                        <SelectField label="Meta Pixel" value={selectedPixelId} onChange={setSelectedPixelId} options={userPixels.map(p => ({ value: p.id, label: p.name }))} />
+
+                                    {/* Ads for existing adset */}
+                                    {selectedAdSetId && (
+                                        <div className="mt-4">
+                                            <div className="flex items-center justify-between mb-3">
+                                                <h4 className="font-semibold text-slate-700">Ads to Create</h4>
+                                                <button
+                                                    onClick={() => addAd(adSets[0].id)}
+                                                    className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 font-medium"
+                                                >
+                                                    <Plus size={14} /> Add Ad
+                                                </button>
+                                            </div>
+                                            <div className="space-y-4">
+                                                {adSets[0].ads.map((ad, adIndex) => renderAd(adSets[0], ad, adIndex))}
+                                            </div>
+                                        </div>
                                     )}
                                 </>
-                            ) : (
-                                <SelectField label="Select Ad Set" value={selectedAdSetId} onChange={setSelectedAdSetId} required options={[
-                                    { value: '', label: '-- Select Ad Set --' },
-                                    ...existingAdSets.map(a => ({ value: a.id, label: a.name }))
-                                ]} />
                             )}
                         </div>
                     </div>
 
-                    {/* Ad Creative */}
+                    {/* Facebook Page Selection */}
                     <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
                         <h2 className="text-lg font-bold text-slate-900 mb-5 flex items-center gap-2">
                             <span className="w-7 h-7 bg-blue-100 text-blue-600 rounded-lg flex items-center justify-center text-sm font-bold">3</span>
-                            Ad Creative
+                            Facebook Page
                         </h2>
-
-                        <div className="space-y-5">
-                            {/* Media Upload */}
-                            <div className="border-2 border-dashed border-slate-200 rounded-2xl p-8 text-center hover:border-blue-400 hover:bg-blue-50/30 transition-all cursor-pointer relative group">
-                                <input
-                                    type="file"
-                                    accept="image/*,video/mp4,video/x-m4v,video/*,.heic,.avi"
-                                    onChange={handleFileChange}
-                                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-                                />
-                                {mediaFile ? (
-                                    <div className="flex flex-col items-center">
-                                        {filePreview ? (
-                                            mediaType === 'image' ? (
-                                                <img src={filePreview} className="h-40 object-contain rounded-xl mb-3" alt="Preview" />
-                                            ) : (
-                                                <video src={filePreview} className="h-40 rounded-xl mb-3" controls muted />
-                                            )
-                                        ) : (
-                                            <div className="h-24 w-32 flex items-center justify-center bg-slate-100 rounded-xl mb-3">
-                                                {mediaType === 'image' ? <ImageIcon size={32} className="text-slate-400" /> : <Video size={32} className="text-slate-400" />}
-                                            </div>
-                                        )}
-                                        <p className="text-blue-600 font-semibold">{mediaFile.name}</p>
-                                        <p className="text-xs text-slate-500">{mediaType === 'video' ? 'Video' : 'Image'} • Click to change</p>
-                                    </div>
-                                ) : (
-                                    <>
-                                        <div className="w-14 h-14 bg-blue-100 rounded-2xl flex items-center justify-center mx-auto mb-3 text-blue-500 group-hover:scale-110 transition-transform">
-                                            <Upload size={28} />
-                                        </div>
-                                        <p className="text-slate-800 font-semibold">Click to upload media</p>
-                                        <p className="text-xs text-slate-400 mt-1">Supports JPG, PNG, MP4</p>
-                                    </>
-                                )}
-                            </div>
-
-                            <div className="grid md:grid-cols-2 gap-4">
-                                <SelectField label="Facebook Page" value={selectedPageId} onChange={setSelectedPageId} required options={[
-                                    { value: '', label: '-- Select Page --' },
-                                    ...userPages.map(p => ({ value: p.id, label: p.name }))
-                                ]} />
-                                <InputField label="Ad Name" value={adName} onChange={setAdName} placeholder="My Ad" required />
-                            </div>
-
-                            <TextAreaField label="Primary Text (Caption)" value={primaryText} onChange={setPrimaryText} placeholder="Write your ad copy here..." rows={4} />
-
-                            <div className="grid md:grid-cols-2 gap-4">
-                                <InputField label="Headline" value={headline} onChange={setHeadline} placeholder="Catchy headline" required />
-                                <SelectField label="Call To Action" value={callToAction} onChange={setCallToAction} options={[
-                                    { value: 'LEARN_MORE', label: 'Learn More' },
-                                    { value: 'SHOP_NOW', label: 'Shop Now' },
-                                    { value: 'WHATSAPP_MESSAGE', label: 'WhatsApp Message' },
-                                    { value: 'SIGN_UP', label: 'Sign Up' },
-                                    { value: 'GET_OFFER', label: 'Get Offer' },
-                                    { value: 'ORDER_NOW', label: 'Order Now' }
-                                ]} />
-                            </div>
-
-                            <InputField label="Link Description (Optional)" value={description} onChange={setDescription} placeholder="e.g. Limited time offer" />
-                            <InputField label="Destination URL" value={destinationUrl} onChange={setDestinationUrl} placeholder="https://..." required />
-                        </div>
-                    </div>
-
-                    {/* Advantage+ */}
-                    <div className="bg-gradient-to-br from-purple-50 to-white rounded-2xl border border-purple-100 p-6 shadow-sm">
-                        <div className="flex items-center gap-3 mb-4">
-                            <div className="p-2.5 bg-purple-100 rounded-xl text-purple-600">
-                                <Sparkles size={20} />
-                            </div>
-                            <div>
-                                <h3 className="font-bold text-slate-900">Advantage+ Creative</h3>
-                                <p className="text-xs text-slate-500">Let Meta optimize your creative automatically</p>
-                            </div>
-                        </div>
-                        <ToggleSwitch label="Enable Advantage+" checked={advPlusConfig.enabled} onChange={(val) => setAdvPlusConfig({ ...advPlusConfig, enabled: val })} />
-                        {advPlusConfig.enabled && (
-                            <div className="pl-4 border-l-2 border-purple-100 mt-3 space-y-1">
-                                <ToggleSwitch label="Visual Touchups" checked={advPlusConfig.visualTouchups} onChange={(val) => setAdvPlusConfig({ ...advPlusConfig, visualTouchups: val })} />
-                                <ToggleSwitch label="Text Optimizations" checked={advPlusConfig.textOptimizations} onChange={(val) => setAdvPlusConfig({ ...advPlusConfig, textOptimizations: val })} />
-                                <ToggleSwitch label="Media Cropping" checked={advPlusConfig.mediaCropping} onChange={(val) => setAdvPlusConfig({ ...advPlusConfig, mediaCropping: val })} />
-                                {mediaType === 'video' && (
-                                    <ToggleSwitch label="Music" checked={advPlusConfig.music} onChange={(val) => setAdvPlusConfig({ ...advPlusConfig, music: val })} />
-                                )}
-                            </div>
-                        )}
+                        <SelectField label="Select Facebook Page" value={selectedPageId} onChange={setSelectedPageId} required options={[
+                            { value: '', label: '-- Select Page --' },
+                            ...userPages.map(p => ({ value: p.id, label: p.name }))
+                        ]} />
                     </div>
 
                     {/* Submit Button */}
