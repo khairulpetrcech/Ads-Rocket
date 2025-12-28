@@ -721,7 +721,7 @@ const Dashboard: React.FC = () => {
                     <div className="text-2xl font-extrabold text-slate-900">{formatMYR(totalSpend)}</div>
                 </div>
 
-                {/* Card 2: ROAS (Conversion) or Results (Lead/Traffic) */}
+                {/* Card 2: ROAS (Conversion) or Lead (Lead/Traffic) */}
                 <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
                     {viewMode === 'SALES' ? (
                         <>
@@ -734,7 +734,7 @@ const Dashboard: React.FC = () => {
                     ) : (
                         <>
                             <div className="flex justify-between items-start mb-2">
-                                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Result</span>
+                                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Lead</span>
                                 <MessageCircle size={16} className="text-slate-300" />
                             </div>
                             <div className="text-2xl font-extrabold text-slate-900">{totalResults}</div>
@@ -742,7 +742,7 @@ const Dashboard: React.FC = () => {
                     )}
                 </div>
 
-                {/* Card 3: CPA (Conversion) or Cost/Res (Lead/Traffic) */}
+                {/* Card 3: CPA (Conversion) or Cost/Lead (Lead/Traffic) */}
                 <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
                     {viewMode === 'SALES' ? (
                         <>
@@ -750,21 +750,30 @@ const Dashboard: React.FC = () => {
                                 <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">CPA</span>
                                 <DollarSign size={16} className="text-slate-300" />
                             </div>
-                            <div className="text-2xl font-extrabold text-slate-900">
-                                {formatMYR(campaigns.reduce((a, c) => a + c.metrics.purchases, 0) > 0
-                                    ? totalSpend / campaigns.reduce((a, c) => a + c.metrics.purchases, 0)
-                                    : 0)}
-                            </div>
+                            {(() => {
+                                const totalPurchases = campaigns.reduce((a, c) => a + c.metrics.purchases, 0);
+                                const cpa = totalPurchases > 0 ? totalSpend / totalPurchases : 0;
+                                return (
+                                    <div className={`text-2xl font-extrabold ${cpa > 0 && cpa <= 25 ? 'text-green-600' : cpa > 25 ? 'text-red-600' : 'text-slate-900'}`}>
+                                        {formatMYR(cpa)}
+                                    </div>
+                                );
+                            })()}
                         </>
                     ) : (
                         <>
                             <div className="flex justify-between items-start mb-2">
-                                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Cost/Res</span>
+                                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Cost/Lead</span>
                                 <DollarSign size={16} className="text-slate-300" />
                             </div>
-                            <div className="text-2xl font-extrabold text-slate-900">
-                                {formatMYR(totalResults > 0 ? totalSpend / totalResults : 0)}
-                            </div>
+                            {(() => {
+                                const costPerLead = totalResults > 0 ? totalSpend / totalResults : 0;
+                                return (
+                                    <div className={`text-2xl font-extrabold ${costPerLead > 0 && costPerLead <= 5 ? 'text-green-600' : costPerLead > 5 ? 'text-red-600' : 'text-slate-900'}`}>
+                                        {formatMYR(costPerLead)}
+                                    </div>
+                                );
+                            })()}
                         </>
                     )}
                 </div>
@@ -781,7 +790,8 @@ const Dashboard: React.FC = () => {
                                 {(() => {
                                     const totalLpv = campaigns.reduce((a, c) => a + (c.metrics.landingPageViews || 0), 0);
                                     const cplv = totalLpv > 0 ? totalSpend / totalLpv : 0;
-                                    return <><span>{totalLpv}</span><span className="text-sm text-slate-400 ml-1">({formatMYR(cplv)})</span></>;
+                                    const cplvColor = cplv > 0 && cplv <= 3 ? 'text-green-600' : cplv > 3 ? 'text-red-600' : 'text-slate-400';
+                                    return <><span>{totalLpv}</span><span className={`text-sm ml-1 ${cplvColor}`}>({formatMYR(cplv)})</span></>;
                                 })()}
                             </div>
                         </>
@@ -791,14 +801,16 @@ const Dashboard: React.FC = () => {
                                 <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">CTR (All)</span>
                                 <MousePointer size={16} className="text-slate-300" />
                             </div>
-                            <div className="text-2xl font-extrabold text-slate-900">
-                                {(() => {
-                                    const totalImpressions = campaigns.reduce((a, c) => a + (c.metrics.impressions || 0), 0);
-                                    const totalClicks = campaigns.reduce((a, c) => a + (c.metrics.clicks || 0), 0);
-                                    const ctrAll = totalImpressions > 0 ? (totalClicks / totalImpressions) * 100 : 0;
-                                    return `${ctrAll.toFixed(2)}%`;
-                                })()}
-                            </div>
+                            {(() => {
+                                const totalImpressions = campaigns.reduce((a, c) => a + (c.metrics.impressions || 0), 0);
+                                const totalClicks = campaigns.reduce((a, c) => a + (c.metrics.clicks || 0), 0);
+                                const ctrAll = totalImpressions > 0 ? (totalClicks / totalImpressions) * 100 : 0;
+                                return (
+                                    <div className={`text-2xl font-extrabold ${ctrAll >= 4 ? 'text-green-600' : ctrAll > 0 ? 'text-red-600' : 'text-slate-900'}`}>
+                                        {ctrAll.toFixed(2)}%
+                                    </div>
+                                );
+                            })()}
                         </>
                     )}
                 </div>
