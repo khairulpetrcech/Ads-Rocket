@@ -1,9 +1,14 @@
 /**
  * Admin API to get all connected users.
- * Protected with admin password.
+ * Uses Supabase for storage.
  */
 
-import { kv } from '@vercel/kv';
+import { createClient } from '@supabase/supabase-js';
+
+const SUPABASE_URL = 'https://ztpedgagubjoiluagqzd.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp0cGVkZ2FndWJqb2lsdWFncXpkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUwODgxNDgsImV4cCI6MjA4MDY2NDE0OH0.02A3J4zzTetBmLFUtEXngdkTV1NARHFcvUHAg6IVFjQ';
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'rocket@admin2024';
 
@@ -28,33 +33,45 @@ export default async function handler(req: any, res: any) {
     }
 
     try {
-        // Get all user IDs
-        const userIds = await kv.smembers('user_ids');
+        // Get all users with campaign counts
+        const { data: users, error } = await supabase
+            .from('tracked_users')
+            .select('*')
+            .order('last_active', { ascending: false });
 
-        if (!userIds || userIds.length === 0) {
-            return res.status(200).json({
-                users: [],
-                total: 0
+        if (error) {
+            console.error('Supabase error:', error);
+            return res.status(500).json({ error: error.message });
+        }
+
+        // Get campaign counts per user
+        const { data: counts, error: countError } = await supabase
+            .from('tracked_campaigns')
+            .select('fb_user_id');
+
+        const campaignCounts: Record<string, number> = {};
+        if (counts) {
+            counts.forEach((c: any) => {
+                campaignCounts[c.fb_user_id] = (campaignCounts[c.fb_user_id] || 0) + 1;
             });
         }
 
-        // Get all users data
-        const users: any[] = [];
-        for (const id of userIds) {
-            const userData = await kv.hget('users', id as string);
-            if (userData) {
-                // Get campaign count for this user
-                const campaignCount = await kv.hget('user_campaign_counts', id as string) || 0;
-                users.push({ ...userData, campaignCount });
-            }
-        }
-
-        // Sort by lastActive descending
-        users.sort((a, b) => new Date(b.lastActive).getTime() - new Date(a.lastActive).getTime());
+        // Map to expected format
+        const formattedUsers = (users || []).map((u: any) => ({
+            fbId: u.fb_id,
+            fbName: u.fb_name,
+            profilePicture: u.profile_picture,
+            connectedAt: u.created_at,
+            tokenExpiresAt: u.token_expires_at,
+            adAccountId: u.ad_account_id,
+            adAccountName: u.ad_account_name,
+            lastActive: u.last_active,
+            campaignCount: campaignCounts[u.fb_id] || 0
+        }));
 
         return res.status(200).json({
-            users,
-            total: users.length
+            users: formattedUsers,
+            total: formattedUsers.length
         });
 
     } catch (error: any) {

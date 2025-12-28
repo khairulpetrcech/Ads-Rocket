@@ -1,9 +1,14 @@
 /**
  * Admin API to get all campaigns.
- * Protected with admin password.
+ * Uses Supabase for storage.
  */
 
-import { kv } from '@vercel/kv';
+import { createClient } from '@supabase/supabase-js';
+
+const SUPABASE_URL = 'https://ztpedgagubjoiluagqzd.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp0cGVkZ2FndWJqb2lsdWFncXpkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUwODgxNDgsImV4cCI6MjA4MDY2NDE0OH0.02A3J4zzTetBmLFUtEXngdkTV1NARHFcvUHAg6IVFjQ';
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'rocket@admin2024';
 
@@ -31,44 +36,44 @@ export default async function handler(req: any, res: any) {
         // Get query params for filtering
         const { userId, limit = '50', offset = '0' } = req.query;
 
-        // Get all campaign IDs
-        const campaignIds = await kv.smembers('campaign_ids');
-
-        if (!campaignIds || campaignIds.length === 0) {
-            return res.status(200).json({
-                campaigns: [],
-                total: 0
-            });
-        }
-
-        // Get all campaigns data
-        let campaigns: any[] = [];
-        for (const id of campaignIds) {
-            const campaignData = await kv.hget('campaigns', id as string);
-            if (campaignData) {
-                campaigns.push(campaignData);
-            }
-        }
+        let query = supabase
+            .from('tracked_campaigns')
+            .select('*', { count: 'exact' })
+            .order('created_at', { ascending: false });
 
         // Filter by userId if provided
         if (userId) {
-            campaigns = campaigns.filter(c => c.fbUserId === userId);
+            query = query.eq('fb_user_id', userId);
         }
-
-        // Sort by createdAt descending
-        campaigns.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-
-        const total = campaigns.length;
 
         // Apply pagination
         const start = parseInt(offset as string);
-        const end = start + parseInt(limit as string);
-        campaigns = campaigns.slice(start, end);
+        const end = start + parseInt(limit as string) - 1;
+        query = query.range(start, end);
+
+        const { data: campaigns, error, count } = await query;
+
+        if (error) {
+            console.error('Supabase error:', error);
+            return res.status(500).json({ error: error.message });
+        }
+
+        // Map to expected format
+        const formattedCampaigns = (campaigns || []).map((c: any) => ({
+            id: c.id,
+            fbUserId: c.fb_user_id,
+            fbUserName: c.fb_user_name,
+            campaignName: c.campaign_name,
+            objective: c.objective,
+            mediaType: c.media_type,
+            adAccountId: c.ad_account_id,
+            createdAt: c.created_at
+        }));
 
         return res.status(200).json({
-            campaigns,
-            total,
-            hasMore: end < total
+            campaigns: formattedCampaigns,
+            total: count || 0,
+            hasMore: (start + formattedCampaigns.length) < (count || 0)
         });
 
     } catch (error: any) {

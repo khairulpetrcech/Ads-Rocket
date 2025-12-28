@@ -1,23 +1,14 @@
 /**
  * API endpoint to log user when they connect their FB account.
- * Stores user data in Vercel KV for admin tracking.
+ * Uses Supabase for storage.
  */
 
-import { kv } from '@vercel/kv';
+import { createClient } from '@supabase/supabase-js';
 
-// Admin password for protected endpoints
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'rocket@admin2024';
+const SUPABASE_URL = 'https://ztpedgagubjoiluagqzd.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp0cGVkZ2FndWJqb2lsdWFncXpkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUwODgxNDgsImV4cCI6MjA4MDY2NDE0OH0.02A3J4zzTetBmLFUtEXngdkTV1NARHFcvUHAg6IVFjQ';
 
-interface TrackedUser {
-    fbId: string;
-    fbName: string;
-    profilePicture: string;
-    connectedAt: string;
-    tokenExpiresAt?: string;
-    adAccountId: string;
-    adAccountName: string;
-    lastActive: string;
-}
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 export default async function handler(req: any, res: any) {
     // CORS headers
@@ -49,32 +40,34 @@ export default async function handler(req: any, res: any) {
 
         const now = new Date().toISOString();
 
-        // Check if user already exists
-        const existingUser = await kv.hget<TrackedUser>('users', fbId);
+        // Upsert user (insert or update if exists)
+        const { data, error } = await supabase
+            .from('tracked_users')
+            .upsert({
+                fb_id: fbId,
+                fb_name: fbName,
+                profile_picture: profilePicture || '',
+                token_expires_at: tokenExpiresAt || null,
+                ad_account_id: adAccountId || '',
+                ad_account_name: adAccountName || '',
+                last_active: now,
+                updated_at: now
+            }, {
+                onConflict: 'fb_id',
+                ignoreDuplicates: false
+            })
+            .select();
 
-        const userData: TrackedUser = {
-            fbId,
-            fbName,
-            profilePicture: profilePicture || '',
-            connectedAt: existingUser?.connectedAt || now, // Keep original connect date
-            tokenExpiresAt,
-            adAccountId: adAccountId || '',
-            adAccountName: adAccountName || '',
-            lastActive: now
-        };
-
-        // Store user in hash (users -> fbId -> userData)
-        await kv.hset('users', { [fbId]: userData });
-
-        // Also add to user list for easy retrieval
-        await kv.sadd('user_ids', fbId);
+        if (error) {
+            console.error('Supabase error:', error);
+            return res.status(500).json({ error: error.message });
+        }
 
         console.log(`User logged: ${fbName} (${fbId})`);
 
         return res.status(200).json({
             success: true,
-            message: 'User logged successfully',
-            isNewUser: !existingUser
+            message: 'User logged successfully'
         });
 
     } catch (error: any) {
