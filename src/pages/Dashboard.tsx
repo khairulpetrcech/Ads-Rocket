@@ -681,14 +681,16 @@ const Dashboard: React.FC = () => {
 
             {/* Metric Cards */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {/* Card 1: Spend (Same for both) */}
                 <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
                     <div className="flex justify-between items-start mb-2">
-                        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Spend</span>
+                        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Spent</span>
                         <DollarSign size={16} className="text-slate-300" />
                     </div>
                     <div className="text-2xl font-extrabold text-slate-900">{formatMYR(totalSpend)}</div>
                 </div>
 
+                {/* Card 2: ROAS (Conversion) or Results (Lead/Traffic) */}
                 <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
                     {viewMode === 'SALES' ? (
                         <>
@@ -701,7 +703,7 @@ const Dashboard: React.FC = () => {
                     ) : (
                         <>
                             <div className="flex justify-between items-start mb-2">
-                                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Results</span>
+                                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Result</span>
                                 <MessageCircle size={16} className="text-slate-300" />
                             </div>
                             <div className="text-2xl font-extrabold text-slate-900">{totalResults}</div>
@@ -709,20 +711,65 @@ const Dashboard: React.FC = () => {
                     )}
                 </div>
 
+                {/* Card 3: CPA (Conversion) or Cost/Res (Lead/Traffic) */}
                 <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
-                    <div className="flex justify-between items-start mb-2">
-                        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Revenue</span>
-                        <DollarSign size={16} className="text-slate-300" />
-                    </div>
-                    <div className="text-2xl font-extrabold text-slate-900">{formatMYR(totalRevenue)}</div>
+                    {viewMode === 'SALES' ? (
+                        <>
+                            <div className="flex justify-between items-start mb-2">
+                                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">CPA</span>
+                                <DollarSign size={16} className="text-slate-300" />
+                            </div>
+                            <div className="text-2xl font-extrabold text-slate-900">
+                                {formatMYR(campaigns.reduce((a, c) => a + c.metrics.purchases, 0) > 0
+                                    ? totalSpend / campaigns.reduce((a, c) => a + c.metrics.purchases, 0)
+                                    : 0)}
+                            </div>
+                        </>
+                    ) : (
+                        <>
+                            <div className="flex justify-between items-start mb-2">
+                                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Cost/Res</span>
+                                <DollarSign size={16} className="text-slate-300" />
+                            </div>
+                            <div className="text-2xl font-extrabold text-slate-900">
+                                {formatMYR(totalResults > 0 ? totalSpend / totalResults : 0)}
+                            </div>
+                        </>
+                    )}
                 </div>
 
+                {/* Card 4: LPV/(CPLV) (Conversion) or CTR (All) (Lead/Traffic) */}
                 <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
-                    <div className="flex justify-between items-start mb-2">
-                        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Purchases</span>
-                        <MousePointer size={16} className="text-slate-300" />
-                    </div>
-                    <div className="text-2xl font-extrabold text-slate-900">{campaigns.reduce((a, c) => a + c.metrics.purchases, 0)}</div>
+                    {viewMode === 'SALES' ? (
+                        <>
+                            <div className="flex justify-between items-start mb-2">
+                                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">LPV/(CPLV)</span>
+                                <MousePointer size={16} className="text-slate-300" />
+                            </div>
+                            <div className="text-2xl font-extrabold text-slate-900">
+                                {(() => {
+                                    const totalLpv = campaigns.reduce((a, c) => a + (c.metrics.landingPageViews || 0), 0);
+                                    const cplv = totalLpv > 0 ? totalSpend / totalLpv : 0;
+                                    return <><span>{totalLpv}</span><span className="text-sm text-slate-400 ml-1">({formatMYR(cplv)})</span></>;
+                                })()}
+                            </div>
+                        </>
+                    ) : (
+                        <>
+                            <div className="flex justify-between items-start mb-2">
+                                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">CTR (All)</span>
+                                <MousePointer size={16} className="text-slate-300" />
+                            </div>
+                            <div className="text-2xl font-extrabold text-slate-900">
+                                {(() => {
+                                    const totalImpressions = campaigns.reduce((a, c) => a + (c.metrics.impressions || 0), 0);
+                                    const totalClicks = campaigns.reduce((a, c) => a + (c.metrics.clicks || 0), 0);
+                                    const ctrAll = totalImpressions > 0 ? (totalClicks / totalImpressions) * 100 : 0;
+                                    return `${ctrAll.toFixed(2)}%`;
+                                })()}
+                            </div>
+                        </>
+                    )}
                 </div>
             </div>
 
