@@ -9,6 +9,7 @@ import SettingsPage from './pages/Settings';
 import CreateCampaign from './pages/CreateCampaign';
 import CommentTemplates from './pages/CommentTemplates';
 import EpicPoster from './pages/EpicPoster';
+import AdminPage from './pages/Admin';
 import { UserSettings, AiProvider, GlobalProcess } from './types';
 import { initFacebookSdk, isSecureContext } from './services/metaService';
 import { Loader2, Key } from 'lucide-react';
@@ -311,6 +312,8 @@ const App: React.FC = () => {
           <Route path="/login" element={
             isAuthenticated ? <Navigate to="/connect" replace /> : <LoginPage />
           } />
+
+          <Route path="/admin" element={<AdminPage />} />
 
           <Route path="/connect" element={
             isAuthenticated ? <ConnectPage /> : <Navigate to="/login" replace />

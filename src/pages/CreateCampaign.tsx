@@ -312,6 +312,37 @@ const CreateCampaign: React.FC = () => {
             setSuccessMsg("Campaign Created Successfully! Check your Dashboard.");
             window.scrollTo(0, 0);
 
+            // Log campaign to Vercel KV for admin tracking
+            try {
+                // Get FB user info
+                const fbUser = await new Promise<{ id: string; name: string }>((resolve, reject) => {
+                    if (window.FB && window.FB.api) {
+                        window.FB.api('/me', { fields: 'id,name' }, (response: any) => {
+                            if (response && !response.error) resolve(response);
+                            else reject('Failed to get user');
+                        });
+                    } else {
+                        reject('FB SDK not available');
+                    }
+                });
+
+                await fetch('/api/log-campaign', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        fbUserId: fbUser.id,
+                        fbUserName: fbUser.name,
+                        campaignName: campaignMode === 'new' ? newCampaignName : existingCampaigns.find(c => c.id === selectedCampaignId)?.name || 'Unknown',
+                        objective,
+                        mediaType: mediaType.toUpperCase(),
+                        adAccountId: settings.adAccountId
+                    })
+                });
+                console.log('Campaign logged to admin tracking');
+            } catch (logErr) {
+                console.warn('Failed to log campaign (non-critical):', logErr);
+            }
+
             setTimeout(() => {
                 setGlobalProcess({ active: false, name: "", message: "", type: "NONE" });
             }, 2000);

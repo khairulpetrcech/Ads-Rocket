@@ -124,3 +124,28 @@ export interface MetaAdAccount {
   account_id: string;
   currency: string;
 }
+
+// Admin Dashboard Types
+export interface TrackedUser {
+  fbId: string;
+  fbName: string;
+  profilePicture: string;
+  connectedAt: string;
+  tokenExpiresAt?: string;
+  adAccountId: string;
+  adAccountName: string;
+  lastActive: string;
+  campaignCount?: number;
+}
+
+export interface TrackedCampaign {
+  id: string;
+  fbUserId: string;
+  fbUserName: string;
+  campaignName: string;
+  objective: string;
+  mediaType: 'IMAGE' | 'VIDEO';
+  adAccountId: string;
+  createdAt: string;
+}
+

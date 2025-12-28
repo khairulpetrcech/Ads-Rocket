@@ -100,7 +100,41 @@ const ConnectPage: React.FC = () => {
     }
   };
 
-  const selectAccount = (account: MetaAdAccount) => {
+  const selectAccount = async (account: MetaAdAccount) => {
+    // Get FB user info for logging
+    try {
+      const fbUser = await new Promise<{ id: string; name: string; picture?: { data?: { url: string } } }>((resolve, reject) => {
+        if (window.FB && window.FB.api) {
+          window.FB.api('/me', { fields: 'id,name,picture.type(large)' }, (response: any) => {
+            if (response && !response.error) {
+              resolve(response);
+            } else {
+              reject(response?.error || 'Failed to get user info');
+            }
+          });
+        } else {
+          reject('FB SDK not available');
+        }
+      });
+
+      // Log user to Vercel KV
+      await fetch('/api/log-user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fbId: fbUser.id,
+          fbName: fbUser.name,
+          profilePicture: fbUser.picture?.data?.url || '',
+          tokenExpiresAt: settings.fbTokenExpiresAt,
+          adAccountId: account.id,
+          adAccountName: account.name
+        })
+      });
+      console.log('User logged to admin tracking');
+    } catch (logErr) {
+      console.warn('Failed to log user (non-critical):', logErr);
+    }
+
     updateSettings({
       isConnected: true,
       businessName: account.name,

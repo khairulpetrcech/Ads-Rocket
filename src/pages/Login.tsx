@@ -5,8 +5,12 @@ import { useSettings } from '../App';
 import { Zap, Loader2, LayoutTemplate, User, Lock, X } from 'lucide-react';
 
 // Hardcoded credentials
-const VALID_USERNAME = 'admin';
-const VALID_PASSWORD = 'admin12345';
+const TESTER_USERNAME = 'admin';
+const TESTER_PASSWORD = 'admin12345';
+
+// Admin credentials (for viewing user dashboard)
+const ADMIN_USERNAME = 'superadmin';
+const ADMIN_PASSWORD = 'rocket@admin2024';
 
 const LoginPage: React.FC = () => {
   const navigate = useNavigate();
@@ -26,7 +30,18 @@ const LoginPage: React.FC = () => {
       return;
     }
 
-    if (username !== VALID_USERNAME || password !== VALID_PASSWORD) {
+    // Check for admin login
+    if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
+      setLoading(true);
+      localStorage.setItem('ar_admin', 'true');
+      setTimeout(() => {
+        navigate('/admin');
+      }, 800);
+      return;
+    }
+
+    // Check for tester login
+    if (username !== TESTER_USERNAME || password !== TESTER_PASSWORD) {
       setError('Invalid username or password.');
       return;
     }
