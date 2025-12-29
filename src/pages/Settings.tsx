@@ -42,13 +42,35 @@ const Settings: React.FC = () => {
     return () => clearTimeout(timeoutId);
   }, [localSettings.selectedAiProvider, localSettings.apiKey]);
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const cleanSettings = { ...localSettings };
     if (cleanSettings.apiKey) {
       cleanSettings.apiKey = cleanSettings.apiKey.trim();
     }
     setLocalSettings(cleanSettings);
     updateSettings(cleanSettings);
+
+    // Also save Telegram settings to Supabase for daily cron
+    if (cleanSettings.telegramBotToken && cleanSettings.telegramChatId) {
+      try {
+        await fetch('/api/save-telegram-settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            fbId: settings.fbAppId || 'default',
+            fbAccessToken: settings.fbAccessToken,
+            adAccountId: settings.adAccountId,
+            telegramBotToken: cleanSettings.telegramBotToken,
+            telegramChatId: cleanSettings.telegramChatId,
+            enabled: true
+          })
+        });
+        console.log('Telegram settings saved to Supabase for daily reports');
+      } catch (err) {
+        console.warn('Failed to save Telegram settings for daily reports:', err);
+      }
+    }
+
     setSaved(true);
     setTimeout(() => setSaved(false), 3000);
   };

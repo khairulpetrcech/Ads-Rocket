@@ -46,10 +46,11 @@ export default async function handler(req: any, res: any) {
 
         const insightsQuery = `insights.time_range(${timeRange}){spend,impressions,clicks,cpc,ctr,actions,action_values}`;
         const fields = ['id', 'name', 'status', 'effective_status', insightsQuery].join(',');
-        const filtering = `[{"field":"effective_status","operator":"IN","value":["ACTIVE","PAUSED"]}]`;
+        const filtering = encodeURIComponent(`[{"field":"effective_status","operator":"IN","value":["ACTIVE","PAUSED"]}]`);
 
-        const metaUrl = `https://graph.facebook.com/v19.0/${actId}/ads?fields=${fields}&access_token=${fbAccessToken}&limit=50&filtering=${filtering}`;
+        const metaUrl = `https://graph.facebook.com/v19.0/${actId}/ads?fields=${encodeURIComponent(fields)}&access_token=${fbAccessToken}&limit=50&filtering=${filtering}`;
 
+        console.log('Fetching Meta API...');
         const metaResponse = await fetch(metaUrl);
         const metaData = await metaResponse.json();
 
@@ -117,16 +118,15 @@ Tugas:
 
 Format: Bahasa Malaysia santai tapi profesional. Guna emoji. Mula dengan "🏆 *Analisis Iklan Menang*". Guna *bold* untuk poin penting. RINGKAS dalam 300 patah perkataan.`;
 
+        console.log('Calling Gemini API...');
         const genAI = new GoogleGenAI({ apiKey: geminiApiKey });
-        const result = await genAI.models.generateContent({
+        const response = await genAI.models.generateContent({
             model: 'gemini-2.0-flash',
-            contents: prompt,
-            config: {
-                maxOutputTokens: 800
-            }
+            contents: prompt
         });
 
-        const analysisText = result.text || 'Tidak dapat generate analisis.';
+        const analysisText = response.text || 'Tidak dapat generate analisis.';
+        console.log('Gemini response received');
 
         // --- STEP 3: Send to Telegram ---
         const telegramUrl = `https://api.telegram.org/bot${telegramBotToken}/sendMessage`;
