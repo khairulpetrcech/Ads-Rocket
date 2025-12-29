@@ -225,6 +225,63 @@ const Dashboard: React.FC = () => {
         return saved ? new Set(JSON.parse(saved)) : new Set();
     });
 
+    // Telegram AI Alert State
+    const [telegramSending, setTelegramSending] = useState(false);
+
+    const handleSendToTelegram = async () => {
+        if (!settings.telegramBotToken || !settings.telegramChatId) {
+            alert('Telegram not configured. Go to Settings → Telegram Integration');
+            return;
+        }
+
+        // Get top 3 ads by spend that have positive metrics
+        const allAds: any[] = [];
+        Object.values(adsData).forEach(ads => {
+            ads.forEach(ad => allAds.push(ad));
+        });
+
+        // If no ads loaded, expand campaigns first
+        if (allAds.length === 0) {
+            alert('Please expand some campaigns first to load ads data.');
+            return;
+        }
+
+        // Sort by ROAS first, then by spend
+        const topAds = allAds
+            .filter(ad => ad.metrics.spend > 0)
+            .sort((a, b) => b.metrics.roas - a.metrics.roas || b.metrics.spend - a.metrics.spend)
+            .slice(0, 3);
+
+        if (topAds.length === 0) {
+            alert('No ads with spend found. Try a different date range.');
+            return;
+        }
+
+        setTelegramSending(true);
+        try {
+            const response = await fetch('/api/analyze-telegram', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    topAds,
+                    telegramChatId: settings.telegramChatId,
+                    telegramBotToken: settings.telegramBotToken
+                })
+            });
+
+            const data = await response.json();
+            if (data.success) {
+                alert('✅ AI Analysis sent to your Telegram!');
+            } else {
+                alert(`Failed: ${data.error || 'Unknown error'}`);
+            }
+        } catch (err: any) {
+            alert(`Error: ${err.message}`);
+        } finally {
+            setTelegramSending(false);
+        }
+    };
+
     useEffect(() => {
         const saved = localStorage.getItem('ar_published_comments');
         if (saved) setPublishedComments(new Set(JSON.parse(saved)));
@@ -607,6 +664,16 @@ const Dashboard: React.FC = () => {
                             {loadingCampaigns ? <RefreshCw size={10} className="animate-spin" /> : null}
                             {loadingCampaigns ? 'Syncing...' : 'LIVE'}
                         </button>
+                        {/* TELEGRAM AI ANALYSIS BUTTON */}
+                        <button
+                            onClick={handleSendToTelegram}
+                            disabled={telegramSending}
+                            title="Send AI Analysis to Telegram"
+                            className={`text-xs px-2 py-0.5 rounded-full font-bold flex items-center gap-1 transition-all shadow-sm border ${telegramSending ? 'bg-blue-100 text-blue-700 border-blue-200 cursor-wait' : 'bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100'}`}
+                        >
+                            {telegramSending ? <RefreshCw size={10} className="animate-spin" /> : <Send size={10} />}
+                            {telegramSending ? 'Sending...' : '📱 AI'}
+                        </button>
                     </div>
                     <div className="flex items-center gap-2 text-slate-500 text-sm">
                         <Briefcase size={14} />
@@ -857,11 +924,11 @@ const Dashboard: React.FC = () => {
                                                                     <span className="font-bold text-slate-800 truncate max-w-[160px] lg:max-w-[200px] text-sm" title={camp.name}>{camp.name}</span>
                                                                     {/* Objective Pill Badge */}
                                                                     <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wide ${camp.objective?.includes('TRAFFIC') ? 'bg-blue-100 text-blue-600' :
-                                                                            camp.objective?.includes('SALES') ? 'bg-green-100 text-green-600' :
-                                                                                camp.objective?.includes('LEADS') ? 'bg-amber-100 text-amber-600' :
-                                                                                    camp.objective?.includes('AWARENESS') ? 'bg-purple-100 text-purple-600' :
-                                                                                        camp.objective?.includes('ENGAGEMENT') ? 'bg-pink-100 text-pink-600' :
-                                                                                            'bg-slate-100 text-slate-500'
+                                                                        camp.objective?.includes('SALES') ? 'bg-green-100 text-green-600' :
+                                                                            camp.objective?.includes('LEADS') ? 'bg-amber-100 text-amber-600' :
+                                                                                camp.objective?.includes('AWARENESS') ? 'bg-purple-100 text-purple-600' :
+                                                                                    camp.objective?.includes('ENGAGEMENT') ? 'bg-pink-100 text-pink-600' :
+                                                                                        'bg-slate-100 text-slate-500'
                                                                         }`}>
                                                                         {camp.objective?.replace('OUTCOME_', '') || 'N/A'}
                                                                     </span>

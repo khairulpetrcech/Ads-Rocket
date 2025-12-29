@@ -28,6 +28,10 @@ export interface UserSettings {
   fbTokenExpiresAt?: string; // ISO date string for long-lived token expiry
   adAccountId: string;
 
+  // Telegram Config
+  telegramBotToken?: string;
+  telegramChatId?: string;
+
   // UI Preferences
   dashboardViewMode?: 'SALES' | 'TRAFFIC';
 
