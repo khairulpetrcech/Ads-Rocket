@@ -782,7 +782,7 @@ const RapidCreator: React.FC = () => {
     return (
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
             {/* 3-SECTION LAYOUT */}
-            <div className="flex gap-6 h-[calc(100vh-120px)]">
+            <div className="flex gap-6 min-h-0 overflow-hidden pb-4">
 
                 {/* LEFT PANEL - Upload & Settings */}
                 <div className="w-80 flex-shrink-0 space-y-4 overflow-y-auto pr-2">
