@@ -93,7 +93,7 @@ const TextAreaField = ({ label, value, onChange, placeholder, rows = 3 }: any) =
             onChange={(e) => onChange(e.target.value)}
             placeholder={placeholder}
             rows={rows}
-            className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-slate-800 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 outline-none transition-all resize-none placeholder:text-slate-400"
+            className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-slate-800 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 outline-none transition-all resize-y min-h-[80px] placeholder:text-slate-400"
         />
     </div>
 );
