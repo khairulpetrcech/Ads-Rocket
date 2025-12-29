@@ -234,26 +234,8 @@ const Dashboard: React.FC = () => {
             return;
         }
 
-        // Get top 3 ads by spend that have positive metrics
-        const allAds: any[] = [];
-        Object.values(adsData).forEach(ads => {
-            ads.forEach(ad => allAds.push(ad));
-        });
-
-        // If no ads loaded, expand campaigns first
-        if (allAds.length === 0) {
-            alert('Please expand some campaigns first to load ads data.');
-            return;
-        }
-
-        // Sort by ROAS first, then by spend
-        const topAds = allAds
-            .filter(ad => ad.metrics.spend > 0)
-            .sort((a, b) => b.metrics.roas - a.metrics.roas || b.metrics.spend - a.metrics.spend)
-            .slice(0, 3);
-
-        if (topAds.length === 0) {
-            alert('No ads with spend found. Try a different date range.');
+        if (!settings.adAccountId || !settings.fbAccessToken) {
+            alert('Please connect your Meta Ads account first.');
             return;
         }
 
@@ -263,7 +245,8 @@ const Dashboard: React.FC = () => {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    topAds,
+                    adAccountId: settings.adAccountId,
+                    fbAccessToken: settings.fbAccessToken,
                     telegramChatId: settings.telegramChatId,
                     telegramBotToken: settings.telegramBotToken
                 })
@@ -271,7 +254,7 @@ const Dashboard: React.FC = () => {
 
             const data = await response.json();
             if (data.success) {
-                alert('✅ AI Analysis sent to your Telegram!');
+                alert(`✅ Analisis AI dihantar ke Telegram! (${data.adsAnalyzed} iklan dianalisa)`);
             } else {
                 alert(`Failed: ${data.error || 'Unknown error'}`);
             }
