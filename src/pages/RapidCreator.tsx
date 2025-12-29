@@ -31,7 +31,7 @@ import { AdCampaign, AdSet, AdvantagePlusConfig } from '../types';
 import {
     Upload, Image as ImageIcon, Video, Trash2, X, Plus,
     Zap, Settings, Loader2, Edit2, Rocket, FileVideo, FileImage,
-    ChevronDown, Globe, FolderOpen
+    ChevronDown, Globe, FolderOpen, Copy
 } from 'lucide-react';
 
 // ============================================================
@@ -44,6 +44,7 @@ interface Creative {
     preview: string;
     type: 'image' | 'video';
     name: string;
+    adName: string; // Custom ad name (defaults to creative name)
     primaryText: string;
     headline: string;
     description: string;
@@ -223,13 +224,14 @@ const DraggableCreativeCard: React.FC<{
 const DroppableAdSetZone: React.FC<{
     adset: RapidAdSet;
     creatives: Creative[];
-    onSettingsClick: () => void;
+    onCopyAdSet: () => void;
     onDeleteAdSet: () => void;
     onEditCreative: (id: string) => void;
     onRemoveCreative: (id: string) => void;
+    onUpdateAdName: (creativeId: string, adName: string) => void;
     isExpanded?: boolean;
     onToggle?: () => void;
-}> = ({ adset, creatives, onSettingsClick, onDeleteAdSet, onEditCreative, onRemoveCreative, isExpanded = true, onToggle }) => {
+}> = ({ adset, creatives, onCopyAdSet, onDeleteAdSet, onEditCreative, onRemoveCreative, onUpdateAdName, isExpanded = true, onToggle }) => {
     const { isOver, setNodeRef } = useDroppable({ id: adset.id });
 
     return (
@@ -255,8 +257,8 @@ const DroppableAdSetZone: React.FC<{
                 </div>
                 <div className="flex items-center gap-2">
                     <span className="text-xs text-slate-500 bg-slate-100 px-2 py-1 rounded-full">{creatives.length} creatives</span>
-                    <button onClick={onSettingsClick} className="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all">
-                        <Settings size={14} />
+                    <button onClick={onCopyAdSet} title="Copy Ad Set" className="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all">
+                        <Copy size={14} />
                     </button>
                     {!adset.isExisting && (
                         <button onClick={onDeleteAdSet} className="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all">
@@ -278,9 +280,49 @@ const DroppableAdSetZone: React.FC<{
                             </p>
                         </div>
                     ) : (
-                        <div className="grid grid-cols-6 gap-2">
+                        <div className="flex flex-col gap-2">
                             {creatives.map(c => (
-                                <DraggableCreativeCard key={c.id} creative={c} onEdit={() => onEditCreative(c.id)} onRemove={() => onRemoveCreative(c.id)} />
+                                <div key={c.id} className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100">
+                                    {/* Thumbnail */}
+                                    <div className="relative w-16 h-16 rounded-lg overflow-hidden bg-gradient-to-br from-slate-100 to-slate-200 flex-shrink-0">
+                                        {c.type === 'image' ? (
+                                            <img src={c.preview} alt="" className="w-full h-full object-cover" />
+                                        ) : (
+                                            <video src={c.preview} className="w-full h-full object-cover" muted />
+                                        )}
+                                        <div className={`absolute top-1 left-1 text-white text-[8px] font-bold px-1.5 py-0.5 rounded-md
+                                            ${c.type === 'video' ? 'bg-purple-500' : 'bg-blue-500'}`}>
+                                            {c.type === 'video' ? 'VIDEO' : 'IMG'}
+                                        </div>
+                                    </div>
+                                    {/* Info + Ad Name Input */}
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-xs text-slate-500 mb-1">{c.name}</p>
+                                        <input
+                                            type="text"
+                                            value={c.adName}
+                                            onChange={(e) => onUpdateAdName(c.id, e.target.value)}
+                                            placeholder="Enter ad name..."
+                                            className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-400 transition-colors"
+                                            onClick={(e) => e.stopPropagation()}
+                                        />
+                                    </div>
+                                    {/* Status Pills */}
+                                    <div className="flex items-center gap-1">
+                                        <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold ${c.primaryText ? 'bg-blue-500 text-white' : 'bg-slate-200 text-slate-400'}`}>P</span>
+                                        <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold ${c.headline ? 'bg-blue-500 text-white' : 'bg-slate-200 text-slate-400'}`}>H</span>
+                                        <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold ${c.description ? 'bg-blue-500 text-white' : 'bg-slate-200 text-slate-400'}`}>D</span>
+                                    </div>
+                                    {/* Actions */}
+                                    <div className="flex items-center gap-1">
+                                        <button onClick={() => onEditCreative(c.id)} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-blue-50 text-slate-400 hover:text-blue-600 transition-all">
+                                            <Edit2 size={14} />
+                                        </button>
+                                        <button onClick={() => onRemoveCreative(c.id)} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-500 transition-all">
+                                            <X size={14} />
+                                        </button>
+                                    </div>
+                                </div>
                             ))}
                         </div>
                     )}
@@ -523,18 +565,22 @@ const RapidCreator: React.FC = () => {
     };
 
     const addFiles = (files: File[]) => {
-        const newCreatives: Creative[] = files.map(file => ({
-            id: `creative-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-            file,
-            preview: URL.createObjectURL(file),
-            type: file.type.startsWith('video/') ? 'video' : 'image',
-            name: file.name.replace(/\.[^.]+$/, ''),
-            primaryText: '',
-            headline: '',
-            description: '',
-            callToAction: 'LEARN_MORE',
-            adsetId: null
-        }));
+        const newCreatives: Creative[] = files.map(file => {
+            const name = file.name.replace(/\.[^.]+$/, '');
+            return {
+                id: `creative-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                file,
+                preview: URL.createObjectURL(file),
+                type: file.type.startsWith('video/') ? 'video' as const : 'image' as const,
+                name,
+                adName: name, // Default ad name to creative name
+                primaryText: '',
+                headline: '',
+                description: '',
+                callToAction: 'LEARN_MORE',
+                adsetId: null
+            };
+        });
         setCreatives(prev => [...prev, ...newCreatives]);
     };
 
@@ -568,6 +614,26 @@ const RapidCreator: React.FC = () => {
             next.delete(id);
             return next;
         });
+    };
+
+    // Copy/duplicate an adset
+    const copyAdSet = (id: string) => {
+        const sourceAdSet = adSets.find(a => a.id === id);
+        if (!sourceAdSet) return;
+        const newId = `adset-${Date.now()}`;
+        const newAdSet: RapidAdSet = {
+            ...sourceAdSet,
+            id: newId,
+            name: `${sourceAdSet.name} (Copy)`,
+            isExisting: false
+        };
+        setAdSets(prev => [...prev, newAdSet]);
+        setExpandedAdSets(prev => new Set([...prev, newId]));
+    };
+
+    // Update ad name for a creative
+    const updateAdName = (creativeId: string, adName: string) => {
+        setCreatives(prev => prev.map(c => c.id === creativeId ? { ...c, adName } : c));
     };
 
     const toggleAdSetExpanded = (id: string) => {
@@ -892,10 +958,11 @@ const RapidCreator: React.FC = () => {
                                         key={adset.id}
                                         adset={adset}
                                         creatives={creatives.filter(c => c.adsetId === adset.id)}
-                                        onSettingsClick={() => { }}
+                                        onCopyAdSet={() => copyAdSet(adset.id)}
                                         onDeleteAdSet={() => removeAdSet(adset.id)}
                                         onEditCreative={setEditingCreativeId}
                                         onRemoveCreative={removeCreative}
+                                        onUpdateAdName={updateAdName}
                                         isExpanded={expandedAdSets.has(adset.id)}
                                         onToggle={() => toggleAdSetExpanded(adset.id)}
                                     />
