@@ -30,7 +30,7 @@ export default async function handler(req: any, res: any) {
             return res.status(500).json({ error: 'GEMINI_3_API not configured' });
         }
 
-        // --- STEP 1: Fetch Top Ads from Meta API (last 4 days) ---
+        // --- STEP 1: Fetch Account Name and Top Ads from Meta API (last 4 days) ---
         const actId = adAccountId.startsWith('act_') ? adAccountId : `act_${adAccountId}`;
 
         // Calculate date range: last 4 days
@@ -39,18 +39,37 @@ export default async function handler(req: any, res: any) {
         fourDaysAgo.setDate(today.getDate() - 3);
 
         const formatDate = (d: Date) => d.toISOString().split('T')[0];
+        const formatDateMY = (d: Date) => {
+            const day = String(d.getDate()).padStart(2, '0');
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const year = d.getFullYear();
+            return `${day}/${month}/${year}`;
+        };
+
+        const startDateStr = formatDate(fourDaysAgo);
+        const endDateStr = formatDate(today);
+        const startDateMY = formatDateMY(fourDaysAgo);
+        const endDateMY = formatDateMY(today);
+
         const timeRange = JSON.stringify({
-            since: formatDate(fourDaysAgo),
-            until: formatDate(today)
+            since: startDateStr,
+            until: endDateStr
         });
 
+        // 1a. Fetch Account Name
+        const accountInfoUrl = `https://graph.facebook.com/v19.0/${actId}?fields=name&access_token=${fbAccessToken}`;
+        const accountInfoResponse = await fetch(accountInfoUrl);
+        const accountInfo = await accountInfoResponse.json();
+        const accountName = accountInfo.name || adAccountId;
+
+        // 1b. Fetch Ads Insights
         const insightsQuery = `insights.time_range(${timeRange}){spend,impressions,clicks,cpc,ctr,actions,action_values}`;
         const fields = ['id', 'name', 'status', 'effective_status', insightsQuery].join(',');
         const filtering = encodeURIComponent(`[{"field":"effective_status","operator":"IN","value":["ACTIVE","PAUSED"]}]`);
 
         const metaUrl = `https://graph.facebook.com/v19.0/${actId}/ads?fields=${encodeURIComponent(fields)}&access_token=${fbAccessToken}&limit=50&filtering=${filtering}`;
 
-        console.log('Fetching Meta API...');
+        console.log(`Fetching Meta API for ${accountName}...`);
         const metaResponse = await fetch(metaUrl);
         const metaData = await metaResponse.json();
 
@@ -85,7 +104,7 @@ export default async function handler(req: any, res: any) {
         const topAds = ads
             .filter((a: any) => a.spend > 0)
             .sort((a: any, b: any) => b.roas - a.roas || b.spend - a.spend)
-            .slice(0, 5);
+            .slice(0, 3);
 
         if (topAds.length === 0) {
             // Send message that no ads found
@@ -95,28 +114,42 @@ export default async function handler(req: any, res: any) {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     chat_id: telegramChatId,
-                    text: '📊 *Tiada iklan aktif* dengan spend dalam 4 hari lepas.',
+                    text: `📊 *Report : ${accountName}*\n\npast 4 Days\n(${startDateMY} - ${endDateMY})\n\nTiada iklan aktif dengan spend dalam 4 hari lepas.`,
                     parse_mode: 'Markdown'
                 })
             });
             return res.status(200).json({ success: true, message: 'No ads with spend found' });
         }
 
-        // --- STEP 2: AI Analysis in Bahasa Malaysia ---
+        // --- STEP 2: AI Analysis in Bahasa Malaysia with New Template ---
         const adDetails = topAds.map((ad: any, i: number) =>
-            `${i + 1}. "${ad.name}" - Spend: RM${ad.spend.toFixed(2)}, ROAS: ${ad.roas.toFixed(2)}x, CTR: ${ad.ctr.toFixed(2)}%, Purchases: ${ad.purchases}, Leads: ${ad.leads}`
+            `${i + 1}. "${ad.name}" - Spend: RM${ad.spend.toFixed(2)}, ROAS: ${ad.roas.toFixed(2)}x, Purchase: ${ad.purchases}`
         ).join('\n');
 
-        const prompt = `Kau seorang pakar Meta Ads Malaysia. Analisa iklan-iklan ini:
+        const prompt = `Kau seorang pakar Meta Ads Malaysia. Analisa data iklan untuk Ads Manager "${accountName}" bagi tempoh 4 hari lepas (${startDateMY} - ${endDateMY}).
 
+Data Iklan:
 ${adDetails}
 
-Tugas:
-1. Kenal pasti iklan TERBAIK dan jelaskan KENAPA ia perform
-2. Beri 3 cadangan untuk scale iklan menang
-3. Bandingkan prestasi antara iklan
+Sila hasilkan laporan mengikut format TEPAT di bawah (Bahasa Malaysia):
 
-Format: Bahasa Malaysia santai tapi profesional. Guna emoji. Mula dengan "🏆 *Analisis Iklan Menang*". Guna *bold* untuk poin penting. RINGKAS dalam 300 patah perkataan.`;
+Report : ${accountName}
+past 4 Days
+(${startDateMY} - ${endDateMY})
+
+3 Win Ad :
+1) [Nama Ad 1] | ROAS : [Nilai] | Total Purchase : [Nilai]
+2) [Nama Ad 2] | ROAS : [Nilai] | Total Purchase : [Nilai]
+3) [Nama Ad 3] | ROAS : [Nilai] | Total Purchase : [Nilai]
+
+Why Wins?
+1) [Nama Ad 1] - [Satu ayat pendek kenapa menang]
+2) [Nama Ad 2] - [Satu ayat pendek kenapa menang]
+3) [Nama Ad 3] - [Satu ayat pendek kenapa menang]
+
+Overall Campaign Analysis : [Analisis keseluruhan akaun dalam 20 patah perkataan sahaja.]
+
+PENTING: Guna format Markdown Telegram (*bold* untuk tajuk). Jangan tambah intro atau outro.`;
 
         console.log('Calling Gemini API...');
         const genAI = new GoogleGenAI({ apiKey: geminiApiKey });

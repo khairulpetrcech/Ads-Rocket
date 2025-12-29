@@ -77,7 +77,7 @@ async function processUserAnalysis(user: any, geminiApiKey: string) {
         throw new Error('Missing Meta credentials');
     }
 
-    // Fetch ads from Meta API
+    // Fetch account name and ads from Meta API
     const actId = ad_account_id.startsWith('act_') ? ad_account_id : `act_${ad_account_id}`;
 
     const today = new Date();
@@ -85,10 +85,31 @@ async function processUserAnalysis(user: any, geminiApiKey: string) {
     fourDaysAgo.setDate(today.getDate() - 3);
 
     const formatDate = (d: Date) => d.toISOString().split('T')[0];
+    const formatDateMY = (d: Date) => {
+        const day = String(d.getDate()).padStart(2, '0');
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const year = d.getFullYear();
+        return `${day}/${month}/${year}`;
+    };
+
+    const startDateMY = formatDateMY(fourDaysAgo);
+    const endDateMY = formatDateMY(today);
+
     const timeRange = JSON.stringify({
         since: formatDate(fourDaysAgo),
         until: formatDate(today)
     });
+
+    // Fetch Account Name
+    let accountName = ad_account_id;
+    try {
+        const accountInfoUrl = `https://graph.facebook.com/v19.0/${actId}?fields=name&access_token=${fb_access_token}`;
+        const accountInfoResponse = await fetch(accountInfoUrl);
+        const accountInfo = await accountInfoResponse.json();
+        if (accountInfo.name) accountName = accountInfo.name;
+    } catch (e) {
+        console.warn(`Failed to fetch account name for ${actId}`);
+    }
 
     const insightsQuery = `insights.time_range(${timeRange}){spend,impressions,clicks,cpc,ctr,actions,action_values}`;
     const fields = ['id', 'name', 'status', 'effective_status', insightsQuery].join(',');
@@ -119,29 +140,44 @@ async function processUserAnalysis(user: any, geminiApiKey: string) {
         };
     });
 
-    const topAds = ads.filter((a: any) => a.spend > 0).sort((a: any, b: any) => b.roas - a.roas).slice(0, 5);
+    const topAds = ads.filter((a: any) => a.spend > 0).sort((a: any, b: any) => b.roas - a.roas).slice(0, 3);
 
     if (topAds.length === 0) {
         // Send no ads message
         await sendTelegram(telegram_bot_token, telegram_chat_id,
-            '📊 *Laporan Harian*\n\nTiada iklan dengan spend dalam 4 hari lepas.');
+            `📊 *Report : ${accountName}*\n\npast 4 Days\n(${startDateMY} - ${endDateMY})\n\nTiada iklan dengan spend dalam 4 hari lepas.`);
         return;
     }
 
     // AI Analysis
     const adDetails = topAds.map((ad: any, i: number) =>
-        `${i + 1}. "${ad.name}" - RM${ad.spend.toFixed(2)}, ROAS: ${ad.roas.toFixed(2)}x`
+        `${i + 1}. "${ad.name}" - RM${ad.spend.toFixed(2)}, ROAS: ${ad.roas.toFixed(2)}x, Purchase: ${ad.purchases}`
     ).join('\n');
 
-    const prompt = `Kau pakar Meta Ads. Analisis ringkas:
+    const prompt = `Kau seorang pakar Meta Ads Malaysia. Analisa data iklan untuk Ads Manager "${accountName}" bagi tempoh 4 hari lepas (${startDateMY} - ${endDateMY}).
 
+Data Iklan:
 ${adDetails}
 
-Beri analisis RINGKAS dalam Bahasa Malaysia:
-1. Iklan terbaik dan kenapa
-2. 2 tips untuk scale
+Sila hasilkan laporan mengikut format TEPAT di bawah (Bahasa Malaysia):
 
-Format: Mula dengan "🏆 *Laporan Harian*". Guna emoji. Max 150 patah perkataan.`;
+Report : ${accountName}
+past 4 Days
+(${startDateMY} - ${endDateMY})
+
+3 Win Ad :
+1) [Nama Ad 1] | ROAS : [Nilai] | Total Purchase : [Nilai]
+2) [Nama Ad 2] | ROAS : [Nilai] | Total Purchase : [Nilai]
+3) [Nama Ad 3] | ROAS : [Nilai] | Total Purchase : [Nilai]
+
+Why Wins?
+1) [Nama Ad 1] - [Satu ayat pendek kenapa menang]
+2) [Nama Ad 2] - [Satu ayat pendek kenapa menang]
+3) [Nama Ad 3] - [Satu ayat pendek kenapa menang]
+
+Overall Campaign Analysis : [Analisis keseluruhan akaun dalam 20 patah perkataan sahaja.]
+
+PENTING: Guna format Markdown Telegram (*bold* untuk tajuk). Jangan tambah intro atau outro.`;
 
     const genAI = new GoogleGenAI({ apiKey: geminiApiKey });
     const response = await genAI.models.generateContent({
