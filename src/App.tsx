@@ -7,6 +7,7 @@ import ConnectPage from './pages/Connect';
 import Dashboard from './pages/Dashboard';
 import SettingsPage from './pages/Settings';
 import CreateCampaign from './pages/CreateCampaign';
+import RapidCreator from './pages/RapidCreator';
 import CommentTemplates from './pages/CommentTemplates';
 import EpicPoster from './pages/EpicPoster';
 import AdminPage from './pages/Admin';
@@ -328,6 +329,7 @@ const App: React.FC = () => {
           }>
             <Route index element={<Dashboard />} />
             <Route path="create-campaign" element={<CreateCampaign />} />
+            <Route path="rapid" element={<RapidCreator />} />
             <Route path="epic-poster" element={<EpicPoster />} />
             <Route path="comment-templates" element={<CommentTemplates />} />
             <Route path="settings" element={<SettingsPage />} />

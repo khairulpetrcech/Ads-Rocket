@@ -181,6 +181,10 @@ const Layout: React.FC = () => {
                                 <PlusCircle size={18} /><span>Create Campaign</span>
                             </NavLink>
 
+                            <NavLink to="/rapid" className={navLinkClass}>
+                                <Zap size={18} /><span>Rapid Creator</span>
+                            </NavLink>
+
                             <NavLink to="/epic-poster" className={navLinkClass}>
                                 <Image size={18} /><span>Epic Poster</span>
                             </NavLink>
@@ -279,6 +283,10 @@ const Layout: React.FC = () => {
 
                                     <NavLink to="/create-campaign" onClick={() => setIsMobileMenuOpen(false)} className={mobileNavLinkClass}>
                                         <PlusCircle size={20} /><span>Create Campaign</span>
+                                    </NavLink>
+
+                                    <NavLink to="/rapid" onClick={() => setIsMobileMenuOpen(false)} className={mobileNavLinkClass}>
+                                        <Zap size={20} /><span>Rapid Creator</span>
                                     </NavLink>
 
                                     <NavLink to="/epic-poster" onClick={() => setIsMobileMenuOpen(false)} className={mobileNavLinkClass}>
