@@ -658,6 +658,8 @@ export const uploadAdVideo = async (
     const actId = accountId.startsWith('act_') ? accountId : `act_${accountId}`;
     const url = `https://graph-video.facebook.com/v19.0/${actId}/advideos`;
 
+    // DEBUG: Log token being used for upload
+    console.log(`[Upload] Token length: ${accessToken?.length}, first10: ${accessToken?.substring(0, 10)}...`);
     console.debug(`[Upload] Starting upload for ${file.name} (${file.size} bytes)`);
 
     // 1. START SESSION
