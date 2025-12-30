@@ -197,6 +197,21 @@ const App: React.FC = () => {
     const checkToken = () => {
       // Safety check to ensure window.FB is available and not in a disconnected state
       if (typeof window.FB !== 'undefined' && window.FB.getLoginStatus && settings.fbAccessToken !== 'dummy_token') {
+
+        // IMPORTANT: Don't overwrite if we have a valid long-lived token (check expiry)
+        // The FB SDK's getLoginStatus returns a SHORT-LIVED token, which would replace our 60-day token!
+        if (settings.fbTokenExpiresAt) {
+          const expiryDate = new Date(settings.fbTokenExpiresAt);
+          const now = new Date();
+          const daysUntilExpiry = (expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
+
+          if (daysUntilExpiry > 7) {
+            // Token is still valid for more than 7 days, don't refresh with short-lived token
+            console.log(`Token still valid for ${Math.round(daysUntilExpiry)} days. Skipping background refresh.`);
+            return;
+          }
+        }
+
         try {
           // The 'true' flag forces a roundtrip to FB servers.
           // We wrap this in a try-catch because if the extension context is invalidated (common in 'sleeping' tabs),
@@ -204,13 +219,15 @@ const App: React.FC = () => {
           window.FB.getLoginStatus((response: any) => {
             if (response.status === 'connected' && response.authResponse) {
               const newToken = response.authResponse.accessToken;
-              // Only update if different to avoid infinite loops
-              if (newToken && newToken !== settings.fbAccessToken) {
-                console.log("Refreshing token in background...");
+              // Only update if different AND if we don't have a long-lived token
+              // FB SDK returns short-lived tokens which SHOULD NOT replace long-lived tokens!
+              if (newToken && newToken !== settings.fbAccessToken && !settings.fbTokenExpiresAt) {
+                console.log("Refreshing token in background (no long-lived token set)...");
                 updateSettings({ fbAccessToken: newToken });
               }
             } else if (response.status === 'unknown' || response.status === 'not_authorized') {
-              console.warn("Session lost during background check.");
+              // Don't clear token here - user might still have valid long-lived token
+              console.warn("Session lost during background check. Long-lived token may still be valid.");
             }
           }, true);
         } catch (e) {
