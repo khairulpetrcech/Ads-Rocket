@@ -1081,7 +1081,7 @@ const RapidCreator: React.FC = () => {
                         creative.type === 'video' ? mediaHash : undefined
                     );
 
-                    await createMetaAd(settings.adAccountId, settings.fbAccessToken, adsetId, creative.name, creativeIdResult);
+                    await createMetaAd(settings.adAccountId, adsetId, creative.name, creativeIdResult, settings.fbAccessToken);
                 }
             }
 
