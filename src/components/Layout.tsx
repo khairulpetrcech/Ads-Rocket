@@ -177,9 +177,11 @@ const Layout: React.FC = () => {
                                 <LayoutDashboard size={18} /><span>Dashboard</span>
                             </NavLink>
 
+                            {/* Hidden for now
                             <NavLink to="/create-campaign" className={navLinkClass}>
                                 <PlusCircle size={18} /><span>Create Campaign</span>
                             </NavLink>
+                            */}
 
                             <NavLink to="/rapid" className={navLinkClass}>
                                 <Zap size={18} /><span>Rapid Creator</span>
@@ -281,9 +283,11 @@ const Layout: React.FC = () => {
                                         <LayoutDashboard size={20} /><span>Dashboard</span>
                                     </NavLink>
 
+                                    {/* Hidden for now
                                     <NavLink to="/create-campaign" onClick={() => setIsMobileMenuOpen(false)} className={mobileNavLinkClass}>
                                         <PlusCircle size={20} /><span>Create Campaign</span>
                                     </NavLink>
+                                    */}
 
                                     <NavLink to="/rapid" onClick={() => setIsMobileMenuOpen(false)} className={mobileNavLinkClass}>
                                         <Zap size={20} /><span>Rapid Creator</span>

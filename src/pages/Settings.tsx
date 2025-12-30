@@ -195,7 +195,7 @@ const Settings: React.FC = () => {
 
       <div className="space-y-6">
 
-        {/* Account Section */}
+        {/* Account Status - Hidden for now
         <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
           <h2 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
             <Shield size={20} className="text-indigo-600" /> Account Status
@@ -219,6 +219,7 @@ const Settings: React.FC = () => {
             </div>
           </div>
         </div>
+        */}
 
         {/* Rapid Creator Configuration */}
         <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
@@ -370,104 +371,14 @@ const Settings: React.FC = () => {
           </div>
         </div>
 
-        {/* AI Configuration */}
+        {/* AI Configuration - Hidden for now
         <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
           <h2 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
             <Key size={20} className="text-indigo-600" /> AI Intelligence
           </h2>
-
-          <div className="bg-indigo-50 border border-indigo-100 p-4 rounded-lg mb-6 flex items-start gap-3">
-            <Info className="text-indigo-600 flex-shrink-0 mt-0.5" size={18} />
-            <p className="text-sm text-indigo-900">
-              Configure your AI Provider. For Google Gemini, the API key is managed automatically by the system.
-            </p>
-          </div>
-
-          <div className="space-y-6">
-
-            <div>
-              <label className="block text-sm font-medium text-slate-500 mb-2">Analysis Provider</label>
-              <select
-                value={localSettings.selectedAiProvider}
-                onChange={(e) => setLocalSettings({ ...localSettings, selectedAiProvider: e.target.value as AiProvider })}
-                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 text-slate-800 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all font-medium"
-              >
-                <option value={AiProvider.CLAUDE}>Anthropic Claude</option>
-                <option value={AiProvider.OPENAI}>OpenAI (GPT-4)</option>
-                <option value={AiProvider.OPENROUTER}>OpenRouter</option>
-                <option value={AiProvider.GEMINI}>Google Gemini</option>
-                <option value={AiProvider.FREE}>System Default (Simulation)</option>
-              </select>
-            </div>
-
-            {localSettings.selectedAiProvider !== AiProvider.FREE && (
-              <div className="animate-fadeIn">
-                {localSettings.selectedAiProvider === AiProvider.GEMINI ? (
-                  <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 text-sm text-slate-600 flex items-center gap-2 font-medium">
-                    <CheckCircle size={16} className="text-green-500" />
-                    <span>API Key is managed by the system environment.</span>
-                  </div>
-                ) : (
-                  <>
-                    <label className="block text-sm font-medium text-slate-500 mb-2">API Key</label>
-                    <div className="relative">
-                      <Key className="absolute left-3 top-3.5 text-slate-400" size={18} />
-                      <input
-                        type={showKey ? "text" : "password"}
-                        value={localSettings.apiKey || ''}
-                        onChange={(e) => setLocalSettings({ ...localSettings, apiKey: e.target.value })}
-                        placeholder={`Enter your ${localSettings.selectedAiProvider} API Key`}
-                        className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-10 pr-12 py-3 text-slate-800 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all placeholder-slate-400"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowKey(!showKey)}
-                        className="absolute right-3 top-3 text-slate-400 hover:text-slate-600"
-                      >
-                        {showKey ? <EyeOff size={20} /> : <Eye size={20} />}
-                      </button>
-                    </div>
-                    <p className="text-xs text-slate-400 mt-2">
-                      Your key is stored locally in your browser.
-                    </p>
-                  </>
-                )}
-              </div>
-            )}
-
-            {localSettings.selectedAiProvider !== AiProvider.FREE && (
-              <div className="space-y-6 animate-fadeIn">
-                <div>
-                  <label className="block text-sm font-medium text-slate-500 mb-2 flex justify-between items-center">
-                    <span>Model Version</span>
-                    {loadingModels && <span className="text-xs text-indigo-600 flex items-center gap-1"><RefreshCw size={12} className="animate-spin" /> Fetching...</span>}
-                  </label>
-                  <div className="relative">
-                    <Server className="absolute left-3 top-3.5 text-slate-400" size={18} />
-                    <select
-                      value={localSettings.selectedModel}
-                      onChange={(e) => setLocalSettings({ ...localSettings, selectedModel: e.target.value })}
-                      disabled={loadingModels || availableModels.length === 0}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-10 pr-4 py-3 text-slate-800 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all disabled:opacity-50 disabled:cursor-not-allowed appearance-none font-medium"
-                    >
-                      {availableModels.length > 0 ? (
-                        availableModels.map(model => (
-                          <option key={model} value={model}>{model}</option>
-                        ))
-                      ) : (
-                        <option value="">{loadingModels ? 'Loading available models...' : 'Enter API Key to load models'}</option>
-                      )}
-                    </select>
-                    <div className="absolute right-4 top-4 pointer-events-none">
-                      <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-          </div>
+          ... AI section content hidden ...
         </div>
+        */}
 
         <div className="flex justify-end pt-4">
           <button
