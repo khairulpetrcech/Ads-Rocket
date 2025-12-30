@@ -575,6 +575,7 @@ const AdSetSettingsDrawer: React.FC<{
     onClose: () => void;
     onSave: (updates: Partial<RapidAdSet>) => void;
 }> = ({ adset, isOpen, onClose, onSave }) => {
+    const [dailyBudget, setDailyBudget] = useState(20);
     const [targeting, setTargeting] = useState<'BROAD' | 'CUSTOM'>('BROAD');
     const [country, setCountry] = useState('MY');
     const [ageMin, setAgeMin] = useState(18);
@@ -587,6 +588,7 @@ const AdSetSettingsDrawer: React.FC<{
 
     useEffect(() => {
         if (adset) {
+            setDailyBudget(adset.dailyBudget);
             setTargeting(adset.targeting);
             setCountry(adset.country);
             setAgeMin(adset.ageMin);
@@ -635,6 +637,21 @@ const AdSetSettingsDrawer: React.FC<{
                     </div>
 
                     <div className="space-y-5">
+                        {/* Budget */}
+                        <div>
+                            <label className="text-xs font-semibold text-slate-700 mb-2 block uppercase tracking-wide">Daily Budget (MYR)</label>
+                            <div className="relative">
+                                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 font-bold">RM</span>
+                                <input
+                                    type="number"
+                                    value={dailyBudget}
+                                    onChange={(e) => setDailyBudget(Number(e.target.value))}
+                                    min={5}
+                                    className="w-full bg-slate-50 border-2 border-slate-100 focus:border-green-400 rounded-xl pl-12 pr-4 py-3 text-lg font-bold outline-none transition-colors"
+                                />
+                            </div>
+                        </div>
+
                         {/* Targeting */}
                         <div>
                             <label className="text-xs font-semibold text-slate-700 mb-2 block uppercase tracking-wide">Targeting</label>
@@ -852,7 +869,7 @@ const RapidCreator: React.FC = () => {
                 setAdSets(prev => [...prev, {
                     id: existingAdSet.id,
                     name: existingAdSet.name,
-                    dailyBudget: 50,
+                    dailyBudget: existingAdSet.dailyBudget || 20,
                     targeting: 'BROAD',
                     country: 'MY',
                     ageMin: 18,
@@ -913,7 +930,7 @@ const RapidCreator: React.FC = () => {
         const newAdSet: RapidAdSet = {
             id: `adset-${Date.now()}`,
             name: `Ad Set ${adSets.length + 1}`,
-            dailyBudget: 50,
+            dailyBudget: 20,
             targeting: 'BROAD',
             country: 'MY',
             ageMin: 18,
