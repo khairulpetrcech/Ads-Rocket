@@ -180,7 +180,17 @@ const Settings: React.FC = () => {
   };
 
   return (
-    <div className="max-w-3xl mx-auto pb-20">
+    <div className="max-w-3xl mx-auto pb-20 relative">
+      {/* Toast Notification */}
+      {saved && (
+        <div className="fixed top-6 right-6 z-50 animate-slideIn">
+          <div className="bg-green-500 text-white px-6 py-4 rounded-xl shadow-2xl flex items-center gap-3 transform transition-all duration-300">
+            <CheckCircle size={20} />
+            <span className="font-semibold">Settings Saved!</span>
+          </div>
+        </div>
+      )}
+
       <h1 className="text-2xl font-bold text-slate-800 mb-8">Settings & Configuration</h1>
 
       <div className="space-y-6">

@@ -226,10 +226,13 @@ const DroppableAdSetZone: React.FC<{
     onEditCreative: (id: string) => void;
     onRemoveCreative: (id: string) => void;
     onUpdateAdName: (creativeId: string, adName: string) => void;
+    onRenameAdSet: (newName: string) => void;
     isExpanded?: boolean;
     onToggle?: () => void;
-}> = ({ adset, creatives, onCopyAdSet, onDeleteAdSet, onEditCreative, onRemoveCreative, onUpdateAdName, isExpanded = true, onToggle }) => {
+}> = ({ adset, creatives, onCopyAdSet, onDeleteAdSet, onEditCreative, onRemoveCreative, onUpdateAdName, onRenameAdSet, isExpanded = true, onToggle }) => {
     const { isOver, setNodeRef } = useDroppable({ id: adset.id });
+    const [isEditing, setIsEditing] = useState(false);
+    const [editName, setEditName] = useState(adset.name);
 
     return (
         <div
@@ -244,7 +247,23 @@ const DroppableAdSetZone: React.FC<{
                         <ChevronDown size={16} className={`transition-transform ${isExpanded ? '' : '-rotate-90'}`} />
                     </button>
                     <FolderOpen size={16} className="text-blue-500" />
-                    <span className="text-sm font-bold text-slate-800">{adset.name}</span>
+                    {isEditing ? (
+                        <input
+                            type="text"
+                            value={editName}
+                            onChange={(e) => setEditName(e.target.value)}
+                            onBlur={() => { onRenameAdSet(editName); setIsEditing(false); }}
+                            onKeyDown={(e) => { if (e.key === 'Enter') { onRenameAdSet(editName); setIsEditing(false); } }}
+                            className="text-sm font-bold text-slate-800 bg-white border border-blue-400 rounded px-2 py-0.5 outline-none w-32"
+                            autoFocus
+                        />
+                    ) : (
+                        <span
+                            className="text-sm font-bold text-slate-800 cursor-pointer hover:text-blue-600 transition-colors"
+                            onClick={() => setIsEditing(true)}
+                            title="Click to rename"
+                        >{adset.name}</span>
+                    )}
                     <span className="text-[10px] bg-gradient-to-r from-green-400 to-green-500 text-white px-2 py-0.5 rounded-full font-semibold shadow-sm">
                         {adset.targeting}
                     </span>
@@ -330,7 +349,7 @@ const DroppableAdSetZone: React.FC<{
 };
 
 // ============================================================
-// EDIT DRAWER - SMOOTH SLIDE ANIMATION + COPY FROM PREVIOUS
+// EDIT DRAWER - SMOOTH SLIDE ANIMATION + COPY FROM DROPDOWN
 // ============================================================
 
 const EditDrawer: React.FC<{
@@ -338,14 +357,20 @@ const EditDrawer: React.FC<{
     isOpen: boolean;
     onClose: () => void;
     onSave: (updates: Partial<Creative>) => void;
-    previousPHD?: { primaryText: string; headline: string; description: string } | null;
-}> = ({ creative, isOpen, onClose, onSave, previousPHD }) => {
+    allCreatives: Creative[];
+}> = ({ creative, isOpen, onClose, onSave, allCreatives }) => {
     const [primaryText, setPrimaryText] = useState('');
     const [headline, setHeadline] = useState('');
     const [description, setDescription] = useState('');
     const [callToAction, setCallToAction] = useState('LEARN_MORE');
     const [isVisible, setIsVisible] = useState(false);
     const [isAnimating, setIsAnimating] = useState(false);
+    const [showCopyDropdown, setShowCopyDropdown] = useState(false);
+
+    // Get creatives that have PHD content (excluding current one)
+    const creativesWithPHD = useMemo(() =>
+        allCreatives.filter(c => c.id !== creative?.id && (c.primaryText || c.headline || c.description))
+        , [allCreatives, creative?.id]);
 
     useEffect(() => {
         if (creative) {
@@ -360,6 +385,7 @@ const EditDrawer: React.FC<{
     useEffect(() => {
         if (isOpen) {
             setIsVisible(true);
+            setShowCopyDropdown(false);
             requestAnimationFrame(() => {
                 requestAnimationFrame(() => {
                     setIsAnimating(true);
@@ -372,12 +398,11 @@ const EditDrawer: React.FC<{
         }
     }, [isOpen]);
 
-    const handleCopyFromPrevious = () => {
-        if (previousPHD) {
-            setPrimaryText(previousPHD.primaryText);
-            setHeadline(previousPHD.headline);
-            setDescription(previousPHD.description);
-        }
+    const handleCopyFrom = (sourceCreative: Creative) => {
+        setPrimaryText(sourceCreative.primaryText);
+        setHeadline(sourceCreative.headline);
+        setDescription(sourceCreative.description);
+        setShowCopyDropdown(false);
     };
 
     if (!isVisible || !creative) return null;
@@ -402,24 +427,51 @@ const EditDrawer: React.FC<{
                         </button>
                     </div>
 
-                    {/* Preview */}
-                    <div className="mb-6 rounded-xl overflow-hidden border-2 border-slate-100 shadow-sm">
+                    {/* Preview - Natural aspect ratio */}
+                    <div className="mb-6 rounded-xl overflow-hidden border-2 border-slate-100 shadow-sm bg-slate-50">
                         {creative.type === 'image' ? (
-                            <img src={creative.preview} alt="" className="w-full aspect-video object-cover" />
+                            <img src={creative.preview} alt="" className="w-full h-auto object-contain max-h-64" />
                         ) : (
-                            <video src={creative.preview} className="w-full aspect-video object-cover" controls />
+                            <video src={creative.preview} className="w-full h-auto object-contain max-h-64" controls />
                         )}
                     </div>
 
-                    {/* Copy from Previous Button */}
-                    {previousPHD && (previousPHD.primaryText || previousPHD.headline || previousPHD.description) && (
-                        <button
-                            onClick={handleCopyFromPrevious}
-                            className="w-full mb-4 px-4 py-3 bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 hover:border-purple-300 rounded-xl text-sm font-medium text-purple-700 hover:text-purple-800 transition-all flex items-center justify-center gap-2"
-                        >
-                            <Copy size={14} />
-                            Copy from Previous Creative
-                        </button>
+                    {/* Copy From Dropdown */}
+                    {creativesWithPHD.length > 0 && (
+                        <div className="relative mb-4">
+                            <button
+                                onClick={() => setShowCopyDropdown(!showCopyDropdown)}
+                                className="w-full px-4 py-3 bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 hover:border-purple-300 rounded-xl text-sm font-medium text-purple-700 hover:text-purple-800 transition-all flex items-center justify-center gap-2"
+                            >
+                                <Copy size={14} />
+                                Copy from...
+                                <ChevronDown size={14} className={`transition-transform ${showCopyDropdown ? 'rotate-180' : ''}`} />
+                            </button>
+
+                            {showCopyDropdown && (
+                                <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-slate-200 rounded-xl shadow-xl z-10 max-h-48 overflow-y-auto">
+                                    {creativesWithPHD.map(c => (
+                                        <button
+                                            key={c.id}
+                                            onClick={() => handleCopyFrom(c)}
+                                            className="w-full px-4 py-3 text-left hover:bg-slate-50 flex items-center gap-3 border-b border-slate-100 last:border-b-0 transition-colors"
+                                        >
+                                            <div className="w-10 h-10 rounded-lg overflow-hidden bg-slate-100 flex-shrink-0">
+                                                {c.type === 'image' ? (
+                                                    <img src={c.preview} alt="" className="w-full h-full object-cover" />
+                                                ) : (
+                                                    <video src={c.preview} className="w-full h-full object-cover" muted />
+                                                )}
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-sm font-medium text-slate-700 truncate">{c.name}</p>
+                                                <p className="text-xs text-slate-400 truncate">{c.primaryText || c.headline || c.description}</p>
+                                            </div>
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
                     )}
 
                     {/* Form */}
@@ -658,6 +710,16 @@ const RapidCreator: React.FC = () => {
         setCreatives(prev => prev.map(c => c.id === creativeId ? { ...c, adName } : c));
     };
 
+    // Rename adset
+    const renameAdSet = (id: string, newName: string) => {
+        setAdSets(prev => prev.map(a => a.id === id ? { ...a, name: newName } : a));
+    };
+
+    // Remove creative from adset (move back to uncategorized)
+    const removeCreativeFromAdSet = (creativeId: string) => {
+        setCreatives(prev => prev.map(c => c.id === creativeId ? { ...c, adsetId: null } : c));
+    };
+
     const toggleAdSetExpanded = (id: string) => {
         setExpandedAdSets(prev => {
             const next = new Set(prev);
@@ -779,15 +841,6 @@ const RapidCreator: React.FC = () => {
     const ungroupedCreatives = useMemo(() => creatives.filter(c => c.adsetId === null), [creatives]);
     const editingCreative = useMemo(() => creatives.find(c => c.id === editingCreativeId) || null, [creatives, editingCreativeId]);
 
-    // Get previous creative's PHD for copy feature
-    const previousPHD = useMemo(() => {
-        const creativesWithPHD = creatives.filter(c => c.id !== editingCreativeId && (c.primaryText || c.headline || c.description));
-        if (creativesWithPHD.length > 0) {
-            const prev = creativesWithPHD[creativesWithPHD.length - 1];
-            return { primaryText: prev.primaryText, headline: prev.headline, description: prev.description };
-        }
-        return null;
-    }, [creatives, editingCreativeId]);
     const canLaunch = useMemo(() => {
         const hasGrouped = creatives.some(c => c.adsetId !== null);
         const hasCampaign = selectedCampaignId !== 'new' || newCampaignName.trim();
@@ -852,18 +905,27 @@ const RapidCreator: React.FC = () => {
                         </select>
                     </div>
 
+                    {/* Upload Zone - MOVED between Adset and Website URL */}
+                    <div className="bg-white rounded-xl border border-slate-100 p-4 shadow-sm">
+                        <label className="text-xs font-semibold text-slate-600 mb-3 block uppercase tracking-wide">Upload Creatives</label>
+                        <div onDragOver={(e) => e.preventDefault()} onDrop={handleFileDrop}
+                            className="border-2 border-dashed border-slate-200 rounded-xl p-6 text-center hover:border-blue-400 hover:bg-blue-50/30 transition-all cursor-pointer group">
+                            <input type="file" multiple accept="image/*,video/*" onChange={handleFileSelect} className="hidden" id="file-upload" />
+                            <label htmlFor="file-upload" className="cursor-pointer">
+                                <div className="w-10 h-10 mx-auto mb-2 bg-blue-50 rounded-lg flex items-center justify-center group-hover:bg-blue-100 transition-colors">
+                                    <Upload className="text-blue-500" size={20} />
+                                </div>
+                                <p className="text-sm font-semibold text-slate-700 mb-1">Click to upload</p>
+                                <p className="text-xs text-slate-400">or drag & drop files here</p>
+                            </label>
+                        </div>
+                    </div>
+
                     {/* Website URL */}
                     <div className="bg-white rounded-xl border border-slate-100 p-4 shadow-sm">
-                        <label className="text-xs font-semibold text-slate-600 mb-2 block uppercase tracking-wide flex items-center gap-2">
-                            Website URL <Globe size={12} className="text-slate-400" />
-                            <span className="text-slate-400 font-normal normal-case">Or enter website URL manually</span>
-                        </label>
-                        <div className="flex items-center gap-2 p-3 bg-slate-50 rounded-lg border border-slate-200">
-                            <Globe size={16} className="text-slate-400" />
-                            <span className="text-sm text-slate-600">Use default website URL</span>
-                        </div>
+                        <label className="text-xs font-semibold text-slate-600 mb-2 block uppercase tracking-wide">Website URL</label>
                         <input type="url" value={destinationUrl} onChange={(e) => setDestinationUrl(e.target.value)} placeholder="https://..."
-                            className="w-full mt-2 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-blue-400 transition-colors" />
+                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-blue-400 transition-colors" />
                     </div>
 
                     {/* Page Selection */}
@@ -873,23 +935,6 @@ const RapidCreator: React.FC = () => {
                             className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-blue-400 transition-colors appearance-none cursor-pointer">
                             {pages.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                         </select>
-                    </div>
-
-                    {/* Upload Zone */}
-                    <div className="bg-white rounded-xl border border-slate-100 p-4 shadow-sm">
-                        <label className="text-xs font-semibold text-slate-600 mb-3 block uppercase tracking-wide">Upload Creatives</label>
-                        <div onDragOver={(e) => e.preventDefault()} onDrop={handleFileDrop}
-                            className="border-2 border-dashed border-slate-200 rounded-xl p-8 text-center hover:border-blue-400 hover:bg-blue-50/30 transition-all cursor-pointer group">
-                            <input type="file" multiple accept="image/*,video/*" onChange={handleFileSelect} className="hidden" id="file-upload" />
-                            <label htmlFor="file-upload" className="cursor-pointer">
-                                <div className="w-12 h-12 mx-auto mb-3 bg-blue-50 rounded-xl flex items-center justify-center group-hover:bg-blue-100 transition-colors">
-                                    <Upload className="text-blue-500" size={24} />
-                                </div>
-                                <p className="text-sm font-semibold text-slate-700 mb-1">Click to upload ad creatives</p>
-                                <p className="text-xs text-slate-400">or drag & drop your selected ad creatives here</p>
-                                <p className="text-[10px] text-slate-400 mt-2">Accepts images (JPG & PNG) and videos (MP4 & MOV) up to 4GB</p>
-                            </label>
-                        </div>
                     </div>
                 </div>
 
@@ -990,8 +1035,9 @@ const RapidCreator: React.FC = () => {
                                         onCopyAdSet={() => copyAdSet(adset.id)}
                                         onDeleteAdSet={() => removeAdSet(adset.id)}
                                         onEditCreative={setEditingCreativeId}
-                                        onRemoveCreative={removeCreative}
+                                        onRemoveCreative={removeCreativeFromAdSet}
                                         onUpdateAdName={updateAdName}
+                                        onRenameAdSet={(newName) => renameAdSet(adset.id, newName)}
                                         isExpanded={expandedAdSets.has(adset.id)}
                                         onToggle={() => toggleAdSetExpanded(adset.id)}
                                     />
@@ -1004,7 +1050,7 @@ const RapidCreator: React.FC = () => {
 
             <EditDrawer creative={editingCreative} isOpen={!!editingCreativeId} onClose={() => setEditingCreativeId(null)}
                 onSave={(updates) => { if (editingCreativeId) updateCreative(editingCreativeId, updates); }}
-                previousPHD={previousPHD} />
+                allCreatives={creatives} />
 
             {/* Drag Overlay with smooth animation */}
             <DragOverlay dropAnimation={{
