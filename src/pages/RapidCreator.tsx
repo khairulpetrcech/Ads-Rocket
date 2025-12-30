@@ -535,7 +535,7 @@ const EditDrawer: React.FC<{
                             </select>
                         </div>
                         <button onClick={() => { onSave({ primaryText, headline, description, callToAction }); onClose(); }}
-                            className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-bold py-3.5 rounded-xl transition-all shadow-lg shadow-blue-500/25 hover:shadow-xl hover:shadow-blue-500/30 hover:-translate-y-0.5">
+                            className="w-full bg-slate-900 hover:bg-black text-white font-bold py-3 rounded-lg transition-all shadow-sm hover:shadow-md">
                             Save Changes
                         </button>
                     </div>
@@ -639,36 +639,47 @@ const AdSetSettingsDrawer: React.FC<{
                     <div className="space-y-5">
                         {/* Budget */}
                         <div>
-                            <label className="text-xs font-semibold text-slate-700 mb-2 block uppercase tracking-wide">Daily Budget (MYR)</label>
+                            <label className="text-[10px] font-bold text-slate-500 mb-1.5 block uppercase tracking-wide">Daily Budget (MYR)</label>
                             <div className="relative">
-                                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 font-bold">RM</span>
+                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">RM</span>
                                 <input
                                     type="number"
                                     value={dailyBudget}
                                     onChange={(e) => setDailyBudget(Number(e.target.value))}
                                     min={5}
-                                    className="w-full bg-slate-50 border-2 border-slate-100 focus:border-green-400 rounded-xl pl-12 pr-4 py-3 text-lg font-bold outline-none transition-colors"
+                                    className="w-full bg-white border border-slate-200 focus:border-slate-800 rounded-lg pl-10 pr-3 py-2.5 text-base font-bold outline-none transition-colors shadow-sm"
                                 />
                             </div>
                         </div>
 
                         {/* Targeting */}
                         <div>
-                            <label className="text-xs font-semibold text-slate-700 mb-2 block uppercase tracking-wide">Targeting</label>
+                            <label className="text-[10px] font-bold text-slate-500 mb-1.5 block uppercase tracking-wide">Targeting</label>
                             <div className="flex gap-2">
                                 <button
-                                    onClick={() => setTargeting('BROAD')}
-                                    className={`flex-1 py-3 rounded-xl font-semibold text-sm transition-all ${targeting === 'BROAD' ? 'bg-green-500 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                                    onClick={() => { setTargeting('BROAD'); setInterests([]); }}
+                                    className={`flex-1 py-2 rounded-lg font-semibold text-xs transition-all ${targeting === 'BROAD' ? 'bg-slate-900 text-white shadow-sm' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}
                                 >
                                     Broad
                                 </button>
                                 <button
                                     onClick={() => setTargeting('CUSTOM')}
-                                    className={`flex-1 py-3 rounded-xl font-semibold text-sm transition-all ${targeting === 'CUSTOM' ? 'bg-blue-500 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                                    className={`flex-1 py-2 rounded-lg font-semibold text-xs transition-all ${targeting === 'CUSTOM' ? 'bg-slate-900 text-white shadow-sm' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}
                                 >
                                     Detail Targeting
                                 </button>
                             </div>
+
+                            {/* Advantage+ Audience Note */}
+                            {targeting === 'BROAD' && (
+                                <div className="mt-2 flex items-start gap-2 p-2.5 bg-blue-50/50 border border-blue-100 rounded-lg">
+                                    <Zap size={14} className="text-blue-500 mt-0.5 flex-shrink-0" />
+                                    <div>
+                                        <p className="text-[10px] font-bold text-blue-700">Advantage+ Audience Active</p>
+                                        <p className="text-[10px] text-blue-600 leading-relaxed">Meta's AI will automatically find your ideal customers. Recommended.</p>
+                                    </div>
+                                </div>
+                            )}
                         </div>
 
                         {/* Detail Targeting Interests - Only show when CUSTOM */}
@@ -697,9 +708,9 @@ const AdSetSettingsDrawer: React.FC<{
 
                         {/* Country */}
                         <div>
-                            <label className="text-xs font-semibold text-slate-700 mb-2 block uppercase tracking-wide">Country</label>
+                            <label className="text-[10px] font-bold text-slate-500 mb-1.5 block uppercase tracking-wide">Country</label>
                             <select value={country} onChange={(e) => setCountry(e.target.value)}
-                                className="w-full bg-slate-50 border-2 border-slate-100 focus:border-blue-400 rounded-xl px-4 py-3 text-sm outline-none transition-colors appearance-none cursor-pointer">
+                                className="w-full bg-white border border-slate-200 focus:border-slate-800 rounded-lg px-4 py-2.5 text-sm outline-none transition-colors appearance-none cursor-pointer shadow-sm">
                                 <option value="MY">🇲🇾 Malaysia</option>
                                 <option value="US">🇺🇸 United States</option>
                                 <option value="SG">🇸🇬 Singapore</option>
@@ -714,30 +725,30 @@ const AdSetSettingsDrawer: React.FC<{
 
                         {/* Age */}
                         <div>
-                            <label className="text-xs font-semibold text-slate-700 mb-2 block uppercase tracking-wide">Age Range</label>
+                            <label className="text-[10px] font-bold text-slate-500 mb-1.5 block uppercase tracking-wide">Age Range</label>
                             <div className="flex gap-3">
                                 <div className="flex-1">
-                                    <label className="text-xs text-slate-400 mb-1 block">Min</label>
+                                    <label className="text-[10px] text-slate-400 mb-1 block">Min</label>
                                     <input type="number" value={ageMin} onChange={(e) => setAgeMin(Number(e.target.value))}
                                         min={13} max={65}
-                                        className="w-full bg-slate-50 border-2 border-slate-100 focus:border-blue-400 rounded-xl px-4 py-3 text-sm outline-none transition-colors" />
+                                        className="w-full bg-white border border-slate-200 focus:border-slate-800 rounded-lg px-4 py-2.5 text-sm outline-none transition-colors shadow-sm" />
                                 </div>
                                 <div className="flex-1">
-                                    <label className="text-xs text-slate-400 mb-1 block">Max</label>
+                                    <label className="text-[10px] text-slate-400 mb-1 block">Max</label>
                                     <input type="number" value={ageMax} onChange={(e) => setAgeMax(Number(e.target.value))}
                                         min={13} max={65}
-                                        className="w-full bg-slate-50 border-2 border-slate-100 focus:border-blue-400 rounded-xl px-4 py-3 text-sm outline-none transition-colors" />
+                                        className="w-full bg-white border border-slate-200 focus:border-slate-800 rounded-lg px-4 py-2.5 text-sm outline-none transition-colors shadow-sm" />
                                 </div>
                             </div>
                         </div>
 
                         {/* Gender */}
                         <div>
-                            <label className="text-xs font-semibold text-slate-700 mb-2 block uppercase tracking-wide">Gender</label>
+                            <label className="text-[10px] font-bold text-slate-500 mb-1.5 block uppercase tracking-wide">Gender</label>
                             <div className="flex gap-2">
                                 {(['ALL', 'MALE', 'FEMALE'] as const).map(g => (
                                     <button key={g} onClick={() => setGender(g)}
-                                        className={`flex-1 py-2.5 rounded-xl font-medium text-sm transition-all ${gender === g ? 'bg-blue-500 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
+                                        className={`flex-1 py-2 rounded-lg font-medium text-xs transition-all ${gender === g ? 'bg-slate-900 text-white shadow-sm' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
                                         {g === 'ALL' ? 'All' : g === 'MALE' ? 'Male' : 'Female'}
                                     </button>
                                 ))}
@@ -745,29 +756,29 @@ const AdSetSettingsDrawer: React.FC<{
                         </div>
 
                         {/* Enhancement+ Toggle */}
-                        <div className="bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-200 rounded-xl p-4">
+                        <div className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
                             <div className="flex items-center justify-between">
                                 <div>
                                     <h4 className="text-sm font-bold text-slate-800">Creative Enhancement+</h4>
-                                    <p className="text-xs text-slate-500 mt-1">Allow Meta to enhance your creatives</p>
+                                    <p className="text-[10px] text-slate-500 mt-0.5">Meta will automatically optimize your ad creative.</p>
                                 </div>
                                 <button
                                     onClick={() => setEnhancementPlus(!enhancementPlus)}
-                                    className={`w-14 h-8 rounded-full transition-all relative ${enhancementPlus ? 'bg-green-500' : 'bg-slate-300'}`}
+                                    className={`w-14 h-8 rounded-full transition-all relative ${enhancementPlus ? 'bg-slate-900' : 'bg-slate-200'}`}
                                 >
-                                    <div className={`absolute top-1 w-6 h-6 bg-white rounded-full shadow-md transition-all ${enhancementPlus ? 'left-7' : 'left-1'}`} />
+                                    <div className={`absolute top-1 w-6 h-6 bg-white rounded-full shadow-sm transition-all ${enhancementPlus ? 'left-7' : 'left-1'}`} />
                                 </button>
                             </div>
                         </div>
 
-                        <button onClick={() => { onSave({ targeting, country, ageMin, ageMax, gender, interests, enhancementPlus }); onClose(); }}
-                            className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-bold py-3.5 rounded-xl transition-all shadow-lg shadow-blue-500/25 hover:shadow-xl hover:shadow-blue-500/30 hover:-translate-y-0.5">
+                        <button onClick={() => { onSave({ dailyBudget, targeting, country, ageMin, ageMax, gender, interests, enhancementPlus }); onClose(); }}
+                            className="w-full bg-slate-900 hover:bg-black text-white font-bold py-3 rounded-lg transition-all shadow-sm hover:shadow-md">
                             Save Settings
                         </button>
                     </div>
                 </div>
             </div>
-        </div>
+        </div >
     );
 };
 
@@ -1358,11 +1369,11 @@ const RapidCreator: React.FC = () => {
             {/* Premium Toast Notification */}
             {toastMessage && (
                 <div className="fixed bottom-6 right-6 z-50 animate-fadeIn">
-                    <div className="bg-gradient-to-r from-emerald-500 to-green-600 text-white px-6 py-4 rounded-2xl shadow-2xl shadow-emerald-500/30 flex items-center gap-3 border border-emerald-400/30 backdrop-blur-sm">
-                        <div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center">
+                    <div className="bg-slate-900 border border-slate-800 text-white px-6 py-4 rounded-xl shadow-xl flex items-center gap-3">
+                        <div className="w-8 h-8 bg-white/10 rounded-full flex items-center justify-center">
                             <CheckCircle size={18} className="text-white" />
                         </div>
-                        <span className="font-semibold text-base">{toastMessage}</span>
+                        <span className="font-semibold text-sm tracking-wide">{toastMessage}</span>
                     </div>
                 </div>
             )}

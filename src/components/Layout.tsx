@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Settings, LogOut, Zap, Loader2, ChevronDown, ChevronUp, Play, PlusCircle, MessageSquareText, Menu, X, Minimize2, Maximize2, CheckCircle, Image, Activity, Search, HelpCircle, Bell, Users, FileText } from 'lucide-react';
+import { LayoutDashboard, Settings, LogOut, Rocket, Loader2, ChevronDown, ChevronUp, Play, PlusCircle, MessageSquareText, Menu, X, Minimize2, Maximize2, CheckCircle, Image, Activity, Search, HelpCircle, Bell, Users, FileText } from 'lucide-react';
 import { useSettings } from '../App';
 import { getTopAdsForAccount, publishComment } from '../services/metaService';
 import { analyzeAccountPerformance } from '../services/aiService';
@@ -184,7 +184,7 @@ const Layout: React.FC = () => {
                             */}
 
                             <NavLink to="/rapid" className={navLinkClass}>
-                                <Zap size={18} /><span>Rapid Creator</span>
+                                <Rocket size={18} /><span>Rapid Campaign</span>
                             </NavLink>
 
                             <NavLink to="/epic-poster" className={navLinkClass}>
@@ -290,7 +290,7 @@ const Layout: React.FC = () => {
                                     */}
 
                                     <NavLink to="/rapid" onClick={() => setIsMobileMenuOpen(false)} className={mobileNavLinkClass}>
-                                        <Zap size={20} /><span>Rapid Creator</span>
+                                        <Rocket size={20} /><span>Rapid Campaign</span>
                                     </NavLink>
 
                                     <NavLink to="/epic-poster" onClick={() => setIsMobileMenuOpen(false)} className={mobileNavLinkClass}>
