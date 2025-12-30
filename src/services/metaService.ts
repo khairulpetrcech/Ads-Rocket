@@ -838,9 +838,13 @@ export const createMetaCreative = async (
     const actId = accountId.startsWith('act_') ? accountId : `act_${accountId}`;
     const url = `https://graph.facebook.com/v19.0/${actId}/adcreatives`;
 
+    // DEBUG + TRIM token
+    console.log(`[createMetaCreative] Token length: ${accessToken?.length}, first10: ${accessToken?.substring(0, 10)}`);
+    const cleanToken = accessToken?.trim();
+
     const body: any = {
         name: sanitizeInput(name) + " Creative",
-        access_token: accessToken,
+        access_token: cleanToken,
         published: false,
     };
 
@@ -901,12 +905,17 @@ export const createMetaCreative = async (
 export const createMetaAd = async (accountId: string, adSetId: string, name: string, creativeId: string, accessToken: string) => {
     const actId = accountId.startsWith('act_') ? accountId : `act_${accountId}`;
     const url = `https://graph.facebook.com/v19.0/${actId}/ads`;
+
+    // DEBUG + TRIM token
+    console.log(`[createMetaAd] Token length: ${accessToken?.length}, first10: ${accessToken?.substring(0, 10)}`);
+    const cleanToken = accessToken?.trim();
+
     const body = {
         name: sanitizeInput(name),
         adset_id: adSetId,
         creative: { creative_id: creativeId },
         status: 'ACTIVE',
-        access_token: accessToken
+        access_token: cleanToken
     };
     const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const data = await response.json();
