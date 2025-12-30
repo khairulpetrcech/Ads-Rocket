@@ -31,7 +31,7 @@ import { AdCampaign, AdSet, AdvantagePlusConfig } from '../types';
 import {
     Upload, Image as ImageIcon, Video, Trash2, X, Plus,
     Zap, Settings, Loader2, Edit2, Rocket, FileVideo, FileImage,
-    ChevronDown, Globe, FolderOpen, Copy
+    ChevronDown, Globe, FolderOpen, Copy, CheckCircle
 } from 'lucide-react';
 
 // ============================================================
@@ -61,6 +61,7 @@ interface RapidAdSet {
     ageMin: number;
     ageMax: number;
     gender: 'ALL' | 'MALE' | 'FEMALE';
+    interests: string[]; // Selected interest categories
     enhancementPlus: boolean; // Creative Enhancement+
     isExisting?: boolean;
 }
@@ -361,7 +362,7 @@ const DroppableAdSetZone: React.FC<{
 };
 
 // ============================================================
-// EDIT DRAWER - SMOOTH SLIDE ANIMATION + COPY FROM DROPDOWN
+// EDIT DRAWER - SMOOTH SLIDE ANIMATION + COPY FROM DROPDOWN + AUTO-SAVE
 // ============================================================
 
 const EditDrawer: React.FC<{
@@ -370,7 +371,8 @@ const EditDrawer: React.FC<{
     onClose: () => void;
     onSave: (updates: Partial<Creative>) => void;
     allCreatives: Creative[];
-}> = ({ creative, isOpen, onClose, onSave, allCreatives }) => {
+    onShowToast?: (message: string) => void;
+}> = ({ creative, isOpen, onClose, onSave, allCreatives, onShowToast }) => {
     const [primaryText, setPrimaryText] = useState('');
     const [headline, setHeadline] = useState('');
     const [description, setDescription] = useState('');
@@ -417,14 +419,31 @@ const EditDrawer: React.FC<{
         setShowCopyDropdown(false);
     };
 
+    // Auto-save when closing (backdrop click or X button)
+    const handleAutoSaveClose = () => {
+        // Check if any field has changed
+        const hasChanges = creative && (
+            primaryText !== creative.primaryText ||
+            headline !== creative.headline ||
+            description !== creative.description ||
+            callToAction !== creative.callToAction
+        );
+
+        if (hasChanges) {
+            onSave({ primaryText, headline, description, callToAction });
+            onShowToast?.('Saved');
+        }
+        onClose();
+    };
+
     if (!isVisible || !creative) return null;
 
     return (
         <div className="fixed inset-0 z-50 flex justify-end">
-            {/* Backdrop with fade animation */}
+            {/* Backdrop with fade animation - AUTO-SAVE on click */}
             <div
                 className={`absolute inset-0 bg-black/40 backdrop-blur-sm transition-opacity duration-300 ${isAnimating ? 'opacity-100' : 'opacity-0'}`}
-                onClick={onClose}
+                onClick={handleAutoSaveClose}
             />
 
             {/* Drawer with slide animation */}
@@ -434,7 +453,7 @@ const EditDrawer: React.FC<{
                     {/* Header */}
                     <div className="flex items-center justify-between mb-6">
                         <h3 className="text-lg font-bold text-slate-800">Edit Creative</h3>
-                        <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-700 transition-all">
+                        <button onClick={handleAutoSaveClose} className="w-8 h-8 flex items-center justify-center rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-700 transition-all">
                             <X size={18} />
                         </button>
                     </div>
@@ -530,6 +549,26 @@ const EditDrawer: React.FC<{
 // ADSET SETTINGS DRAWER - Targeting, Country, Age, Enhancement+
 // ============================================================
 
+// Popular Facebook interest categories
+const INTEREST_CATEGORIES = [
+    { id: 'fitness', name: '🏋️ Fitness & Health', category: 'Lifestyle' },
+    { id: 'beauty', name: '💄 Beauty & Fashion', category: 'Lifestyle' },
+    { id: 'food', name: '🍔 Food & Dining', category: 'Lifestyle' },
+    { id: 'travel', name: '✈️ Travel', category: 'Lifestyle' },
+    { id: 'tech', name: '📱 Technology', category: 'Interest' },
+    { id: 'gaming', name: '🎮 Gaming', category: 'Interest' },
+    { id: 'parenting', name: '👶 Parenting', category: 'Demographics' },
+    { id: 'business', name: '💼 Business & Entrepreneur', category: 'Interest' },
+    { id: 'education', name: '📚 Education', category: 'Interest' },
+    { id: 'sports', name: '⚽ Sports', category: 'Interest' },
+    { id: 'shopping', name: '🛒 Online Shopping', category: 'Behavior' },
+    { id: 'ecommerce', name: '📦 E-commerce', category: 'Behavior' },
+    { id: 'automotive', name: '🚗 Automotive', category: 'Interest' },
+    { id: 'home', name: '🏠 Home & Garden', category: 'Interest' },
+    { id: 'pets', name: '🐾 Pets', category: 'Interest' },
+    { id: 'finance', name: '💰 Finance & Investment', category: 'Interest' },
+];
+
 const AdSetSettingsDrawer: React.FC<{
     adset: RapidAdSet | null;
     isOpen: boolean;
@@ -541,6 +580,7 @@ const AdSetSettingsDrawer: React.FC<{
     const [ageMin, setAgeMin] = useState(18);
     const [ageMax, setAgeMax] = useState(65);
     const [gender, setGender] = useState<'ALL' | 'MALE' | 'FEMALE'>('ALL');
+    const [interests, setInterests] = useState<string[]>([]);
     const [enhancementPlus, setEnhancementPlus] = useState(false);
     const [isVisible, setIsVisible] = useState(false);
     const [isAnimating, setIsAnimating] = useState(false);
@@ -552,6 +592,7 @@ const AdSetSettingsDrawer: React.FC<{
             setAgeMin(adset.ageMin);
             setAgeMax(adset.ageMax);
             setGender(adset.gender);
+            setInterests(adset.interests || []);
             setEnhancementPlus(adset.enhancementPlus);
         }
     }, [adset]);
@@ -571,6 +612,10 @@ const AdSetSettingsDrawer: React.FC<{
         }
     }, [isOpen]);
 
+    const toggleInterest = (id: string) => {
+        setInterests(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
+    };
+
     if (!isVisible || !adset) return null;
 
     return (
@@ -579,7 +624,7 @@ const AdSetSettingsDrawer: React.FC<{
                 className={`absolute inset-0 bg-black/40 backdrop-blur-sm transition-opacity duration-300 ${isAnimating ? 'opacity-100' : 'opacity-0'}`}
                 onClick={onClose}
             />
-            <div className={`relative w-[400px] bg-white h-full shadow-2xl overflow-y-auto transition-transform duration-300 ease-out
+            <div className={`relative w-[420px] bg-white h-full shadow-2xl overflow-y-auto transition-transform duration-300 ease-out
                 ${isAnimating ? 'translate-x-0' : 'translate-x-full'}`}>
                 <div className="p-6">
                     <div className="flex items-center justify-between mb-6">
@@ -608,6 +653,30 @@ const AdSetSettingsDrawer: React.FC<{
                                 </button>
                             </div>
                         </div>
+
+                        {/* Detail Targeting Interests - Only show when CUSTOM */}
+                        {targeting === 'CUSTOM' && (
+                            <div className="animate-fadeIn">
+                                <label className="text-xs font-semibold text-slate-700 mb-2 block uppercase tracking-wide">
+                                    Interests <span className="text-slate-400">({interests.length} selected)</span>
+                                </label>
+                                <div className="flex flex-wrap gap-2 max-h-48 overflow-y-auto p-2 bg-slate-50 rounded-xl border border-slate-100">
+                                    {INTEREST_CATEGORIES.map(interest => (
+                                        <button
+                                            key={interest.id}
+                                            onClick={() => toggleInterest(interest.id)}
+                                            className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${interests.includes(interest.id)
+                                                ? 'bg-blue-500 text-white shadow-md'
+                                                : 'bg-white text-slate-600 border border-slate-200 hover:border-blue-300 hover:text-blue-600'
+                                                }`}
+                                        >
+                                            {interest.name}
+                                        </button>
+                                    ))}
+                                </div>
+                                <p className="text-xs text-slate-400 mt-2">Click to toggle interests for your ad targeting</p>
+                            </div>
+                        )}
 
                         {/* Country */}
                         <div>
@@ -674,7 +743,7 @@ const AdSetSettingsDrawer: React.FC<{
                             </div>
                         </div>
 
-                        <button onClick={() => { onSave({ targeting, country, ageMin, ageMax, gender, enhancementPlus }); onClose(); }}
+                        <button onClick={() => { onSave({ targeting, country, ageMin, ageMax, gender, interests, enhancementPlus }); onClose(); }}
                             className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-bold py-3.5 rounded-xl transition-all shadow-lg shadow-blue-500/25 hover:shadow-xl hover:shadow-blue-500/30 hover:-translate-y-0.5">
                             Save Settings
                         </button>
@@ -718,6 +787,7 @@ const RapidCreator: React.FC = () => {
     const [activeId, setActiveId] = useState<string | null>(null);
     const [loadingData, setLoadingData] = useState(true);
     const [expandedAdSets, setExpandedAdSets] = useState<Set<string>>(new Set());
+    const [toastMessage, setToastMessage] = useState<string | null>(null);
 
     const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
@@ -788,6 +858,7 @@ const RapidCreator: React.FC = () => {
                     ageMin: 18,
                     ageMax: 65,
                     gender: 'ALL',
+                    interests: [],
                     enhancementPlus: false,
                     isExisting: true
                 }]);
@@ -848,6 +919,7 @@ const RapidCreator: React.FC = () => {
             ageMin: 18,
             ageMax: 65,
             gender: 'ALL',
+            interests: [],
             enhancementPlus: false
         };
         setAdSets(prev => [...prev, newAdSet]);
@@ -1019,7 +1091,12 @@ const RapidCreator: React.FC = () => {
             setNewCampaignName('');
         } catch (error: any) {
             console.error('Launch failed:', error);
-            alert(`Failed: ${error.message}`);
+            const errorMsg = error.message?.toLowerCase() || '';
+            if (errorMsg.includes('session_expired') || errorMsg.includes('invalid oauth') || errorMsg.includes('access token')) {
+                alert('❌ Session expired! Please reconnect your Meta account in Settings.');
+            } else {
+                alert(`Failed: ${error.message}`);
+            }
         } finally {
             setIsLaunching(false);
             setLaunchProgress('');
@@ -1242,9 +1319,17 @@ const RapidCreator: React.FC = () => {
                 </div>
             </div>
 
-            <EditDrawer creative={editingCreative} isOpen={!!editingCreativeId} onClose={() => setEditingCreativeId(null)}
+            <EditDrawer
+                creative={editingCreative}
+                isOpen={!!editingCreativeId}
+                onClose={() => setEditingCreativeId(null)}
                 onSave={(updates) => { if (editingCreativeId) updateCreative(editingCreativeId, updates); }}
-                allCreatives={creatives} />
+                allCreatives={creatives}
+                onShowToast={(msg) => {
+                    setToastMessage(msg);
+                    setTimeout(() => setToastMessage(null), 2500);
+                }}
+            />
 
             <AdSetSettingsDrawer
                 adset={adSets.find(a => a.id === editingAdSetId) || null}
@@ -1252,6 +1337,18 @@ const RapidCreator: React.FC = () => {
                 onClose={() => setEditingAdSetId(null)}
                 onSave={(updates) => { if (editingAdSetId) updateAdSet(editingAdSetId, updates); }}
             />
+
+            {/* Premium Toast Notification */}
+            {toastMessage && (
+                <div className="fixed bottom-6 right-6 z-50 animate-fadeIn">
+                    <div className="bg-gradient-to-r from-emerald-500 to-green-600 text-white px-6 py-4 rounded-2xl shadow-2xl shadow-emerald-500/30 flex items-center gap-3 border border-emerald-400/30 backdrop-blur-sm">
+                        <div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center">
+                            <CheckCircle size={18} className="text-white" />
+                        </div>
+                        <span className="font-semibold text-base">{toastMessage}</span>
+                    </div>
+                </div>
+            )}
 
             {/* Drag Overlay with smooth animation */}
             <DragOverlay dropAnimation={{
