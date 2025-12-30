@@ -481,6 +481,15 @@ export const createMetaCampaign = async (accountId: string, name: string, object
     const actId = accountId.startsWith('act_') ? accountId : `act_${accountId}`;
     const url = `https://graph.facebook.com/v19.0/${actId}/campaigns`;
 
+    // DEBUG: Check token for hidden issues
+    console.log(`[createMetaCampaign] Token length: ${accessToken?.length}`);
+    console.log(`[createMetaCampaign] Token has whitespace: ${accessToken !== accessToken?.trim()}`);
+    console.log(`[createMetaCampaign] Token first20: ${accessToken?.substring(0, 20)}`);
+    console.log(`[createMetaCampaign] Token last20: ${accessToken?.substring(accessToken.length - 20)}`);
+
+    // CRITICAL: Trim the token just in case
+    const cleanToken = accessToken?.trim();
+
     const cleanName = sanitizeInput(name);
 
     try {
@@ -491,7 +500,7 @@ export const createMetaCampaign = async (accountId: string, name: string, object
             special_ad_categories: [],
             buying_type: "AUCTION",
             is_adset_budget_sharing_enabled: false,
-            access_token: accessToken
+            access_token: cleanToken
         };
         const data = await tryCreateCampaign(url, body1);
         invalidateCache();
