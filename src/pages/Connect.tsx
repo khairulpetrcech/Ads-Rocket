@@ -56,24 +56,33 @@ const ConnectPage: React.FC = () => {
 
       try {
         console.log("Exchanging for long-lived token...");
+        console.log("Short-lived token length:", shortLivedToken?.length);
+
         const exchangeResponse = await fetch('/api/exchange-token', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ shortLivedToken })
         });
 
+        const responseText = await exchangeResponse.text();
+        console.log("Exchange response status:", exchangeResponse.status);
+        console.log("Exchange response:", responseText);
+
         if (exchangeResponse.ok) {
-          const data = await exchangeResponse.json();
+          const data = JSON.parse(responseText);
           accessToken = data.access_token;
           tokenExpiresAt = data.expires_at;
-          console.log(`Long-lived token obtained. Expires: ${tokenExpiresAt}`);
+          console.log(`✅ Long-lived token obtained. Length: ${accessToken?.length}. Expires: ${tokenExpiresAt}`);
         } else {
-          const errData = await exchangeResponse.json();
-          console.warn("Token exchange failed, using short-lived token:", errData.error);
+          console.warn("⚠️ Token exchange failed, using short-lived token:", responseText);
+          // Show warning to user but continue
+          setError("Note: Using short-lived token (expires in ~1 hour). Long-lived exchange failed.");
         }
       } catch (exchangeErr) {
-        console.warn("Token exchange request failed, using short-lived token:", exchangeErr);
+        console.warn("⚠️ Token exchange request failed, using short-lived token:", exchangeErr);
       }
+
+      console.log("Final token length being saved:", accessToken?.length);
 
       // SAVE TO CONTEXT (with token expiry if available)
       updateSettings({
