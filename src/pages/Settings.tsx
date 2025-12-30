@@ -191,6 +191,42 @@ const Settings: React.FC = () => {
           </div>
         </div>
 
+        {/* Rapid Creator Configuration */}
+        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+          <h2 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+            <Server size={20} className="text-indigo-600" /> Rapid Creator Defaults
+          </h2>
+          <div className="bg-blue-50 border border-blue-100 p-4 rounded-lg mb-6 flex items-start gap-3">
+            <Info className="text-blue-600 flex-shrink-0 mt-0.5" size={18} />
+            <p className="text-sm text-blue-900">
+              Set default website URL and Facebook Page for Rapid Creator. These will be pre-filled when you create new ads.
+            </p>
+          </div>
+          <div className="grid gap-6 md:grid-cols-2">
+            <div>
+              <label className="block text-sm font-medium text-slate-500 mb-1">Default Website URL</label>
+              <input
+                type="url"
+                value={localSettings.defaultWebsiteUrl || ''}
+                onChange={(e) => setLocalSettings({ ...localSettings, defaultWebsiteUrl: e.target.value })}
+                placeholder="https://example.com"
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all placeholder-slate-400"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-500 mb-1">Default Facebook Page ID</label>
+              <input
+                type="text"
+                value={localSettings.defaultPageId || ''}
+                onChange={(e) => setLocalSettings({ ...localSettings, defaultPageId: e.target.value })}
+                placeholder="Enter Page ID or leave empty"
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all placeholder-slate-400"
+              />
+              <p className="text-xs text-slate-400 mt-1">You can find your Page ID in Facebook Business Settings</p>
+            </div>
+          </div>
+        </div>
+
         {/* Data Management (Backup/Restore) */}
         <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
           <h2 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">

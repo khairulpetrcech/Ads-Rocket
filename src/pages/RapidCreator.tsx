@@ -462,9 +462,9 @@ const RapidCreator: React.FC = () => {
     // Pages & Pixels
     const [pages, setPages] = useState<any[]>([]);
     const [pixels, setPixels] = useState<any[]>([]);
-    const [selectedPageId, setSelectedPageId] = useState('');
+    const [selectedPageId, setSelectedPageId] = useState(settings.defaultPageId || '');
     const [selectedPixelId, setSelectedPixelId] = useState('');
-    const [destinationUrl, setDestinationUrl] = useState('');
+    const [destinationUrl, setDestinationUrl] = useState(settings.defaultWebsiteUrl || '');
 
     // Creatives & AdSets
     const [creatives, setCreatives] = useState<Creative[]>([]);
@@ -499,7 +499,12 @@ const RapidCreator: React.FC = () => {
                 setCampaigns(campaignsData);
                 setPages(pagesData);
                 setPixels(pixelsData);
-                if (pagesData.length > 0) setSelectedPageId(pagesData[0].id);
+                // Use default page if available, otherwise first page
+                if (settings.defaultPageId && pagesData.some((p: any) => p.id === settings.defaultPageId)) {
+                    setSelectedPageId(settings.defaultPageId);
+                } else if (pagesData.length > 0) {
+                    setSelectedPageId(pagesData[0].id);
+                }
                 if (pixelsData.length > 0) setSelectedPixelId(pixelsData[0].id);
             } catch (err) {
                 console.error('Failed to load data:', err);
@@ -927,20 +932,30 @@ const RapidCreator: React.FC = () => {
                             </div>
                         )}
 
-                        {/* Creatives List - Compact View */}
-                        <div ref={setUngroupedRef} className={`space-y-2 transition-all ${isOverUngrouped ? 'ring-2 ring-blue-400 ring-offset-2 rounded-xl' : ''}`}>
-                            {creatives.map(creative => (
-                                <DraggableCreativeCard
-                                    key={creative.id}
-                                    creative={creative}
-                                    onEdit={() => setEditingCreativeId(creative.id)}
-                                    onRemove={() => removeCreative(creative.id)}
-                                    isCompact={true}
-                                />
-                            ))}
-                        </div>
+                        {/* Ungrouped Creatives - Only show creatives NOT assigned to any adset */}
+                        {ungroupedCreatives.length > 0 && (
+                            <div className="mb-4">
+                                <h3 className="text-sm font-bold text-slate-700 mb-2 flex items-center gap-2">
+                                    Uncategorized Creatives
+                                    <span className="text-xs text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">{ungroupedCreatives.length}</span>
+                                </h3>
+                                <div ref={setUngroupedRef} className={`max-h-64 overflow-y-auto p-3 bg-slate-50 rounded-xl border transition-all ${isOverUngrouped ? 'ring-2 ring-blue-400 border-blue-300' : 'border-slate-200'}`}>
+                                    <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 gap-2">
+                                        {ungroupedCreatives.map(creative => (
+                                            <DraggableCreativeCard
+                                                key={creative.id}
+                                                creative={creative}
+                                                onEdit={() => setEditingCreativeId(creative.id)}
+                                                onRemove={() => removeCreative(creative.id)}
+                                                isCompact={false}
+                                            />
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
 
-                        {/* Empty State */}
+                        {/* Empty State - Only when NO creatives at all */}
                         {creatives.length === 0 && (
                             <div className="flex flex-col items-center justify-center py-20 border-2 border-dashed border-slate-200 rounded-xl bg-slate-50/50">
                                 <Upload size={40} className="text-slate-300 mb-3" />

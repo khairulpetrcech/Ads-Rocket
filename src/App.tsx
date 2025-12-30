@@ -62,7 +62,9 @@ const DEFAULT_SETTINGS: UserSettings = {
   adAccountId: '',
   availableAccounts: [],
   telegramBotToken: '',
-  telegramChatId: ''
+  telegramChatId: '',
+  defaultWebsiteUrl: '',
+  defaultPageId: ''
 };
 
 const App: React.FC = () => {

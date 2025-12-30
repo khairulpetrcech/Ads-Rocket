@@ -35,6 +35,10 @@ export interface UserSettings {
   // UI Preferences
   dashboardViewMode?: 'SALES' | 'TRAFFIC';
 
+  // Rapid Creator Defaults
+  defaultWebsiteUrl?: string;
+  defaultPageId?: string;
+
   // Runtime Only
   availableAccounts: MetaAdAccount[];
 }
