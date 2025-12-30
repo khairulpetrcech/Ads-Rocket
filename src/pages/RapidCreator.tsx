@@ -155,61 +155,58 @@ const DraggableCreativeCard: React.FC<{
         );
     }
 
-    // Grid card view (original but beautified)
+    // Grid card view - PREMIUM styling
     return (
         <div ref={setNodeRef} style={style} {...listeners} {...attributes}>
-            <div className={`relative bg-white rounded-xl border-2 overflow-hidden group transition-all duration-200 cursor-grab active:cursor-grabbing
-                ${isDragging ? 'border-blue-500 shadow-xl shadow-blue-500/20' : 'border-slate-100 hover:border-blue-300 shadow-sm hover:shadow-lg'}`}>
+            <div className={`relative bg-white rounded-2xl border overflow-hidden group transition-all duration-200 cursor-grab active:cursor-grabbing
+                ${isDragging ? 'border-blue-400 shadow-xl shadow-blue-500/25 ring-2 ring-blue-400/50' : 'border-slate-200/80 shadow-md hover:shadow-xl hover:border-slate-300'}`}>
 
                 {/* Image/Video Container */}
-                <div className="aspect-square bg-gradient-to-br from-slate-100 to-slate-200 relative overflow-hidden">
+                <div className="aspect-square bg-gradient-to-br from-slate-50 to-slate-100 relative overflow-hidden">
                     {creative.type === 'image' ? (
-                        <img src={creative.preview} alt="" className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
+                        <img src={creative.preview} alt="" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
                     ) : (
                         <video src={creative.preview} className="w-full h-full object-cover" muted />
                     )}
 
-                    {/* Gradient overlay */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                    {/* Elegant gradient overlay */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-300" />
 
-                    {/* Type Badge */}
-                    <div className={`absolute top-2 left-2 text-white text-[9px] font-bold px-2 py-1 rounded-md flex items-center gap-1 backdrop-blur-sm
-                        ${creative.type === 'video' ? 'bg-purple-500/90' : 'bg-blue-500/90'}`}>
-                        {creative.type === 'video' ? <FileVideo size={10} /> : <FileImage size={10} />}
-                        {creative.type.toUpperCase()}
+                    {/* Type Badge - Premium pill */}
+                    <div className={`absolute top-2 left-2 text-white text-[8px] font-bold px-2 py-1 rounded-full flex items-center gap-1 shadow-lg
+                        ${creative.type === 'video' ? 'bg-gradient-to-r from-purple-500 to-purple-600' : 'bg-gradient-to-r from-blue-500 to-blue-600'}`}>
+                        {creative.type === 'video' ? <FileVideo size={9} /> : <FileImage size={9} />}
+                        {creative.type === 'video' ? 'VIDEO' : 'IMG'}
                     </div>
 
-                    {/* Delete Button */}
+                    {/* Delete Button - Elegant */}
                     <button
                         onClick={(e) => { e.stopPropagation(); e.preventDefault(); onRemove(); }}
-                        className="absolute top-2 right-2 w-7 h-7 flex items-center justify-center bg-red-500 hover:bg-red-600 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-all hover:scale-110 shadow-lg"
+                        className="absolute top-2 right-2 w-6 h-6 flex items-center justify-center bg-white/90 backdrop-blur-sm hover:bg-red-500 text-slate-600 hover:text-white rounded-full opacity-0 group-hover:opacity-100 transition-all duration-200 shadow-lg"
                     >
-                        <X size={12} />
+                        <X size={10} />
+                    </button>
+
+                    {/* Edit overlay on hover */}
+                    <button
+                        onClick={(e) => { e.stopPropagation(); e.preventDefault(); onEdit(); }}
+                        className="absolute bottom-2 right-2 w-7 h-7 flex items-center justify-center bg-white/90 backdrop-blur-sm hover:bg-blue-500 text-slate-600 hover:text-white rounded-full opacity-0 group-hover:opacity-100 transition-all duration-200 shadow-lg"
+                    >
+                        <Edit2 size={11} />
                     </button>
                 </div>
 
-                {/* Card Footer */}
-                <div className="p-2.5 border-t border-slate-100 bg-white">
-                    <p className="text-xs font-semibold text-slate-800 truncate mb-2">{creative.name}</p>
-
-                    <div className="flex items-center justify-between">
-                        {/* Status Pills */}
-                        <div className="flex items-center gap-1">
-                            <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold transition-all
-                                ${creative.primaryText ? 'bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-sm' : 'bg-slate-100 text-slate-400'}`}>P</span>
-                            <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold transition-all
-                                ${creative.headline ? 'bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-sm' : 'bg-slate-100 text-slate-400'}`}>H</span>
-                            <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold transition-all
-                                ${creative.description ? 'bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-sm' : 'bg-slate-100 text-slate-400'}`}>D</span>
-                        </div>
-
-                        {/* Edit Button - LARGER for easy clicking */}
-                        <button
-                            onClick={(e) => { e.stopPropagation(); e.preventDefault(); onEdit(); }}
-                            className="w-8 h-8 flex items-center justify-center rounded-lg bg-slate-50 hover:bg-blue-50 text-slate-400 hover:text-blue-600 transition-all hover:scale-110"
-                        >
-                            <Edit2 size={14} />
-                        </button>
+                {/* Card Footer - Minimal */}
+                <div className="p-2 bg-white">
+                    <p className="text-[10px] font-medium text-slate-700 truncate mb-1.5">{creative.name}</p>
+                    {/* Status Pills - Compact */}
+                    <div className="flex items-center gap-0.5">
+                        <span className={`w-4 h-4 rounded flex items-center justify-center text-[8px] font-bold transition-all
+                            ${creative.primaryText ? 'bg-blue-500 text-white' : 'bg-slate-100 text-slate-400'}`}>P</span>
+                        <span className={`w-4 h-4 rounded flex items-center justify-center text-[8px] font-bold transition-all
+                            ${creative.headline ? 'bg-blue-500 text-white' : 'bg-slate-100 text-slate-400'}`}>H</span>
+                        <span className={`w-4 h-4 rounded flex items-center justify-center text-[8px] font-bold transition-all
+                            ${creative.description ? 'bg-blue-500 text-white' : 'bg-slate-100 text-slate-400'}`}>D</span>
                     </div>
                 </div>
             </div>
@@ -333,7 +330,7 @@ const DroppableAdSetZone: React.FC<{
 };
 
 // ============================================================
-// EDIT DRAWER - SMOOTH SLIDE ANIMATION
+// EDIT DRAWER - SMOOTH SLIDE ANIMATION + COPY FROM PREVIOUS
 // ============================================================
 
 const EditDrawer: React.FC<{
@@ -341,7 +338,8 @@ const EditDrawer: React.FC<{
     isOpen: boolean;
     onClose: () => void;
     onSave: (updates: Partial<Creative>) => void;
-}> = ({ creative, isOpen, onClose, onSave }) => {
+    previousPHD?: { primaryText: string; headline: string; description: string } | null;
+}> = ({ creative, isOpen, onClose, onSave, previousPHD }) => {
     const [primaryText, setPrimaryText] = useState('');
     const [headline, setHeadline] = useState('');
     const [description, setDescription] = useState('');
@@ -374,6 +372,14 @@ const EditDrawer: React.FC<{
         }
     }, [isOpen]);
 
+    const handleCopyFromPrevious = () => {
+        if (previousPHD) {
+            setPrimaryText(previousPHD.primaryText);
+            setHeadline(previousPHD.headline);
+            setDescription(previousPHD.description);
+        }
+    };
+
     if (!isVisible || !creative) return null;
 
     return (
@@ -404,6 +410,17 @@ const EditDrawer: React.FC<{
                             <video src={creative.preview} className="w-full aspect-video object-cover" controls />
                         )}
                     </div>
+
+                    {/* Copy from Previous Button */}
+                    {previousPHD && (previousPHD.primaryText || previousPHD.headline || previousPHD.description) && (
+                        <button
+                            onClick={handleCopyFromPrevious}
+                            className="w-full mb-4 px-4 py-3 bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 hover:border-purple-300 rounded-xl text-sm font-medium text-purple-700 hover:text-purple-800 transition-all flex items-center justify-center gap-2"
+                        >
+                            <Copy size={14} />
+                            Copy from Previous Creative
+                        </button>
+                    )}
 
                     {/* Form */}
                     <div className="space-y-4">
@@ -761,6 +778,16 @@ const RapidCreator: React.FC = () => {
 
     const ungroupedCreatives = useMemo(() => creatives.filter(c => c.adsetId === null), [creatives]);
     const editingCreative = useMemo(() => creatives.find(c => c.id === editingCreativeId) || null, [creatives, editingCreativeId]);
+
+    // Get previous creative's PHD for copy feature
+    const previousPHD = useMemo(() => {
+        const creativesWithPHD = creatives.filter(c => c.id !== editingCreativeId && (c.primaryText || c.headline || c.description));
+        if (creativesWithPHD.length > 0) {
+            const prev = creativesWithPHD[creativesWithPHD.length - 1];
+            return { primaryText: prev.primaryText, headline: prev.headline, description: prev.description };
+        }
+        return null;
+    }, [creatives, editingCreativeId]);
     const canLaunch = useMemo(() => {
         const hasGrouped = creatives.some(c => c.adsetId !== null);
         const hasCampaign = selectedCampaignId !== 'new' || newCampaignName.trim();
@@ -919,19 +946,6 @@ const RapidCreator: React.FC = () => {
                             </div>
                         )}
 
-                        {/* Targeting Badges */}
-                        {adSets.length > 0 && (
-                            <div className="flex items-center gap-2 mb-3">
-                                <span className="text-[10px] font-semibold text-blue-600 bg-blue-50 px-2.5 py-1 rounded-full flex items-center gap-1">
-                                    <span className="w-1.5 h-1.5 bg-blue-500 rounded-full"></span>
-                                    Broad
-                                </span>
-                                <span className="text-[10px] font-semibold text-slate-600 bg-slate-100 px-2.5 py-1 rounded-full flex items-center gap-1">
-                                    <Globe size={10} /> US
-                                </span>
-                            </div>
-                        )}
-
                         {/* Ungrouped Creatives - Only show creatives NOT assigned to any adset */}
                         {ungroupedCreatives.length > 0 && (
                             <div className="mb-4">
@@ -989,7 +1003,8 @@ const RapidCreator: React.FC = () => {
             </div>
 
             <EditDrawer creative={editingCreative} isOpen={!!editingCreativeId} onClose={() => setEditingCreativeId(null)}
-                onSave={(updates) => { if (editingCreativeId) updateCreative(editingCreativeId, updates); }} />
+                onSave={(updates) => { if (editingCreativeId) updateCreative(editingCreativeId, updates); }}
+                previousPHD={previousPHD} />
 
             {/* Drag Overlay with smooth animation */}
             <DragOverlay dropAnimation={{

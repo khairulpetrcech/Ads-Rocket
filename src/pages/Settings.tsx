@@ -3,6 +3,7 @@ import { useSettings } from '../App';
 import { AiProvider } from '../types';
 import { Save, Key, Shield, Info, RefreshCw, Server, Eye, EyeOff, Download, Upload, FileJson, CheckCircle, AlertTriangle, Send } from 'lucide-react';
 import { getAvailableModels } from '../services/aiService';
+import { getPages } from '../services/metaService';
 
 const Settings: React.FC = () => {
   const { settings, updateSettings } = useSettings();
@@ -16,6 +17,8 @@ const Settings: React.FC = () => {
   const [telegramTestStatus, setTelegramTestStatus] = useState<{ msg: string, type: 'success' | 'error' } | null>(null);
   const [testingTelegram, setTestingTelegram] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [fbPages, setFbPages] = useState<{ id: string; name: string }[]>([]);
+  const [loadingPages, setLoadingPages] = useState(false);
 
   useEffect(() => {
     const fetchModels = async () => {
@@ -41,6 +44,22 @@ const Settings: React.FC = () => {
 
     return () => clearTimeout(timeoutId);
   }, [localSettings.selectedAiProvider, localSettings.apiKey]);
+
+  // Fetch Facebook Pages for dropdown
+  useEffect(() => {
+    const fetchPages = async () => {
+      if (!settings.fbAccessToken || settings.fbAccessToken === 'dummy_token') return;
+      setLoadingPages(true);
+      try {
+        const pagesData = await getPages(settings.fbAccessToken);
+        setFbPages(pagesData.map((p: any) => ({ id: p.id, name: p.name })));
+      } catch (err) {
+        console.error('Failed to fetch pages:', err);
+      }
+      setLoadingPages(false);
+    };
+    fetchPages();
+  }, [settings.fbAccessToken]);
 
   const handleSave = async () => {
     const cleanSettings = { ...localSettings };
@@ -214,15 +233,20 @@ const Settings: React.FC = () => {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-500 mb-1">Default Facebook Page ID</label>
-              <input
-                type="text"
+              <label className="block text-sm font-medium text-slate-500 mb-1 flex items-center gap-2">
+                Default Facebook Page
+                {loadingPages && <RefreshCw size={12} className="animate-spin text-blue-500" />}
+              </label>
+              <select
                 value={localSettings.defaultPageId || ''}
                 onChange={(e) => setLocalSettings({ ...localSettings, defaultPageId: e.target.value })}
-                placeholder="Enter Page ID or leave empty"
-                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all placeholder-slate-400"
-              />
-              <p className="text-xs text-slate-400 mt-1">You can find your Page ID in Facebook Business Settings</p>
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all appearance-none cursor-pointer"
+              >
+                <option value="">Select a page...</option>
+                {fbPages.map(page => (
+                  <option key={page.id} value={page.id}>{page.name}</option>
+                ))}
+              </select>
             </div>
           </div>
         </div>
