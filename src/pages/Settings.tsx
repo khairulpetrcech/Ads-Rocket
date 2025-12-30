@@ -3,7 +3,7 @@ import { useSettings } from '../App';
 import { AiProvider } from '../types';
 import { Save, Key, Shield, Info, RefreshCw, Server, Eye, EyeOff, Download, Upload, FileJson, CheckCircle, AlertTriangle, Send } from 'lucide-react';
 import { getAvailableModels } from '../services/aiService';
-import { getPages } from '../services/metaService';
+import { getPages, getPixels } from '../services/metaService';
 
 const Settings: React.FC = () => {
   const { settings, updateSettings } = useSettings();
@@ -19,6 +19,8 @@ const Settings: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [fbPages, setFbPages] = useState<{ id: string; name: string }[]>([]);
   const [loadingPages, setLoadingPages] = useState(false);
+  const [fbPixels, setFbPixels] = useState<{ id: string; name: string }[]>([]);
+  const [loadingPixels, setLoadingPixels] = useState(false);
 
   useEffect(() => {
     const fetchModels = async () => {
@@ -60,6 +62,22 @@ const Settings: React.FC = () => {
     };
     fetchPages();
   }, [settings.fbAccessToken]);
+
+  // Fetch Facebook Pixels for dropdown
+  useEffect(() => {
+    const fetchPixels = async () => {
+      if (!settings.fbAccessToken || settings.fbAccessToken === 'dummy_token' || !settings.adAccountId) return;
+      setLoadingPixels(true);
+      try {
+        const pixelsData = await getPixels(settings.adAccountId, settings.fbAccessToken);
+        setFbPixels(pixelsData.map((p: any) => ({ id: p.id, name: p.name })));
+      } catch (err) {
+        console.error('Failed to fetch pixels:', err);
+      }
+      setLoadingPixels(false);
+    };
+    fetchPixels();
+  }, [settings.fbAccessToken, settings.adAccountId]);
 
   const handleSave = async () => {
     const cleanSettings = { ...localSettings };
@@ -229,10 +247,10 @@ const Settings: React.FC = () => {
           <div className="bg-blue-50 border border-blue-100 p-4 rounded-lg mb-6 flex items-start gap-3">
             <Info className="text-blue-600 flex-shrink-0 mt-0.5" size={18} />
             <p className="text-sm text-blue-900">
-              Set default website URL and Facebook Page for Rapid Creator. These will be pre-filled when you create new ads.
+              Set default website URL, Facebook Page, and Pixel for Rapid Campaign. These will be pre-filled when you create new ads.
             </p>
           </div>
-          <div className="grid gap-6 md:grid-cols-2">
+          <div className="grid gap-6 md:grid-cols-3">
             <div>
               <label className="block text-sm font-medium text-slate-500 mb-1">Default Website URL</label>
               <input
@@ -256,6 +274,22 @@ const Settings: React.FC = () => {
                 <option value="">Select a page...</option>
                 {fbPages.map(page => (
                   <option key={page.id} value={page.id}>{page.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-500 mb-1 flex items-center gap-2">
+                Default Pixel
+                {loadingPixels && <RefreshCw size={12} className="animate-spin text-blue-500" />}
+              </label>
+              <select
+                value={localSettings.defaultPixelId || ''}
+                onChange={(e) => setLocalSettings({ ...localSettings, defaultPixelId: e.target.value })}
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all appearance-none cursor-pointer"
+              >
+                <option value="">Select a pixel...</option>
+                {fbPixels.map(pixel => (
+                  <option key={pixel.id} value={pixel.id}>{pixel.name}</option>
                 ))}
               </select>
             </div>

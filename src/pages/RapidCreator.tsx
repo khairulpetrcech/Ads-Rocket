@@ -31,7 +31,7 @@ import { AdCampaign, AdSet, AdvantagePlusConfig } from '../types';
 import {
     Upload, Image as ImageIcon, Video, Trash2, X, Plus,
     Zap, Settings, Loader2, Edit2, Rocket, FileVideo, FileImage,
-    ChevronDown, Globe, FolderOpen, Copy, CheckCircle
+    ChevronDown, Globe, FolderOpen, Copy, CheckCircle, ShoppingBag, MessageCircle
 } from 'lucide-react';
 
 // ============================================================
@@ -796,11 +796,15 @@ const RapidCreator: React.FC = () => {
     const [selectedExistingAdSetId, setSelectedExistingAdSetId] = useState<string>('new');
     const [newCampaignName, setNewCampaignName] = useState('');
 
+    // Objective & Configuration
+    const [campaignObjective, setCampaignObjective] = useState<'SALES' | 'LEAD'>('SALES');
+    const [whatsappNumber, setWhatsappNumber] = useState('');
+
     // Pages & Pixels
     const [pages, setPages] = useState<any[]>([]);
     const [pixels, setPixels] = useState<any[]>([]);
     const [selectedPageId, setSelectedPageId] = useState(settings.defaultPageId || '');
-    const [selectedPixelId, setSelectedPixelId] = useState('');
+    const [selectedPixelId, setSelectedPixelId] = useState(settings.defaultPixelId || '');
     const [destinationUrl, setDestinationUrl] = useState(settings.defaultWebsiteUrl || '');
 
     // Creatives & AdSets
@@ -1054,7 +1058,13 @@ const RapidCreator: React.FC = () => {
     const handleLaunchAds = async () => {
         if (selectedCampaignId === 'new' && !newCampaignName.trim()) return alert('Please enter a campaign name');
         if (!selectedPageId) return alert('Please select a Facebook Page');
-        if (!destinationUrl) return alert('Please enter a destination URL');
+
+        // Conditional validation based on objective
+        if (campaignObjective === 'SALES') {
+            if (!destinationUrl) return alert('Please enter a destination URL');
+        } else {
+            if (!whatsappNumber) return alert('Please enter a WhatsApp number');
+        }
 
         const groupedCreatives = creatives.filter(c => c.adsetId !== null);
         if (groupedCreatives.length === 0) return alert('Please assign at least one creative to an ad set');
@@ -1066,7 +1076,8 @@ const RapidCreator: React.FC = () => {
 
             if (selectedCampaignId === 'new') {
                 setLaunchProgress('Creating campaign...');
-                campaignId = await createMetaCampaign(settings.adAccountId, settings.fbAccessToken, newCampaignName, 'OUTCOME_SALES');
+                const objective = campaignObjective === 'SALES' ? 'OUTCOME_SALES' : 'OUTCOME_LEADS';
+                campaignId = await createMetaCampaign(settings.adAccountId, settings.fbAccessToken, newCampaignName, objective);
             }
 
             for (const adset of adSets) {
@@ -1078,7 +1089,10 @@ const RapidCreator: React.FC = () => {
                 // Create new adset if not existing
                 if (!adset.isExisting) {
                     setLaunchProgress(`Creating ${adset.name}...`);
-                    const adsetResult = await createMetaAdSet(settings.adAccountId, campaignId, adset.name, adset.dailyBudget, 'OFFSITE_CONVERSIONS', selectedPixelId, settings.fbAccessToken);
+                    const optimizationGoal = campaignObjective === 'SALES' ? 'OFFSITE_CONVERSIONS' : 'LEAD_GENERATION';
+                    // Pixel is optional for Lead objective
+                    const pixelToUse = campaignObjective === 'LEAD' && !selectedPixelId ? '' : selectedPixelId;
+                    const adsetResult = await createMetaAdSet(settings.adAccountId, campaignId, adset.name, adset.dailyBudget, optimizationGoal, pixelToUse, settings.fbAccessToken);
                     adsetId = adsetResult.id;
                 }
 
@@ -1168,12 +1182,40 @@ const RapidCreator: React.FC = () => {
 
                 {/* LEFT PANEL - Upload & Settings */}
                 <div className="w-80 flex-shrink-0 space-y-4 overflow-y-auto pr-2">
-                    {/* Upload Section Header */}
+                    {/* Header */}
                     <div>
-                        <h2 className="text-lg font-bold text-slate-800 mb-1">Upload Creatives</h2>
-                        <p className="text-xs text-slate-500">Configure where you want to upload your ad creatives</p>
+                        <h2 className="text-lg font-bold text-slate-800 mb-1">Rapid Campaign</h2>
+                        <p className="text-xs text-slate-500">Configure your campaign objective and settings</p>
                     </div>
 
+                    {/* POSITION 1: Objective Selector */}
+                    <div className="bg-white rounded-xl border border-slate-100 p-4 shadow-sm">
+                        <label className="text-xs font-semibold text-slate-600 mb-2 block uppercase tracking-wide">Campaign Objective</label>
+                        <div className="grid grid-cols-2 gap-2">
+                            <button
+                                onClick={() => setCampaignObjective('SALES')}
+                                className={`flex flex-col items-center gap-2 py-3 rounded-lg font-semibold text-xs transition-all ${campaignObjective === 'SALES'
+                                    ? 'bg-slate-900 text-white shadow-sm'
+                                    : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+                                    }`}
+                            >
+                                <ShoppingBag size={18} />
+                                Sales
+                            </button>
+                            <button
+                                onClick={() => setCampaignObjective('LEAD')}
+                                className={`flex flex-col items-center gap-2 py-3 rounded-lg font-semibold text-xs transition-all ${campaignObjective === 'LEAD'
+                                    ? 'bg-slate-900 text-white shadow-sm'
+                                    : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+                                    }`}
+                            >
+                                <MessageCircle size={18} />
+                                Lead
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* POSITION 2: Conditional Settings Based on Objective */}
                     {/* Campaign Selection */}
                     <div className="bg-white rounded-xl border border-slate-100 p-4 shadow-sm">
                         <label className="text-xs font-semibold text-slate-600 mb-2 block uppercase tracking-wide">Campaign</label>
@@ -1202,7 +1244,34 @@ const RapidCreator: React.FC = () => {
                         </select>
                     </div>
 
-                    {/* Upload Zone - MOVED between Adset and Website URL */}
+                    {/* Conditional: Website URL (Sales) or WhatsApp Number (Lead) */}
+                    {campaignObjective === 'SALES' ? (
+                        <div className="bg-white rounded-xl border border-slate-100 p-4 shadow-sm">
+                            <label className="text-xs font-semibold text-slate-600 mb-2 block uppercase tracking-wide">Website URL</label>
+                            <input type="url" value={destinationUrl} onChange={(e) => setDestinationUrl(e.target.value)} placeholder="https://..."
+                                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-blue-400 transition-colors" />
+                        </div>
+                    ) : (
+                        <div className="bg-white rounded-xl border border-slate-100 p-4 shadow-sm">
+                            <label className="text-xs font-semibold text-slate-600 mb-2 block uppercase tracking-wide">WhatsApp Number</label>
+                            <input type="tel" value={whatsappNumber} onChange={(e) => setWhatsappNumber(e.target.value)} placeholder="+60123456789"
+                                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-blue-400 transition-colors" />
+                        </div>
+                    )}
+
+                    {/* Pixel Selection (Both objectives) */}
+                    <div className="bg-white rounded-xl border border-slate-100 p-4 shadow-sm">
+                        <label className="text-xs font-semibold text-slate-600 mb-2 block uppercase tracking-wide">
+                            Pixel {campaignObjective === 'LEAD' && <span className="text-[10px] text-slate-400 normal-case">(Optional)</span>}
+                        </label>
+                        <select value={selectedPixelId} onChange={(e) => setSelectedPixelId(e.target.value)}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-blue-400 transition-colors appearance-none cursor-pointer">
+                            <option value="">Select pixel...</option>
+                            {pixels.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                        </select>
+                    </div>
+
+                    {/* POSITION 3: Upload Creatives (FIXED) */}
                     <div className="bg-white rounded-xl border border-slate-100 p-4 shadow-sm">
                         <label className="text-xs font-semibold text-slate-600 mb-3 block uppercase tracking-wide">Upload Creatives</label>
                         <div onDragOver={(e) => e.preventDefault()} onDrop={handleFileDrop}
@@ -1218,14 +1287,7 @@ const RapidCreator: React.FC = () => {
                         </div>
                     </div>
 
-                    {/* Website URL */}
-                    <div className="bg-white rounded-xl border border-slate-100 p-4 shadow-sm">
-                        <label className="text-xs font-semibold text-slate-600 mb-2 block uppercase tracking-wide">Website URL</label>
-                        <input type="url" value={destinationUrl} onChange={(e) => setDestinationUrl(e.target.value)} placeholder="https://..."
-                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-blue-400 transition-colors" />
-                    </div>
-
-                    {/* Page Selection */}
+                    {/* POSITION 4: Page Selection */}
                     <div className="bg-white rounded-xl border border-slate-100 p-4 shadow-sm">
                         <label className="text-xs font-semibold text-slate-600 mb-2 block uppercase tracking-wide">Facebook Page</label>
                         <select value={selectedPageId} onChange={(e) => setSelectedPageId(e.target.value)}

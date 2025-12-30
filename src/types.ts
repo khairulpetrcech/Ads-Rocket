@@ -38,6 +38,7 @@ export interface UserSettings {
   // Rapid Creator Defaults
   defaultWebsiteUrl?: string;
   defaultPageId?: string;
+  defaultPixelId?: string;
 
   // Runtime Only
   availableAccounts: MetaAdAccount[];
