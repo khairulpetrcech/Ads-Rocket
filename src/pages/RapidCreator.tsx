@@ -61,6 +61,7 @@ interface RapidAdSet {
     ageMin: number;
     ageMax: number;
     gender: 'ALL' | 'MALE' | 'FEMALE';
+    enhancementPlus: boolean; // Creative Enhancement+
     isExisting?: boolean;
 }
 
@@ -227,9 +228,11 @@ const DroppableAdSetZone: React.FC<{
     onRemoveCreative: (id: string) => void;
     onUpdateAdName: (creativeId: string, adName: string) => void;
     onRenameAdSet: (newName: string) => void;
+    onOpenSettings: () => void;
+    onDuplicateCreative: (id: string) => void;
     isExpanded?: boolean;
     onToggle?: () => void;
-}> = ({ adset, creatives, onCopyAdSet, onDeleteAdSet, onEditCreative, onRemoveCreative, onUpdateAdName, onRenameAdSet, isExpanded = true, onToggle }) => {
+}> = ({ adset, creatives, onCopyAdSet, onDeleteAdSet, onEditCreative, onRemoveCreative, onUpdateAdName, onRenameAdSet, onOpenSettings, onDuplicateCreative, isExpanded = true, onToggle }) => {
     const { isOver, setNodeRef } = useDroppable({ id: adset.id });
     const [isEditing, setIsEditing] = useState(false);
     const [editName, setEditName] = useState(adset.name);
@@ -264,10 +267,16 @@ const DroppableAdSetZone: React.FC<{
                             title="Click to rename"
                         >{adset.name}</span>
                     )}
-                    <span className="text-[10px] bg-gradient-to-r from-green-400 to-green-500 text-white px-2 py-0.5 rounded-full font-semibold shadow-sm">
+                    <span
+                        onClick={onOpenSettings}
+                        className="text-[10px] bg-gradient-to-r from-green-400 to-green-500 text-white px-2 py-0.5 rounded-full font-semibold shadow-sm cursor-pointer hover:from-green-500 hover:to-green-600 transition-all"
+                    >
                         {adset.targeting}
                     </span>
-                    <span className="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full font-medium flex items-center gap-1">
+                    <span
+                        onClick={onOpenSettings}
+                        className="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full font-medium flex items-center gap-1 cursor-pointer hover:bg-slate-200 transition-all"
+                    >
                         <Globe size={8} /> {adset.country}
                     </span>
                 </div>
@@ -331,6 +340,9 @@ const DroppableAdSetZone: React.FC<{
                                     </div>
                                     {/* Actions */}
                                     <div className="flex items-center gap-1">
+                                        <button onClick={() => onDuplicateCreative(c.id)} title="Duplicate" className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-purple-50 text-slate-400 hover:text-purple-600 transition-all">
+                                            <Copy size={14} />
+                                        </button>
                                         <button onClick={() => onEditCreative(c.id)} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-blue-50 text-slate-400 hover:text-blue-600 transition-all">
                                             <Edit2 size={14} />
                                         </button>
@@ -515,6 +527,165 @@ const EditDrawer: React.FC<{
 };
 
 // ============================================================
+// ADSET SETTINGS DRAWER - Targeting, Country, Age, Enhancement+
+// ============================================================
+
+const AdSetSettingsDrawer: React.FC<{
+    adset: RapidAdSet | null;
+    isOpen: boolean;
+    onClose: () => void;
+    onSave: (updates: Partial<RapidAdSet>) => void;
+}> = ({ adset, isOpen, onClose, onSave }) => {
+    const [targeting, setTargeting] = useState<'BROAD' | 'CUSTOM'>('BROAD');
+    const [country, setCountry] = useState('MY');
+    const [ageMin, setAgeMin] = useState(18);
+    const [ageMax, setAgeMax] = useState(65);
+    const [gender, setGender] = useState<'ALL' | 'MALE' | 'FEMALE'>('ALL');
+    const [enhancementPlus, setEnhancementPlus] = useState(false);
+    const [isVisible, setIsVisible] = useState(false);
+    const [isAnimating, setIsAnimating] = useState(false);
+
+    useEffect(() => {
+        if (adset) {
+            setTargeting(adset.targeting);
+            setCountry(adset.country);
+            setAgeMin(adset.ageMin);
+            setAgeMax(adset.ageMax);
+            setGender(adset.gender);
+            setEnhancementPlus(adset.enhancementPlus);
+        }
+    }, [adset]);
+
+    useEffect(() => {
+        if (isOpen) {
+            setIsVisible(true);
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    setIsAnimating(true);
+                });
+            });
+        } else {
+            setIsAnimating(false);
+            const timer = setTimeout(() => setIsVisible(false), 300);
+            return () => clearTimeout(timer);
+        }
+    }, [isOpen]);
+
+    if (!isVisible || !adset) return null;
+
+    return (
+        <div className="fixed inset-0 z-50 flex justify-end">
+            <div
+                className={`absolute inset-0 bg-black/40 backdrop-blur-sm transition-opacity duration-300 ${isAnimating ? 'opacity-100' : 'opacity-0'}`}
+                onClick={onClose}
+            />
+            <div className={`relative w-[400px] bg-white h-full shadow-2xl overflow-y-auto transition-transform duration-300 ease-out
+                ${isAnimating ? 'translate-x-0' : 'translate-x-full'}`}>
+                <div className="p-6">
+                    <div className="flex items-center justify-between mb-6">
+                        <h3 className="text-lg font-bold text-slate-800">Ad Set Settings</h3>
+                        <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-700 transition-all">
+                            <X size={18} />
+                        </button>
+                    </div>
+
+                    <div className="space-y-5">
+                        {/* Targeting */}
+                        <div>
+                            <label className="text-xs font-semibold text-slate-700 mb-2 block uppercase tracking-wide">Targeting</label>
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={() => setTargeting('BROAD')}
+                                    className={`flex-1 py-3 rounded-xl font-semibold text-sm transition-all ${targeting === 'BROAD' ? 'bg-green-500 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                                >
+                                    Broad
+                                </button>
+                                <button
+                                    onClick={() => setTargeting('CUSTOM')}
+                                    className={`flex-1 py-3 rounded-xl font-semibold text-sm transition-all ${targeting === 'CUSTOM' ? 'bg-blue-500 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                                >
+                                    Detail Targeting
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Country */}
+                        <div>
+                            <label className="text-xs font-semibold text-slate-700 mb-2 block uppercase tracking-wide">Country</label>
+                            <select value={country} onChange={(e) => setCountry(e.target.value)}
+                                className="w-full bg-slate-50 border-2 border-slate-100 focus:border-blue-400 rounded-xl px-4 py-3 text-sm outline-none transition-colors appearance-none cursor-pointer">
+                                <option value="MY">🇲🇾 Malaysia</option>
+                                <option value="US">🇺🇸 United States</option>
+                                <option value="SG">🇸🇬 Singapore</option>
+                                <option value="ID">🇮🇩 Indonesia</option>
+                                <option value="PH">🇵🇭 Philippines</option>
+                                <option value="TH">🇹🇭 Thailand</option>
+                                <option value="VN">🇻🇳 Vietnam</option>
+                                <option value="GB">🇬🇧 United Kingdom</option>
+                                <option value="AU">🇦🇺 Australia</option>
+                            </select>
+                        </div>
+
+                        {/* Age */}
+                        <div>
+                            <label className="text-xs font-semibold text-slate-700 mb-2 block uppercase tracking-wide">Age Range</label>
+                            <div className="flex gap-3">
+                                <div className="flex-1">
+                                    <label className="text-xs text-slate-400 mb-1 block">Min</label>
+                                    <input type="number" value={ageMin} onChange={(e) => setAgeMin(Number(e.target.value))}
+                                        min={13} max={65}
+                                        className="w-full bg-slate-50 border-2 border-slate-100 focus:border-blue-400 rounded-xl px-4 py-3 text-sm outline-none transition-colors" />
+                                </div>
+                                <div className="flex-1">
+                                    <label className="text-xs text-slate-400 mb-1 block">Max</label>
+                                    <input type="number" value={ageMax} onChange={(e) => setAgeMax(Number(e.target.value))}
+                                        min={13} max={65}
+                                        className="w-full bg-slate-50 border-2 border-slate-100 focus:border-blue-400 rounded-xl px-4 py-3 text-sm outline-none transition-colors" />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Gender */}
+                        <div>
+                            <label className="text-xs font-semibold text-slate-700 mb-2 block uppercase tracking-wide">Gender</label>
+                            <div className="flex gap-2">
+                                {(['ALL', 'MALE', 'FEMALE'] as const).map(g => (
+                                    <button key={g} onClick={() => setGender(g)}
+                                        className={`flex-1 py-2.5 rounded-xl font-medium text-sm transition-all ${gender === g ? 'bg-blue-500 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
+                                        {g === 'ALL' ? 'All' : g === 'MALE' ? 'Male' : 'Female'}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Enhancement+ Toggle */}
+                        <div className="bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-200 rounded-xl p-4">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <h4 className="text-sm font-bold text-slate-800">Creative Enhancement+</h4>
+                                    <p className="text-xs text-slate-500 mt-1">Allow Meta to enhance your creatives</p>
+                                </div>
+                                <button
+                                    onClick={() => setEnhancementPlus(!enhancementPlus)}
+                                    className={`w-14 h-8 rounded-full transition-all relative ${enhancementPlus ? 'bg-green-500' : 'bg-slate-300'}`}
+                                >
+                                    <div className={`absolute top-1 w-6 h-6 bg-white rounded-full shadow-md transition-all ${enhancementPlus ? 'left-7' : 'left-1'}`} />
+                                </button>
+                            </div>
+                        </div>
+
+                        <button onClick={() => { onSave({ targeting, country, ageMin, ageMax, gender, enhancementPlus }); onClose(); }}
+                            className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-bold py-3.5 rounded-xl transition-all shadow-lg shadow-blue-500/25 hover:shadow-xl hover:shadow-blue-500/30 hover:-translate-y-0.5">
+                            Save Settings
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// ============================================================
 // MAIN COMPONENT - 3 SECTION LAYOUT
 // ============================================================
 
@@ -541,6 +712,7 @@ const RapidCreator: React.FC = () => {
 
     // UI
     const [editingCreativeId, setEditingCreativeId] = useState<string | null>(null);
+    const [editingAdSetId, setEditingAdSetId] = useState<string | null>(null);
     const [isLaunching, setIsLaunching] = useState(false);
     const [launchProgress, setLaunchProgress] = useState('');
     const [activeId, setActiveId] = useState<string | null>(null);
@@ -616,6 +788,7 @@ const RapidCreator: React.FC = () => {
                     ageMin: 18,
                     ageMax: 65,
                     gender: 'ALL',
+                    enhancementPlus: false,
                     isExisting: true
                 }]);
                 // Expand newly added adset
@@ -674,7 +847,8 @@ const RapidCreator: React.FC = () => {
             country: 'MY',
             ageMin: 18,
             ageMax: 65,
-            gender: 'ALL'
+            gender: 'ALL',
+            enhancementPlus: false
         };
         setAdSets(prev => [...prev, newAdSet]);
         setExpandedAdSets(prev => new Set([...prev, newAdSet.id]));
@@ -703,6 +877,24 @@ const RapidCreator: React.FC = () => {
         };
         setAdSets(prev => [...prev, newAdSet]);
         setExpandedAdSets(prev => new Set([...prev, newId]));
+    };
+
+    // Update adset settings
+    const updateAdSet = (id: string, updates: Partial<RapidAdSet>) => {
+        setAdSets(prev => prev.map(a => a.id === id ? { ...a, ...updates } : a));
+    };
+
+    // Duplicate a creative (copy within same adset)
+    const duplicateCreative = (creativeId: string) => {
+        const source = creatives.find(c => c.id === creativeId);
+        if (!source) return;
+        const newCreative: Creative = {
+            ...source,
+            id: `creative-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            name: `${source.name} (Copy)`,
+            adName: `${source.adName} (Copy)`
+        };
+        setCreatives(prev => [...prev, newCreative]);
     };
 
     // Update ad name for a creative
@@ -977,12 +1169,12 @@ const RapidCreator: React.FC = () => {
                     <div className="flex-1 overflow-y-auto space-y-3">
                         {/* Ad Set Tabs */}
                         {adSets.length > 0 && (
-                            <div className="flex items-center gap-2 mb-2">
-                                {adSets.map((adset, idx) => (
+                            <div className="flex items-center gap-2 mb-2 overflow-x-auto pb-1">
+                                {adSets.map((adset) => (
                                     <button key={adset.id}
-                                        className="px-4 py-2 bg-white border border-slate-200 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50 transition-all flex items-center gap-2">
+                                        className="px-4 py-2 bg-white border border-slate-200 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50 transition-all flex items-center gap-2 whitespace-nowrap">
                                         <FolderOpen size={14} className="text-slate-400" />
-                                        Ad Set {idx + 1}
+                                        {adset.name}
                                         <span className="text-xs text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">
                                             {creatives.filter(c => c.adsetId === adset.id).length} creatives
                                         </span>
@@ -1038,6 +1230,8 @@ const RapidCreator: React.FC = () => {
                                         onRemoveCreative={removeCreativeFromAdSet}
                                         onUpdateAdName={updateAdName}
                                         onRenameAdSet={(newName) => renameAdSet(adset.id, newName)}
+                                        onOpenSettings={() => setEditingAdSetId(adset.id)}
+                                        onDuplicateCreative={duplicateCreative}
                                         isExpanded={expandedAdSets.has(adset.id)}
                                         onToggle={() => toggleAdSetExpanded(adset.id)}
                                     />
@@ -1051,6 +1245,13 @@ const RapidCreator: React.FC = () => {
             <EditDrawer creative={editingCreative} isOpen={!!editingCreativeId} onClose={() => setEditingCreativeId(null)}
                 onSave={(updates) => { if (editingCreativeId) updateCreative(editingCreativeId, updates); }}
                 allCreatives={creatives} />
+
+            <AdSetSettingsDrawer
+                adset={adSets.find(a => a.id === editingAdSetId) || null}
+                isOpen={!!editingAdSetId}
+                onClose={() => setEditingAdSetId(null)}
+                onSave={(updates) => { if (editingAdSetId) updateAdSet(editingAdSetId, updates); }}
+            />
 
             {/* Drag Overlay with smooth animation */}
             <DragOverlay dropAnimation={{
