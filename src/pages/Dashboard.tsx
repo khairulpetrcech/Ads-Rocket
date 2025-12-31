@@ -298,6 +298,10 @@ const Dashboard: React.FC = () => {
         setShowHiddenAdSets(new Set());
         setShowAllCampaigns(false);
 
+        // Clear cached ads and adsets data when date range changes
+        setAdSetsData({});
+        setAdsData({});
+
         try {
             if (settings.fbAccessToken === 'dummy_token' || (settings.fbAccessToken && settings.adAccountId)) {
                 let realData: AdCampaign[] = [];
