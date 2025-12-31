@@ -1213,7 +1213,12 @@ const RapidCreator: React.FC = () => {
                                 >
                                     <div className="flex items-center gap-1">
                                         <MessageCircle size={18} />
-                                        <span>Lead <span className="text-[10px] text-yellow-400 font-normal">(Beta)</span></span>
+                                        <span className="relative">
+                                            Lead
+                                            <span className="absolute -top-2.5 -right-8 bg-yellow-400 text-slate-900 text-[8px] font-bold px-1.5 py-0.5 rounded-md shadow-sm border border-yellow-500/20 leading-none">
+                                                BETA
+                                            </span>
+                                        </span>
                                     </div>
                                 </button>
                                 {/* Tooltip */}
