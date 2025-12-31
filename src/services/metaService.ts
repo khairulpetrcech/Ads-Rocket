@@ -532,7 +532,8 @@ export const createMetaAdSet = async (
     dailyBudget: number,
     optimizationGoal: string,
     pixelId: string | null,
-    accessToken: string
+    accessToken: string,
+    pageId?: string
 ) => {
     const actId = accountId.startsWith('act_') ? accountId : `act_${accountId}`;
     const url = `https://graph.facebook.com/v19.0/${actId}/adsets`;
@@ -567,6 +568,12 @@ export const createMetaAdSet = async (
             pixel_id: pixelId,
             custom_event_type: "PURCHASE"
         };
+        body.billing_event = 'IMPRESSIONS';
+    } else if (optimizationGoal === 'CONVERSATIONS' && pageId) {
+        // Engagement -> Messaging Apps (WhatsApp)
+        body.destination_type = "MESSAGING_APPS";
+        body.messaging_destinations = ["WHATSAPP"];
+        body.promoted_object = { page_id: pageId };
         body.billing_event = 'IMPRESSIONS';
     }
 

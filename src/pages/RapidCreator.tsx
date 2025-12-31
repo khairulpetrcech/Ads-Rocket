@@ -1076,7 +1076,7 @@ const RapidCreator: React.FC = () => {
 
             if (selectedCampaignId === 'new') {
                 setLaunchProgress('Creating campaign...');
-                const objective = campaignObjective === 'SALES' ? 'OUTCOME_SALES' : 'OUTCOME_LEADS';
+                const objective = campaignObjective === 'SALES' ? 'OUTCOME_SALES' : 'OUTCOME_ENGAGEMENT';
                 campaignId = await createMetaCampaign(settings.adAccountId, settings.fbAccessToken, newCampaignName, objective);
             }
 
@@ -1089,10 +1089,11 @@ const RapidCreator: React.FC = () => {
                 // Create new adset if not existing
                 if (!adset.isExisting) {
                     setLaunchProgress(`Creating ${adset.name}...`);
-                    const optimizationGoal = campaignObjective === 'SALES' ? 'OFFSITE_CONVERSIONS' : 'LEAD_GENERATION';
+                    // Use CONVERSATIONS for Engagement (WhatsApp)
+                    const optimizationGoal = campaignObjective === 'SALES' ? 'OFFSITE_CONVERSIONS' : 'CONVERSATIONS';
                     // Pixel is optional for Lead objective
                     const pixelToUse = campaignObjective === 'LEAD' && !selectedPixelId ? '' : selectedPixelId;
-                    const adsetResult = await createMetaAdSet(settings.adAccountId, campaignId, adset.name, adset.dailyBudget, optimizationGoal, pixelToUse, settings.fbAccessToken);
+                    const adsetResult = await createMetaAdSet(settings.adAccountId, campaignId, adset.name, adset.dailyBudget, optimizationGoal, pixelToUse, settings.fbAccessToken, selectedPageId);
                     adsetId = adsetResult.id;
                 }
 
@@ -1202,17 +1203,59 @@ const RapidCreator: React.FC = () => {
                                 <ShoppingBag size={18} />
                                 Sales
                             </button>
-                            <button
-                                onClick={() => setCampaignObjective('LEAD')}
-                                className={`flex flex-col items-center gap-2 py-3 rounded-lg font-semibold text-xs transition-all ${campaignObjective === 'LEAD'
-                                    ? 'bg-slate-900 text-white shadow-sm'
-                                    : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
-                                    }`}
-                            >
-                                <MessageCircle size={18} />
-                                Lead
-                            </button>
+                            <div className="relative group">
+                                <button
+                                    onClick={() => setCampaignObjective('LEAD')}
+                                    className={`w-full h-full flex flex-col items-center gap-2 py-3 rounded-lg font-semibold text-xs transition-all ${campaignObjective === 'LEAD'
+                                        ? 'bg-slate-900 text-white shadow-sm'
+                                        : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+                                        }`}
+                                >
+                                    <div className="flex items-center gap-1">
+                                        <MessageCircle size={18} />
+                                        <span>Lead <span className="text-[10px] text-yellow-400 font-normal">(Beta)</span></span>
+                                    </div>
+                                </button>
+                                {/* Tooltip */}
+                                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1.5 bg-slate-800 text-white text-[10px] rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-10">
+                                    Function in testing. Expect Unstable
+                                    <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-800"></div>
+                                </div>
+                            </div>
                         </div>
+
+                        {/* Lead Objective Sub-Options */}
+                        {campaignObjective === 'LEAD' && (
+                            <div className="mt-3 space-y-2 animate-fadeIn">
+                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Objective Focus</label>
+
+                                {/* Engagement (WhatsApp) - Active */}
+                                <div className="flex items-center gap-3 p-2.5 rounded-lg border border-blue-500 bg-blue-50/50 cursor-pointer">
+                                    <div className="w-4 h-4 rounded-full border-[5px] border-blue-600 bg-white"></div>
+                                    <div>
+                                        <p className="text-xs font-bold text-slate-700">Engagement (WhatsApp)</p>
+                                    </div>
+                                </div>
+
+                                {/* Lead (WhatsApp) - Coming Soon */}
+                                <div className="flex items-center gap-3 p-2.5 rounded-lg border border-slate-100 bg-slate-50 opacity-60 cursor-not-allowed">
+                                    <div className="w-4 h-4 rounded-full border-2 border-slate-300"></div>
+                                    <div>
+                                        <p className="text-xs font-bold text-slate-500">Lead (WhatsApp)</p>
+                                        <p className="text-[10px] text-slate-400">Coming Soon</p>
+                                    </div>
+                                </div>
+
+                                {/* Sales (WhatsApp) - Coming Soon */}
+                                <div className="flex items-center gap-3 p-2.5 rounded-lg border border-slate-100 bg-slate-50 opacity-60 cursor-not-allowed">
+                                    <div className="w-4 h-4 rounded-full border-2 border-slate-300"></div>
+                                    <div>
+                                        <p className="text-xs font-bold text-slate-500">Sales (WhatsApp)</p>
+                                        <p className="text-[10px] text-slate-400">Coming Soon</p>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     {/* POSITION 2: Conditional Settings Based on Objective */}
