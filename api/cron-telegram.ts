@@ -95,10 +95,7 @@ async function processUserAnalysis(user: any, geminiApiKey: string) {
     const startDateMY = formatDateMY(fourDaysAgo);
     const endDateMY = formatDateMY(today);
 
-    const timeRange = JSON.stringify({
-        since: formatDate(fourDaysAgo),
-        until: formatDate(today)
-    });
+    const timeRange = `{"since":"${formatDate(fourDaysAgo)}","until":"${formatDate(today)}"}`;
 
     // Fetch Account Name
     let accountName = ad_account_id;
