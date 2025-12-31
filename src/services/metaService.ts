@@ -95,7 +95,7 @@ export const getDateRangeParams = (preset: string | { start: string, end: string
     // Custom Range Object
     if (typeof preset === 'object' && preset.start && preset.end) {
         return {
-            time_range: JSON.stringify({ since: preset.start, until: preset.end }),
+            time_range: `{"since":"${preset.start}","until":"${preset.end}"}`,
             date_preset: null
         };
     }
@@ -106,7 +106,7 @@ export const getDateRangeParams = (preset: string | { start: string, end: string
         const start = new Date(today);
         start.setDate(today.getDate() - 3);
         return {
-            time_range: JSON.stringify({ since: formatDate(start), until: formatDate(end) }),
+            time_range: `{"since":"${formatDate(start)}","until":"${formatDate(end)}"}`,
             date_preset: null
         };
     }
