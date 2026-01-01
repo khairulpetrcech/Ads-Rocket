@@ -563,13 +563,13 @@ const Dashboard: React.FC = () => {
         }
         return (
             <tr className="bg-slate-50 text-slate-500 text-xs uppercase border-b border-slate-200">
-                <th className="p-4 w-[35%] font-semibold">Name</th>
-                <th className="p-3 text-right w-[12%] font-semibold">Spend</th>
-                <th className="p-3 text-right w-[10%] font-semibold">ROAS</th>
-                <th className="p-3 text-right w-[12%] font-semibold">CPA</th>
-                <th className="p-3 text-right w-[10%] font-semibold">CTR</th>
-                <th className="p-3 text-right w-[11%] font-semibold">LPV/(CPLV)</th>
-                <th className="p-3 text-right w-[10%] font-semibold">Purchases</th>
+                <th className="p-4 w-[45%] font-semibold">Name</th>
+                <th className="p-3 text-right w-[10%] font-semibold">Spend</th>
+                <th className="p-3 text-right w-[9%] font-semibold">ROAS</th>
+                <th className="p-3 text-right w-[9%] font-semibold">CPA</th>
+                <th className="p-3 text-right w-[9%] font-semibold">CTR</th>
+                <th className="p-3 text-right w-[9%] font-semibold">LPV/(CPLV)</th>
+                <th className="p-3 text-right w-[9%] font-semibold">Purchases</th>
             </tr>
         );
     };
@@ -893,7 +893,7 @@ const Dashboard: React.FC = () => {
                                             <React.Fragment key={camp.id}>
                                                 {/* Level 1: Campaign */}
                                                 <tr className="bg-white hover:bg-slate-50 text-sm transition-colors group">
-                                                    <td className="p-4 w-[35%]">
+                                                    <td className="p-4 w-[45%]">
                                                         <div className="flex items-center gap-3">
                                                             <button
                                                                 onClick={() => toggleExpandCampaign(camp.id)}
@@ -908,7 +908,7 @@ const Dashboard: React.FC = () => {
                                                             />
                                                             <div className="min-w-0 flex-1">
                                                                 <div className="flex items-center gap-2">
-                                                                    <span className="font-bold text-slate-800 truncate max-w-[160px] lg:max-w-[200px] text-sm" title={camp.name}>{camp.name}</span>
+                                                                    <span className="font-bold text-slate-800 truncate max-w-[260px] lg:max-w-[350px] text-sm" title={camp.name}>{camp.name}</span>
                                                                     {/* Objective Pill Badge */}
                                                                     <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wide ${camp.objective?.includes('TRAFFIC') ? 'bg-blue-100 text-blue-600' :
                                                                         camp.objective?.includes('SALES') ? 'bg-green-100 text-green-600' :
