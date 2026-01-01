@@ -121,7 +121,7 @@ async function analyzeAdCreative(ad: any, geminiApiKey: string, fbAccessToken: s
                 file: videoBlob
             });
 
-            console.log(`[Creative Analysis] Analyzing video with Gemini 1.5 Pro for ${ad.name}...`);
+            console.log(`[Creative Analysis] Analyzing video with Gemini 2.0 Flash for ${ad.name}...`);
             // Analyze video
             const prompt = `Kau seorang pakar Meta Ads Malaysia. Tonton video iklan ini yang mencapai ROAS ${ad.roas.toFixed(2)}x.
 
@@ -138,7 +138,7 @@ Analisa kenapa video ni WIN:
 Jawab dalam 4-5 ayat pendek, Bahasa Malaysia.`;
 
             const result = await genAI.models.generateContent({
-                model: 'gemini-1.5-pro',  // Using proven multimodal model
+                model: 'gemini-2.0-flash-exp',  // Latest multimodal model (Jan 2026)
                 contents: [
                     { text: prompt },
                     { fileData: { fileUri: uploadResult.uri, mimeType: 'video/mp4' } }
@@ -158,7 +158,7 @@ Jawab dalam 4-5 ayat pendek, Bahasa Malaysia.`;
             const imageBuffer = await imageResponse.arrayBuffer();
             const base64Image = Buffer.from(imageBuffer).toString('base64');
 
-            console.log(`[Creative Analysis] Analyzing image with Gemini 1.5 Pro for ${ad.name}...`);
+            console.log(`[Creative Analysis] Analyzing image with Gemini 2.0 Flash for ${ad.name}...`);
             // Analyze image
             const prompt = `Kau seorang pakar Meta Ads Malaysia. Analisa poster iklan ini yang mencapai ROAS ${ad.roas.toFixed(2)}x.
 
@@ -174,7 +174,7 @@ Analisa elemen visual yang buatkan iklan ni WIN:
 Jawab dalam 3-4 ayat pendek, Bahasa Malaysia.`;
 
             const result = await genAI.models.generateContent({
-                model: 'gemini-1.5-pro',  // Using proven multimodal model
+                model: 'gemini-2.0-flash-exp',  // Latest multimodal model (Jan 2026)
                 contents: [
                     { text: prompt },
                     { inlineData: { mimeType: 'image/jpeg', data: base64Image } }
