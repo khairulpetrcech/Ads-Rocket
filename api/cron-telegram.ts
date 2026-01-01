@@ -32,7 +32,12 @@ export default async function handler(req: any, res: any) {
 
         if (error) {
             console.error('Supabase error:', error);
-            return res.status(500).json({ error: 'Failed to fetch users' });
+            return res.status(500).json({
+                error: 'Failed to fetch users',
+                details: error.message,
+                hint: error.hint,
+                code: error.code
+            });
         }
 
         if (!users || users.length === 0) {
