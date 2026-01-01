@@ -73,9 +73,107 @@ export default async function handler(req: any, res: any) {
             failed: failCount
         });
 
+
     } catch (error: any) {
         console.error('Cron error:', error);
         return res.status(500).json({ error: error.message });
+    }
+}
+
+/**
+ * Analyze ad creative (video or image) using Gemini 3 Pro multimodal
+ */
+async function analyzeAdCreative(ad: any, geminiApiKey: string, fbAccessToken: string): Promise<string | null> {
+    try {
+        const creative = ad.creative;
+        if (!creative) return null;
+
+        const genAI = new GoogleGenAI({ apiKey: geminiApiKey });
+
+        // Check if video or image
+        if (creative.video_id) {
+            // Fetch video URL from Meta
+            const videoUrl = `https://graph.facebook.com/v19.0/${creative.video_id}?fields=source&access_token=${fbAccessToken}`;
+            const videoResponse = await fetch(videoUrl);
+            const videoData = await videoResponse.json();
+
+            if (!videoData.source) return null;
+
+            // Download video
+            const videoFileResponse = await fetch(videoData.source);
+            const videoArrayBuffer = await videoFileResponse.arrayBuffer();
+
+            // Create Blob for upload
+            const videoBlob = new Blob([videoArrayBuffer], { type: 'video/mp4' });
+
+            // Upload to Gemini Files API
+            const uploadResult = await genAI.files.upload({
+                file: videoBlob
+            });
+
+            // Analyze video
+            const prompt = `Kau seorang pakar Meta Ads Malaysia. Tonton video iklan ini yang mencapai ROAS ${ad.roas.toFixed(2)}x.
+
+Iklan: "${ad.name}"
+Performance: RM${ad.spend.toFixed(2)} spend, ${ad.purchases} purchases
+
+Analisa kenapa video ni WIN:
+1. Hook (3 saat pertama)
+2. Storyline & Pacing
+3. Audio & Music
+4. Visual Elements
+5. Call-to-Action
+
+Jawab dalam 4-5 ayat pendek, Bahasa Malaysia.`;
+
+            const result = await genAI.models.generateContent({
+                model: 'gemini-3-pro-preview',
+                contents: [
+                    { text: prompt },
+                    { fileData: { fileUri: uploadResult.uri, mimeType: 'video/mp4' } }
+                ]
+            });
+
+            // Delete uploaded file
+            await genAI.files.delete({ name: uploadResult.name });
+
+            return result.text || null;
+
+        } else if (creative.image_url) {
+            // Download image
+            const imageResponse = await fetch(creative.image_url);
+            const imageBuffer = await imageResponse.arrayBuffer();
+            const base64Image = Buffer.from(imageBuffer).toString('base64');
+
+            // Analyze image
+            const prompt = `Kau seorang pakar Meta Ads Malaysia. Analisa poster iklan ini yang mencapai ROAS ${ad.roas.toFixed(2)}x.
+
+Iklan: "${ad.name}"
+Performance: RM${ad.spend.toFixed(2)} spend, ${ad.purchases} purchases
+
+Analisa elemen visual yang buatkan iklan ni WIN:
+1. Warna & Design
+2. Text & Messaging
+3. Call-to-Action
+4. Target Audience Appeal
+
+Jawab dalam 3-4 ayat pendek, Bahasa Malaysia.`;
+
+            const result = await genAI.models.generateContent({
+                model: 'gemini-3-pro-preview',
+                contents: [
+                    { text: prompt },
+                    { inlineData: { mimeType: 'image/jpeg', data: base64Image } }
+                ]
+            });
+
+            return result.text || null;
+        }
+
+        return null;
+    } catch (error) {
+        console.error(`Failed to analyze creative for ad "${ad.name}":`, error);
+        return null; // Graceful fallback
     }
 }
 
@@ -118,7 +216,8 @@ async function processUserAnalysis(user: any, geminiApiKey: string) {
     }
 
     const insightsQuery = `insights.time_range(${timeRange}){spend,impressions,clicks,cpc,ctr,actions,action_values}`;
-    const fields = ['id', 'name', 'status', 'effective_status', insightsQuery].join(',');
+    const creativeFields = 'creative{video_id,image_url,thumbnail_url,object_story_spec}';
+    const fields = ['id', 'name', 'status', 'effective_status', insightsQuery, creativeFields].join(',');
     const filtering = encodeURIComponent(`[{"field":"effective_status","operator":"IN","value":["ACTIVE","PAUSED"]}]`);
 
     const metaUrl = `https://graph.facebook.com/v19.0/${actId}/ads?fields=${encodeURIComponent(fields)}&access_token=${fb_access_token}&limit=50&filtering=${filtering}`;
@@ -138,11 +237,13 @@ async function processUserAnalysis(user: any, geminiApiKey: string) {
         const revenue = parseFloat(purchaseValue || '0');
 
         return {
+            id: ad.id,
             name: ad.name,
             spend,
             roas: spend > 0 ? (revenue / spend) : 0,
             ctr: parseFloat(insights.ctr || '0'),
-            purchases: parseInt(insights.actions?.find((a: any) => a.action_type === 'purchase')?.value || 0)
+            purchases: parseInt(insights.actions?.find((a: any) => a.action_type === 'purchase')?.value || 0),
+            creative: ad.creative || null
         };
     });
 
@@ -193,7 +294,23 @@ PENTING: Guna format Markdown Telegram (*bold* untuk tajuk). Jangan tambah intro
 
     const analysisText = response.text || 'Tidak dapat generate analisis.';
 
-    await sendTelegram(telegram_bot_token, telegram_chat_id, analysisText);
+    // Multimodal Creative Analysis for each winning ad
+    const creativeAnalyses: string[] = [];
+    for (const ad of topAds) {
+        const creativeInsight = await analyzeAdCreative(ad, geminiApiKey, fb_access_token);
+        if (creativeInsight) {
+            creativeAnalyses.push(`*${ad.name}*\n${creativeInsight}`);
+        }
+    }
+
+    // Build final message
+    let finalMessage = analysisText;
+
+    if (creativeAnalyses.length > 0) {
+        finalMessage += `\n\n🎯 *Kenapa Iklan Win?*\n\n${creativeAnalyses.join('\n\n')}`;
+    }
+
+    await sendTelegram(telegram_bot_token, telegram_chat_id, finalMessage);
 }
 
 async function sendTelegram(botToken: string, chatId: string, text: string) {
