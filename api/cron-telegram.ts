@@ -86,19 +86,28 @@ export default async function handler(req: any, res: any) {
 async function analyzeAdCreative(ad: any, geminiApiKey: string, fbAccessToken: string): Promise<string | null> {
     try {
         const creative = ad.creative;
-        if (!creative) return null;
+        if (!creative) {
+            console.log(`[Creative Analysis] No creative data for ad: ${ad.name}`);
+            return null;
+        }
 
+        console.log(`[Creative Analysis] Starting analysis for ad: ${ad.name}`);
         const genAI = new GoogleGenAI({ apiKey: geminiApiKey });
 
         // Check if video or image
         if (creative.video_id) {
+            console.log(`[Creative Analysis] Video detected for ${ad.name}, video_id: ${creative.video_id}`);
             // Fetch video URL from Meta
             const videoUrl = `https://graph.facebook.com/v19.0/${creative.video_id}?fields=source&access_token=${fbAccessToken}`;
             const videoResponse = await fetch(videoUrl);
             const videoData = await videoResponse.json();
 
-            if (!videoData.source) return null;
+            if (!videoData.source) {
+                console.log(`[Creative Analysis] No video source URL for ${ad.name}`);
+                return null;
+            }
 
+            console.log(`[Creative Analysis] Downloading video for ${ad.name}...`);
             // Download video
             const videoFileResponse = await fetch(videoData.source);
             const videoArrayBuffer = await videoFileResponse.arrayBuffer();
@@ -106,11 +115,13 @@ async function analyzeAdCreative(ad: any, geminiApiKey: string, fbAccessToken: s
             // Create Blob for upload
             const videoBlob = new Blob([videoArrayBuffer], { type: 'video/mp4' });
 
+            console.log(`[Creative Analysis] Uploading video to Gemini for ${ad.name}...`);
             // Upload to Gemini Files API
             const uploadResult = await genAI.files.upload({
                 file: videoBlob
             });
 
+            console.log(`[Creative Analysis] Analyzing video with Gemini 1.5 Pro for ${ad.name}...`);
             // Analyze video
             const prompt = `Kau seorang pakar Meta Ads Malaysia. Tonton video iklan ini yang mencapai ROAS ${ad.roas.toFixed(2)}x.
 
@@ -127,7 +138,7 @@ Analisa kenapa video ni WIN:
 Jawab dalam 4-5 ayat pendek, Bahasa Malaysia.`;
 
             const result = await genAI.models.generateContent({
-                model: 'gemini-3-pro-preview',
+                model: 'gemini-1.5-pro',  // Using proven multimodal model
                 contents: [
                     { text: prompt },
                     { fileData: { fileUri: uploadResult.uri, mimeType: 'video/mp4' } }
@@ -137,14 +148,17 @@ Jawab dalam 4-5 ayat pendek, Bahasa Malaysia.`;
             // Delete uploaded file
             await genAI.files.delete({ name: uploadResult.name });
 
+            console.log(`[Creative Analysis] ✅ Video analysis complete for ${ad.name}`);
             return result.text || null;
 
         } else if (creative.image_url) {
+            console.log(`[Creative Analysis] Image detected for ${ad.name}`);
             // Download image
             const imageResponse = await fetch(creative.image_url);
             const imageBuffer = await imageResponse.arrayBuffer();
             const base64Image = Buffer.from(imageBuffer).toString('base64');
 
+            console.log(`[Creative Analysis] Analyzing image with Gemini 1.5 Pro for ${ad.name}...`);
             // Analyze image
             const prompt = `Kau seorang pakar Meta Ads Malaysia. Analisa poster iklan ini yang mencapai ROAS ${ad.roas.toFixed(2)}x.
 
@@ -160,19 +174,21 @@ Analisa elemen visual yang buatkan iklan ni WIN:
 Jawab dalam 3-4 ayat pendek, Bahasa Malaysia.`;
 
             const result = await genAI.models.generateContent({
-                model: 'gemini-3-pro-preview',
+                model: 'gemini-1.5-pro',  // Using proven multimodal model
                 contents: [
                     { text: prompt },
                     { inlineData: { mimeType: 'image/jpeg', data: base64Image } }
                 ]
             });
 
+            console.log(`[Creative Analysis] ✅ Image analysis complete for ${ad.name}`);
             return result.text || null;
         }
 
+        console.log(`[Creative Analysis] No video or image found for ${ad.name}`);
         return null;
     } catch (error) {
-        console.error(`Failed to analyze creative for ad "${ad.name}":`, error);
+        console.error(`[Creative Analysis] ❌ Failed to analyze creative for ad "${ad.name}":`, error);
         return null; // Graceful fallback
     }
 }
