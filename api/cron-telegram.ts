@@ -138,6 +138,34 @@ async function analyzeAdCreative(ad: any, geminiApiKey: string, fbAccessToken: s
                     file: videoBlob
                 });
 
+                console.log(`[Creative Analysis] Waiting for file to be processed for ${ad.name}...`);
+                // Wait for file to be ACTIVE (poll status)
+                let fileReady = false;
+                let attempts = 0;
+                const maxAttempts = 10; // Max 10 seconds
+
+                while (!fileReady && attempts < maxAttempts) {
+                    await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
+
+                    try {
+                        const fileStatus = await genAI.files.get({ name: uploadResult.name });
+                        if (fileStatus.state === 'ACTIVE') {
+                            fileReady = true;
+                            console.log(`[Creative Analysis] File ready for ${ad.name} after ${attempts + 1}s`);
+                        }
+                    } catch (err) {
+                        console.log(`[Creative Analysis] File status check failed, attempt ${attempts + 1}`);
+                    }
+
+                    attempts++;
+                }
+
+                if (!fileReady) {
+                    console.log(`[Creative Analysis] File not ready after ${maxAttempts}s for ${ad.name}, skipping...`);
+                    await genAI.files.delete({ name: uploadResult.name });
+                    return null;
+                }
+
                 console.log(`[Creative Analysis] Analyzing video with Gemini 2.0 Flash for ${ad.name}...`);
                 // Analyze video
                 const prompt = `Tonton video iklan ini (ROAS ${ad.roas.toFixed(2)}x).
