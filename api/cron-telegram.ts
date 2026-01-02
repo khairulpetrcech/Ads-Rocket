@@ -116,18 +116,13 @@ async function analyzeAdCreative(ad: any, geminiApiKey: string, fbAccessToken: s
                     const imageBuffer = await imageResponse.arrayBuffer();
                     const base64Image = Buffer.from(imageBuffer).toString('base64');
 
-                    const prompt = `Kau seorang pakar Meta Ads Malaysia. Analisa thumbnail video iklan ini yang mencapai ROAS ${ad.roas.toFixed(2)}x.
+                    const prompt = `Analisa thumbnail video iklan ini (ROAS ${ad.roas.toFixed(2)}x).
 
-Iklan: "${ad.name}"
-Performance: RM${ad.spend.toFixed(2)} spend, ${ad.purchases} purchases
+Dalam MAKSIMUM 2 ayat sahaja, nyatakan kenapa visual ni menarik:
+- Hook visual pertama
+- Elemen yang standout
 
-Berdasarkan thumbnail video ini, analisa elemen visual yang buatkan iklan ni WIN:
-1. Visual Hook (first impression)
-2. Warna & Composition
-3. Text Overlay (jika ada)
-4. Overall Appeal
-
-Jawab dalam 3-4 ayat pendek, Bahasa Malaysia.`;
+PENTING: MESTI 2 ayat sahaja, Bahasa Malaysia ringkas.`;
 
                     const result = await genAI.models.generateContent({
                         model: 'gemini-2.0-flash-exp',
@@ -197,18 +192,13 @@ Jawab dalam 4-5 ayat pendek, Bahasa Malaysia.`;
 
             console.log(`[Creative Analysis] Analyzing image with Gemini 2.0 Flash for ${ad.name}...`);
             // Analyze image
-            const prompt = `Kau seorang pakar Meta Ads Malaysia. Analisa poster iklan ini yang mencapai ROAS ${ad.roas.toFixed(2)}x.
+            const prompt = `Analisa poster iklan ini (ROAS ${ad.roas.toFixed(2)}x).
 
-Iklan: "${ad.name}"
-Performance: RM${ad.spend.toFixed(2)} spend, ${ad.purchases} purchases
+Dalam MAKSIMUM 2 ayat sahaja, nyatakan kenapa visual ni menarik:
+- Design & warna
+- Messaging yang standout
 
-Analisa elemen visual yang buatkan iklan ni WIN:
-1. Warna & Design
-2. Text & Messaging
-3. Call-to-Action
-4. Target Audience Appeal
-
-Jawab dalam 3-4 ayat pendek, Bahasa Malaysia.`;
+PENTING: MESTI 2 ayat sahaja, Bahasa Malaysia ringkas.`;
 
             const result = await genAI.models.generateContent({
                 model: 'gemini-2.0-flash-exp',  // Latest multimodal model (Jan 2026)
