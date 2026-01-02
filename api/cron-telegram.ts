@@ -177,7 +177,7 @@ Dalam MAKSIMUM 2 ayat sahaja, nyatakan kenapa video ni menarik:
 PENTING: MESTI 2 ayat sahaja, Bahasa Malaysia ringkas.`;
 
                 const result = await genAI.models.generateContent({
-                    model: 'gemini-2.0-flash-exp',  // Latest multimodal model (Jan 2026)
+                    model: 'gemini-3-pro-preview',  // Gemini 3 Pro - Latest Pro model (Jan 2026)
                     contents: [
                         { text: prompt },
                         { fileData: { fileUri: uploadResult.uri, mimeType: 'video/mp4' } }
@@ -289,7 +289,7 @@ Dalam MAKSIMUM 2 ayat sahaja, nyatakan kenapa visual ni menarik:
 PENTING: MESTI 2 ayat sahaja, Bahasa Malaysia ringkas.`;
 
             const result = await genAI.models.generateContent({
-                model: 'gemini-2.0-flash-exp',  // Latest multimodal model (Jan 2026)
+                model: 'gemini-3-pro-preview',  // Gemini 3 Pro - Latest Pro model (Jan 2026)
                 contents: [
                     { text: prompt },
                     { inlineData: { mimeType: 'image/jpeg', data: base64Image } }
@@ -445,7 +445,7 @@ PENTING: Guna format Markdown Telegram (*bold* untuk tajuk). Jangan tambah intro
     const videoAnalysisCount = creativeAnalyses.length;
     const estimatedCost = (videoAnalysisCount * 0.002).toFixed(4); // ~$0.002 per video analysis
 
-    finalMessage += `\n\n---\n_AI Model: Gemini 2.0 Flash Experimental_\n_Estimated Cost: ~$${estimatedCost} (${videoAnalysisCount} video analysis)_`;
+    finalMessage += `\n\n---\n_AI Model: Gemini 3 Pro (Preview)_\n_Estimated Cost: ~$${estimatedCost} (${videoAnalysisCount} video analysis)_`;
 
     await sendTelegram(telegram_bot_token, telegram_chat_id, finalMessage);
 }
