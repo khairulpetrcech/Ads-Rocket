@@ -105,25 +105,27 @@ async function analyzeAdCreative(ad: any, geminiApiKey: string, fbAccessToken: s
             console.log(`[Creative Analysis] Video API response for ${ad.name}:`, JSON.stringify(videoData));
 
             if (!videoData.source) {
-                console.log(`[Creative Analysis] No video source URL for ${ad.name}. Trying image_url fallback...`);
+                console.log(`[Creative Analysis] No video source URL for ${ad.name}. Using thumbnail image instead...`);
 
-                // Fallback to image if video source unavailable
-                if (creative.image_url) {
-                    console.log(`[Creative Analysis] Using image fallback for ${ad.name}`);
-                    const imageResponse = await fetch(creative.image_url);
+                // Use video thumbnail from Meta API response
+                const thumbnailUrl = videoData.picture || creative.image_url;
+
+                if (thumbnailUrl) {
+                    console.log(`[Creative Analysis] Analyzing thumbnail image for ${ad.name}`);
+                    const imageResponse = await fetch(thumbnailUrl);
                     const imageBuffer = await imageResponse.arrayBuffer();
                     const base64Image = Buffer.from(imageBuffer).toString('base64');
 
-                    const prompt = `Kau seorang pakar Meta Ads Malaysia. Analisa poster iklan ini yang mencapai ROAS ${ad.roas.toFixed(2)}x.
+                    const prompt = `Kau seorang pakar Meta Ads Malaysia. Analisa thumbnail video iklan ini yang mencapai ROAS ${ad.roas.toFixed(2)}x.
 
 Iklan: "${ad.name}"
 Performance: RM${ad.spend.toFixed(2)} spend, ${ad.purchases} purchases
 
-Analisa elemen visual yang buatkan iklan ni WIN:
-1. Warna & Design
-2. Text & Messaging
-3. Call-to-Action
-4. Target Audience Appeal
+Berdasarkan thumbnail video ini, analisa elemen visual yang buatkan iklan ni WIN:
+1. Visual Hook (first impression)
+2. Warna & Composition
+3. Text Overlay (jika ada)
+4. Overall Appeal
 
 Jawab dalam 3-4 ayat pendek, Bahasa Malaysia.`;
 
@@ -135,7 +137,7 @@ Jawab dalam 3-4 ayat pendek, Bahasa Malaysia.`;
                         ]
                     });
 
-                    console.log(`[Creative Analysis] ✅ Image fallback analysis complete for ${ad.name}`);
+                    console.log(`[Creative Analysis] ✅ Thumbnail analysis complete for ${ad.name}`);
                     return result.text || null;
                 }
 
