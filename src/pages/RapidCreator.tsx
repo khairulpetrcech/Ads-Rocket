@@ -1192,37 +1192,41 @@ const RapidCreator: React.FC = () => {
                     {/* POSITION 1: Objective Selector */}
                     <div className="bg-white rounded-xl border border-slate-100 p-4 shadow-sm">
                         <label className="text-xs font-semibold text-slate-600 mb-2 block uppercase tracking-wide">Campaign Objective</label>
-                        <div className="grid grid-cols-2 gap-2">
+                        <div className="grid grid-cols-2 gap-4">
                             <button
                                 onClick={() => setCampaignObjective('SALES')}
-                                className={`flex flex-col items-center gap-2 py-3 rounded-lg font-semibold text-xs transition-all ${campaignObjective === 'SALES'
-                                    ? 'bg-slate-900 text-white shadow-sm'
-                                    : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+                                className={`relative flex flex-col items-center justify-center gap-3 py-6 px-4 rounded-xl border-2 transition-all duration-200 group ${campaignObjective === 'SALES'
+                                    ? 'bg-slate-900 border-slate-900 text-white shadow-lg shadow-slate-900/20'
+                                    : 'bg-white border-slate-100 text-slate-500 hover:border-slate-300 hover:bg-slate-50'
                                     }`}
                             >
-                                <ShoppingBag size={18} />
-                                Sales
+                                <div className={`p-3 rounded-full transition-colors ${campaignObjective === 'SALES' ? 'bg-white/10' : 'bg-slate-100 group-hover:bg-white'}`}>
+                                    <ShoppingBag size={24} strokeWidth={1.5} />
+                                </div>
+                                <span className="font-bold text-sm tracking-wide">Sales</span>
                             </button>
+
                             <div className="relative group">
                                 <button
                                     onClick={() => setCampaignObjective('LEAD')}
-                                    className={`w-full h-full flex flex-col items-center gap-2 py-3 rounded-lg font-semibold text-xs transition-all ${campaignObjective === 'LEAD'
-                                        ? 'bg-slate-900 text-white shadow-sm'
-                                        : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+                                    className={`relative w-full flex flex-col items-center justify-center gap-3 py-6 px-4 rounded-xl border-2 transition-all duration-200 group ${campaignObjective === 'LEAD'
+                                        ? 'bg-slate-900 border-slate-900 text-white shadow-lg shadow-slate-900/20'
+                                        : 'bg-white border-slate-100 text-slate-500 hover:border-slate-300 hover:bg-slate-50'
                                         }`}
                                 >
-                                    <div className="flex items-center gap-1">
-                                        <MessageCircle size={18} />
-                                        <span className="relative">
-                                            Lead
-                                            <span className="absolute -top-2.5 -right-8 bg-yellow-400 text-slate-900 text-[8px] font-bold px-1.5 py-0.5 rounded-md shadow-sm border border-yellow-500/20 leading-none">
-                                                BETA
-                                            </span>
-                                        </span>
+                                    {/* Badge Positioned on Top Right of Button */}
+                                    <div className="absolute -top-3 -right-2 bg-gradient-to-r from-amber-400 to-orange-400 text-white text-[9px] font-extrabold px-2 py-0.5 rounded-full shadow-sm border border-white/20 tracking-wider">
+                                        BETA
                                     </div>
+
+                                    <div className={`p-3 rounded-full transition-colors ${campaignObjective === 'LEAD' ? 'bg-white/10' : 'bg-slate-100 group-hover:bg-white'}`}>
+                                        <MessageSquare size={24} strokeWidth={1.5} />
+                                    </div>
+                                    <span className="font-bold text-sm tracking-wide">Lead</span>
                                 </button>
+
                                 {/* Tooltip */}
-                                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1.5 bg-slate-800 text-white text-[10px] rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-10">
+                                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1.5 bg-slate-800 text-white text-[10px] rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-10 shadow-xl">
                                     Function in testing. Expect Unstable
                                     <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-800"></div>
                                 </div>
