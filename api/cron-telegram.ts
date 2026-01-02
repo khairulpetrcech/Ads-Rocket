@@ -104,7 +104,67 @@ async function analyzeAdCreative(ad: any, geminiApiKey: string, fbAccessToken: s
 
             console.log(`[Creative Analysis] Video API response for ${ad.name}:`, JSON.stringify(videoData));
 
-            if (!videoData.source) {
+            // Try to get video source URL through multiple methods
+            let videoSourceUrl = videoData.source;
+
+            // Method 1: Check if source is directly available
+            if (!videoSourceUrl && creative.effective_instagram_media_id) {
+                console.log(`[Creative Analysis] Trying Instagram media ID for ${ad.name}...`);
+                try {
+                    const igMediaUrl = `https://graph.facebook.com/v19.0/${creative.effective_instagram_media_id}?fields=media_url&access_token=${fbAccessToken}`;
+                    const igResponse = await fetch(igMediaUrl);
+                    const igData = await igResponse.json();
+                    if (igData.media_url) {
+                        videoSourceUrl = igData.media_url;
+                        console.log(`[Creative Analysis] Got video from Instagram media ID for ${ad.name}`);
+                    }
+                } catch (err) {
+                    console.log(`[Creative Analysis] Instagram media ID failed for ${ad.name}`);
+                }
+            }
+
+            // If we have video source URL, download and analyze it
+            if (videoSourceUrl) {
+                console.log(`[Creative Analysis] Downloading video for ${ad.name}...`);
+                const videoFileResponse = await fetch(videoSourceUrl);
+                const videoArrayBuffer = await videoFileResponse.arrayBuffer();
+
+                // Create Blob for upload
+                const videoBlob = new Blob([videoArrayBuffer], { type: 'video/mp4' });
+
+                console.log(`[Creative Analysis] Uploading video to Gemini for ${ad.name}...`);
+                // Upload to Gemini Files API
+                const uploadResult = await genAI.files.upload({
+                    file: videoBlob
+                });
+
+                console.log(`[Creative Analysis] Analyzing video with Gemini 2.0 Flash for ${ad.name}...`);
+                // Analyze video
+                const prompt = `Tonton video iklan ini (ROAS ${ad.roas.toFixed(2)}x).
+
+Dalam MAKSIMUM 2 ayat sahaja, nyatakan kenapa video ni menarik:
+- Hook video (3 saat pertama)
+- Audio & visual yang standout
+
+PENTING: MESTI 2 ayat sahaja, Bahasa Malaysia ringkas.`;
+
+                const result = await genAI.models.generateContent({
+                    model: 'gemini-2.0-flash-exp',  // Latest multimodal model (Jan 2026)
+                    contents: [
+                        { text: prompt },
+                        { fileData: { fileUri: uploadResult.uri, mimeType: 'video/mp4' } }
+                    ]
+                });
+
+                // Delete uploaded file
+                await genAI.files.delete({ name: uploadResult.name });
+
+                console.log(`[Creative Analysis] ✅ Video analysis complete for ${ad.name}`);
+                return result.text || null;
+            }
+
+            // Fallback to thumbnail if no video source available
+            if (!videoSourceUrl) {
                 console.log(`[Creative Analysis] No video source URL for ${ad.name}. Using thumbnail image instead...`);
 
                 // Use video thumbnail from Meta API response
@@ -259,7 +319,7 @@ async function processUserAnalysis(user: any, geminiApiKey: string) {
     }
 
     const insightsQuery = `insights.time_range(${timeRange}){spend,impressions,clicks,cpc,ctr,actions,action_values}`;
-    const creativeFields = 'creative{video_id,image_url,thumbnail_url,object_story_spec}';
+    const creativeFields = 'creative{video_id,image_url,thumbnail_url,effective_instagram_media_id,object_story_spec}';
     const fields = ['id', 'name', 'status', 'effective_status', insightsQuery, creativeFields].join(',');
     const filtering = encodeURIComponent(`[{"field":"effective_status","operator":"IN","value":["ACTIVE","PAUSED"]}]`);
 
