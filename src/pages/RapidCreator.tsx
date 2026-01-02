@@ -1312,6 +1312,33 @@ const RapidCreator: React.FC = () => {
                         </div>
                     </div>
 
+                    {/* Conditional: Website URL (Sales) or WhatsApp Number (Lead) */}
+                    {campaignObjective === 'SALES' ? (
+                        <div className="bg-white rounded-xl border border-slate-100 p-4 shadow-sm">
+                            <label className="text-xs font-semibold text-slate-600 mb-2 block uppercase tracking-wide">Website URL</label>
+                            <input type="url" value={destinationUrl} onChange={(e) => setDestinationUrl(e.target.value)} placeholder="https://..."
+                                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-blue-400 transition-colors" />
+                        </div>
+                    ) : (
+                        <div className="bg-white rounded-xl border border-slate-100 p-4 shadow-sm">
+                            <label className="text-xs font-semibold text-slate-600 mb-2 block uppercase tracking-wide">WhatsApp Number</label>
+                            <input type="tel" value={whatsappNumber} onChange={(e) => setWhatsappNumber(e.target.value)} placeholder="+60123456789"
+                                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-blue-400 transition-colors" />
+                        </div>
+                    )}
+
+                    {/* Pixel Selection (Both objectives) */}
+                    <div className="bg-white rounded-xl border border-slate-100 p-4 shadow-sm">
+                        <label className="text-xs font-semibold text-slate-600 mb-2 block uppercase tracking-wide">
+                            Pixel {campaignObjective === 'LEAD' && <span className="text-[10px] text-slate-400 normal-case">(Optional)</span>}
+                        </label>
+                        <select value={selectedPixelId} onChange={(e) => setSelectedPixelId(e.target.value)}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-blue-400 transition-colors appearance-none cursor-pointer">
+                            <option value="">Select pixel...</option>
+                            {pixels.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                        </select>
+                    </div>
+
                     {/* POSITION 4: Page Selection */}
                     <div className="bg-white rounded-xl border border-slate-100 p-4 shadow-sm">
                         <label className="text-xs font-semibold text-slate-600 mb-2 block uppercase tracking-wide">Facebook Page</label>
