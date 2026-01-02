@@ -97,13 +97,48 @@ async function analyzeAdCreative(ad: any, geminiApiKey: string, fbAccessToken: s
         // Check if video or image
         if (creative.video_id) {
             console.log(`[Creative Analysis] Video detected for ${ad.name}, video_id: ${creative.video_id}`);
-            // Fetch video URL from Meta
-            const videoUrl = `https://graph.facebook.com/v19.0/${creative.video_id}?fields=source&access_token=${fbAccessToken}`;
+            // Fetch video URL from Meta - try multiple fields
+            const videoUrl = `https://graph.facebook.com/v19.0/${creative.video_id}?fields=source,permalink_url,embed_html,picture&access_token=${fbAccessToken}`;
             const videoResponse = await fetch(videoUrl);
             const videoData = await videoResponse.json();
 
+            console.log(`[Creative Analysis] Video API response for ${ad.name}:`, JSON.stringify(videoData));
+
             if (!videoData.source) {
-                console.log(`[Creative Analysis] No video source URL for ${ad.name}`);
+                console.log(`[Creative Analysis] No video source URL for ${ad.name}. Trying image_url fallback...`);
+
+                // Fallback to image if video source unavailable
+                if (creative.image_url) {
+                    console.log(`[Creative Analysis] Using image fallback for ${ad.name}`);
+                    const imageResponse = await fetch(creative.image_url);
+                    const imageBuffer = await imageResponse.arrayBuffer();
+                    const base64Image = Buffer.from(imageBuffer).toString('base64');
+
+                    const prompt = `Kau seorang pakar Meta Ads Malaysia. Analisa poster iklan ini yang mencapai ROAS ${ad.roas.toFixed(2)}x.
+
+Iklan: "${ad.name}"
+Performance: RM${ad.spend.toFixed(2)} spend, ${ad.purchases} purchases
+
+Analisa elemen visual yang buatkan iklan ni WIN:
+1. Warna & Design
+2. Text & Messaging
+3. Call-to-Action
+4. Target Audience Appeal
+
+Jawab dalam 3-4 ayat pendek, Bahasa Malaysia.`;
+
+                    const result = await genAI.models.generateContent({
+                        model: 'gemini-2.0-flash-exp',
+                        contents: [
+                            { text: prompt },
+                            { inlineData: { mimeType: 'image/jpeg', data: base64Image } }
+                        ]
+                    });
+
+                    console.log(`[Creative Analysis] ✅ Image fallback analysis complete for ${ad.name}`);
+                    return result.text || null;
+                }
+
                 return null;
             }
 
