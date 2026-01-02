@@ -1195,7 +1195,7 @@ const RapidCreator: React.FC = () => {
                         <div className="grid grid-cols-2 gap-4">
                             <button
                                 onClick={() => setCampaignObjective('SALES')}
-                                className={`relative flex flex-col items-center justify-center gap-2 py-4 px-4 rounded-xl border-2 transition-all duration-200 group ${campaignObjective === 'SALES'
+                                className={`relative flex flex-col items-center justify-center gap-2 py-2 px-4 rounded-xl border-2 transition-all duration-200 group ${campaignObjective === 'SALES'
                                     ? 'bg-slate-900 border-slate-900 text-white shadow-lg shadow-slate-900/20'
                                     : 'bg-white border-slate-100 text-slate-500 hover:border-slate-300 hover:bg-slate-50'
                                     }`}
@@ -1209,7 +1209,7 @@ const RapidCreator: React.FC = () => {
                             <div className="relative group">
                                 <button
                                     onClick={() => setCampaignObjective('LEAD')}
-                                    className={`relative w-full flex flex-col items-center justify-center gap-2 py-4 px-4 rounded-xl border-2 transition-all duration-200 group ${campaignObjective === 'LEAD'
+                                    className={`relative w-full flex flex-col items-center justify-center gap-2 py-2 px-4 rounded-xl border-2 transition-all duration-200 group ${campaignObjective === 'LEAD'
                                         ? 'bg-slate-900 border-slate-900 text-white shadow-lg shadow-slate-900/20'
                                         : 'bg-white border-slate-100 text-slate-500 hover:border-slate-300 hover:bg-slate-50'
                                         }`}
