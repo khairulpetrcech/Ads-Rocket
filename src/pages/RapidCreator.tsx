@@ -1182,7 +1182,7 @@ const RapidCreator: React.FC = () => {
             <div className="flex gap-6 min-h-0 overflow-hidden pb-4">
 
                 {/* LEFT PANEL - Upload & Settings */}
-                <div className="w-80 flex-shrink-0 space-y-4 overflow-y-auto pr-2">
+                <div className="w-80 flex-shrink-0 space-y-2 overflow-y-auto pr-2">
                     {/* Header */}
                     <div>
                         <h2 className="text-lg font-bold text-slate-800 mb-1">Rapid Campaign</h2>
@@ -1190,39 +1190,39 @@ const RapidCreator: React.FC = () => {
                     </div>
 
                     {/* POSITION 1: Objective Selector */}
-                    <div className="bg-white rounded-xl border border-slate-100 p-4 shadow-sm">
-                        <label className="text-xs font-semibold text-slate-600 mb-2 block uppercase tracking-wide">Campaign Objective</label>
+                    <div className="bg-white rounded-xl border border-slate-100 p-3 shadow-sm">
+                        <label className="text-xs font-semibold text-slate-600 mb-1 block uppercase tracking-wide">Campaign Objective</label>
                         <div className="grid grid-cols-2 gap-4">
                             <button
                                 onClick={() => setCampaignObjective('SALES')}
-                                className={`relative flex flex-col items-center justify-center gap-2 py-2 px-4 rounded-xl border-2 transition-all duration-200 group ${campaignObjective === 'SALES'
+                                className={`relative flex flex-col items-center justify-center gap-1.5 py-1.5 px-3 rounded-xl border-2 transition-all duration-200 group ${campaignObjective === 'SALES'
                                     ? 'bg-slate-900 border-slate-900 text-white shadow-lg shadow-slate-900/20'
                                     : 'bg-white border-slate-100 text-slate-500 hover:border-slate-300 hover:bg-slate-50'
                                     }`}
                             >
-                                <div className={`p-3 rounded-full transition-colors ${campaignObjective === 'SALES' ? 'bg-white/10' : 'bg-slate-100 group-hover:bg-white'}`}>
-                                    <ShoppingBag size={24} strokeWidth={1.5} />
+                                <div className={`p-2 rounded-full transition-colors ${campaignObjective === 'SALES' ? 'bg-white/10' : 'bg-slate-100 group-hover:bg-white'}`}>
+                                    <ShoppingBag size={18} strokeWidth={1.5} />
                                 </div>
-                                <span className="font-bold text-sm tracking-wide">Sales</span>
+                                <span className="font-bold text-xs tracking-wide">Sales</span>
                             </button>
 
                             <div className="relative group">
                                 <button
                                     onClick={() => setCampaignObjective('LEAD')}
-                                    className={`relative w-full flex flex-col items-center justify-center gap-2 py-2 px-4 rounded-xl border-2 transition-all duration-200 group ${campaignObjective === 'LEAD'
+                                    className={`relative w-full flex flex-col items-center justify-center gap-1.5 py-1.5 px-3 rounded-xl border-2 transition-all duration-200 group ${campaignObjective === 'LEAD'
                                         ? 'bg-slate-900 border-slate-900 text-white shadow-lg shadow-slate-900/20'
                                         : 'bg-white border-slate-100 text-slate-500 hover:border-slate-300 hover:bg-slate-50'
                                         }`}
                                 >
                                     {/* Badge Positioned on Top Right of Button */}
-                                    <div className="absolute -top-3 -right-2 bg-gradient-to-r from-amber-400 to-orange-400 text-white text-[9px] font-extrabold px-2 py-0.5 rounded-full shadow-sm border border-white/20 tracking-wider">
+                                    <div className="absolute -top-2 -right-2 bg-gradient-to-r from-amber-400 to-orange-400 text-white text-[8px] font-extrabold px-1.5 py-0.5 rounded-full shadow-sm border border-white/20 tracking-wider">
                                         BETA
                                     </div>
 
-                                    <div className={`p-3 rounded-full transition-colors ${campaignObjective === 'LEAD' ? 'bg-white/10' : 'bg-slate-100 group-hover:bg-white'}`}>
-                                        <MessageSquare size={24} strokeWidth={1.5} />
+                                    <div className={`p-2 rounded-full transition-colors ${campaignObjective === 'LEAD' ? 'bg-white/10' : 'bg-slate-100 group-hover:bg-white'}`}>
+                                        <MessageSquare size={18} strokeWidth={1.5} />
                                     </div>
-                                    <span className="font-bold text-sm tracking-wide">Lead</span>
+                                    <span className="font-bold text-xs tracking-wide">Lead</span>
                                 </button>
 
                                 {/* Tooltip */}
@@ -1269,81 +1269,81 @@ const RapidCreator: React.FC = () => {
 
                     {/* POSITION 2: Conditional Settings Based on Objective */}
                     {/* Campaign Selection */}
-                    <div className="bg-white rounded-xl border border-slate-100 p-4 shadow-sm">
-                        <label className="text-xs font-semibold text-slate-600 mb-2 block uppercase tracking-wide">Campaign</label>
+                    <div className="bg-white rounded-xl border border-slate-100 p-3 shadow-sm">
+                        <label className="text-xs font-semibold text-slate-600 mb-1 block uppercase tracking-wide">Campaign</label>
                         <div className="flex items-center gap-2 mb-2">
                             <span className="w-2 h-2 rounded-full bg-green-500"></span>
                             <span className="text-[10px] font-medium text-green-600 bg-green-50 px-2 py-0.5 rounded-full">ABO</span>
                         </div>
                         <select value={selectedCampaignId} onChange={(e) => setSelectedCampaignId(e.target.value)}
-                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-blue-400 transition-colors appearance-none cursor-pointer">
+                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs outline-none focus:border-blue-400 transition-colors appearance-none cursor-pointer">
                             <option value="new">+ New Campaign</option>
                             {campaigns.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                         </select>
                         {selectedCampaignId === 'new' && (
                             <input type="text" value={newCampaignName} onChange={(e) => setNewCampaignName(e.target.value)} placeholder="Enter campaign name..."
-                                className="w-full mt-2 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-blue-400 transition-colors" />
+                                className="w-full mt-2 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs outline-none focus:border-blue-400 transition-colors" />
                         )}
                     </div>
 
                     {/* Ad Set Selection */}
-                    <div className="bg-white rounded-xl border border-slate-100 p-4 shadow-sm">
-                        <label className="text-xs font-semibold text-slate-600 mb-2 block uppercase tracking-wide">Ad Set</label>
+                    <div className="bg-white rounded-xl border border-slate-100 p-3 shadow-sm">
+                        <label className="text-xs font-semibold text-slate-600 mb-1 block uppercase tracking-wide">Ad Set</label>
                         <select value={selectedExistingAdSetId} onChange={(e) => handleExistingAdSetSelect(e.target.value)}
-                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-blue-400 transition-colors appearance-none cursor-pointer">
+                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs outline-none focus:border-blue-400 transition-colors appearance-none cursor-pointer">
                             <option value="new">• Create new ad sets</option>
                             {existingAdSets.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
                         </select>
                     </div>
 
                     {/* POSITION 3: Upload Creatives (Moved here) */}
-                    <div className="bg-white rounded-xl border border-slate-100 p-4 shadow-sm">
-                        <label className="text-xs font-semibold text-slate-600 mb-3 block uppercase tracking-wide">Upload Creatives</label>
+                    <div className="bg-white rounded-xl border border-slate-100 p-3 shadow-sm">
+                        <label className="text-xs font-semibold text-slate-600 mb-2 block uppercase tracking-wide">Upload Creatives</label>
                         <div onDragOver={(e) => e.preventDefault()} onDrop={handleFileDrop}
-                            className="border-2 border-dashed border-slate-200 rounded-xl p-6 text-center hover:border-blue-400 hover:bg-blue-50/30 transition-all cursor-pointer group">
+                            className="border-2 border-dashed border-slate-200 rounded-xl p-4 text-center hover:border-blue-400 hover:bg-blue-50/30 transition-all cursor-pointer group">
                             <input type="file" multiple accept="image/*,video/*" onChange={handleFileSelect} className="hidden" id="file-upload" />
                             <label htmlFor="file-upload" className="cursor-pointer">
-                                <div className="w-10 h-10 mx-auto mb-2 bg-blue-50 rounded-lg flex items-center justify-center group-hover:bg-blue-100 transition-colors">
-                                    <Upload className="text-blue-500" size={20} />
+                                <div className="w-8 h-8 mx-auto mb-1 bg-blue-50 rounded-lg flex items-center justify-center group-hover:bg-blue-100 transition-colors">
+                                    <Upload className="text-blue-500" size={16} />
                                 </div>
-                                <p className="text-sm font-semibold text-slate-700 mb-1">Click to upload</p>
-                                <p className="text-xs text-slate-400">or drag & drop files here</p>
+                                <p className="text-xs font-semibold text-slate-700 mb-0.5">Click to upload</p>
+                                <p className="text-[10px] text-slate-400">or drag & drop</p>
                             </label>
                         </div>
                     </div>
 
                     {/* Conditional: Website URL (Sales) or WhatsApp Number (Lead) */}
                     {campaignObjective === 'SALES' ? (
-                        <div className="bg-white rounded-xl border border-slate-100 p-4 shadow-sm">
-                            <label className="text-xs font-semibold text-slate-600 mb-2 block uppercase tracking-wide">Website URL</label>
+                        <div className="bg-white rounded-xl border border-slate-100 p-3 shadow-sm">
+                            <label className="text-xs font-semibold text-slate-600 mb-1 block uppercase tracking-wide">Website URL</label>
                             <input type="url" value={destinationUrl} onChange={(e) => setDestinationUrl(e.target.value)} placeholder="https://..."
-                                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-blue-400 transition-colors" />
+                                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs outline-none focus:border-blue-400 transition-colors" />
                         </div>
                     ) : (
-                        <div className="bg-white rounded-xl border border-slate-100 p-4 shadow-sm">
-                            <label className="text-xs font-semibold text-slate-600 mb-2 block uppercase tracking-wide">WhatsApp Number</label>
+                        <div className="bg-white rounded-xl border border-slate-100 p-3 shadow-sm">
+                            <label className="text-xs font-semibold text-slate-600 mb-1 block uppercase tracking-wide">WhatsApp Number</label>
                             <input type="tel" value={whatsappNumber} onChange={(e) => setWhatsappNumber(e.target.value)} placeholder="+60123456789"
-                                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-blue-400 transition-colors" />
+                                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs outline-none focus:border-blue-400 transition-colors" />
                         </div>
                     )}
 
                     {/* Pixel Selection (Both objectives) */}
-                    <div className="bg-white rounded-xl border border-slate-100 p-4 shadow-sm">
-                        <label className="text-xs font-semibold text-slate-600 mb-2 block uppercase tracking-wide">
+                    <div className="bg-white rounded-xl border border-slate-100 p-3 shadow-sm">
+                        <label className="text-xs font-semibold text-slate-600 mb-1 block uppercase tracking-wide">
                             Pixel {campaignObjective === 'LEAD' && <span className="text-[10px] text-slate-400 normal-case">(Optional)</span>}
                         </label>
                         <select value={selectedPixelId} onChange={(e) => setSelectedPixelId(e.target.value)}
-                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-blue-400 transition-colors appearance-none cursor-pointer">
+                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs outline-none focus:border-blue-400 transition-colors appearance-none cursor-pointer">
                             <option value="">Select pixel...</option>
                             {pixels.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                         </select>
                     </div>
 
                     {/* POSITION 4: Page Selection */}
-                    <div className="bg-white rounded-xl border border-slate-100 p-4 shadow-sm">
-                        <label className="text-xs font-semibold text-slate-600 mb-2 block uppercase tracking-wide">Facebook Page</label>
+                    <div className="bg-white rounded-xl border border-slate-100 p-3 shadow-sm">
+                        <label className="text-xs font-semibold text-slate-600 mb-1 block uppercase tracking-wide">Facebook Page</label>
                         <select value={selectedPageId} onChange={(e) => setSelectedPageId(e.target.value)}
-                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-blue-400 transition-colors appearance-none cursor-pointer">
+                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs outline-none focus:border-blue-400 transition-colors appearance-none cursor-pointer">
                             {pages.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                         </select>
                     </div>
