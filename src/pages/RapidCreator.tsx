@@ -1195,7 +1195,7 @@ const RapidCreator: React.FC = () => {
                         <div className="grid grid-cols-2 gap-4">
                             <button
                                 onClick={() => setCampaignObjective('SALES')}
-                                className={`relative flex flex-col items-center justify-center gap-3 py-6 px-4 rounded-xl border-2 transition-all duration-200 group ${campaignObjective === 'SALES'
+                                className={`relative flex flex-col items-center justify-center gap-2 py-4 px-4 rounded-xl border-2 transition-all duration-200 group ${campaignObjective === 'SALES'
                                     ? 'bg-slate-900 border-slate-900 text-white shadow-lg shadow-slate-900/20'
                                     : 'bg-white border-slate-100 text-slate-500 hover:border-slate-300 hover:bg-slate-50'
                                     }`}
@@ -1209,7 +1209,7 @@ const RapidCreator: React.FC = () => {
                             <div className="relative group">
                                 <button
                                     onClick={() => setCampaignObjective('LEAD')}
-                                    className={`relative w-full flex flex-col items-center justify-center gap-3 py-6 px-4 rounded-xl border-2 transition-all duration-200 group ${campaignObjective === 'LEAD'
+                                    className={`relative w-full flex flex-col items-center justify-center gap-2 py-4 px-4 rounded-xl border-2 transition-all duration-200 group ${campaignObjective === 'LEAD'
                                         ? 'bg-slate-900 border-slate-900 text-white shadow-lg shadow-slate-900/20'
                                         : 'bg-white border-slate-100 text-slate-500 hover:border-slate-300 hover:bg-slate-50'
                                         }`}
@@ -1296,34 +1296,7 @@ const RapidCreator: React.FC = () => {
                         </select>
                     </div>
 
-                    {/* Conditional: Website URL (Sales) or WhatsApp Number (Lead) */}
-                    {campaignObjective === 'SALES' ? (
-                        <div className="bg-white rounded-xl border border-slate-100 p-4 shadow-sm">
-                            <label className="text-xs font-semibold text-slate-600 mb-2 block uppercase tracking-wide">Website URL</label>
-                            <input type="url" value={destinationUrl} onChange={(e) => setDestinationUrl(e.target.value)} placeholder="https://..."
-                                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-blue-400 transition-colors" />
-                        </div>
-                    ) : (
-                        <div className="bg-white rounded-xl border border-slate-100 p-4 shadow-sm">
-                            <label className="text-xs font-semibold text-slate-600 mb-2 block uppercase tracking-wide">WhatsApp Number</label>
-                            <input type="tel" value={whatsappNumber} onChange={(e) => setWhatsappNumber(e.target.value)} placeholder="+60123456789"
-                                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-blue-400 transition-colors" />
-                        </div>
-                    )}
-
-                    {/* Pixel Selection (Both objectives) */}
-                    <div className="bg-white rounded-xl border border-slate-100 p-4 shadow-sm">
-                        <label className="text-xs font-semibold text-slate-600 mb-2 block uppercase tracking-wide">
-                            Pixel {campaignObjective === 'LEAD' && <span className="text-[10px] text-slate-400 normal-case">(Optional)</span>}
-                        </label>
-                        <select value={selectedPixelId} onChange={(e) => setSelectedPixelId(e.target.value)}
-                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-blue-400 transition-colors appearance-none cursor-pointer">
-                            <option value="">Select pixel...</option>
-                            {pixels.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                        </select>
-                    </div>
-
-                    {/* POSITION 3: Upload Creatives (FIXED) */}
+                    {/* POSITION 3: Upload Creatives (Moved here) */}
                     <div className="bg-white rounded-xl border border-slate-100 p-4 shadow-sm">
                         <label className="text-xs font-semibold text-slate-600 mb-3 block uppercase tracking-wide">Upload Creatives</label>
                         <div onDragOver={(e) => e.preventDefault()} onDrop={handleFileDrop}
