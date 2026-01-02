@@ -441,6 +441,12 @@ PENTING: Guna format Markdown Telegram (*bold* untuk tajuk). Jangan tambah intro
         finalMessage += `\n\n🎯 *Kenapa Iklan Win?*\n\n${creativeAnalyses.join('\n\n')}`;
     }
 
+    // Add AI model info and cost estimate
+    const videoAnalysisCount = creativeAnalyses.length;
+    const estimatedCost = (videoAnalysisCount * 0.002).toFixed(4); // ~$0.002 per video analysis
+
+    finalMessage += `\n\n---\n_AI Model: Gemini 2.0 Flash Experimental_\n_Estimated Cost: ~$${estimatedCost} (${videoAnalysisCount} video analysis)_`;
+
     await sendTelegram(telegram_bot_token, telegram_chat_id, finalMessage);
 }
 
