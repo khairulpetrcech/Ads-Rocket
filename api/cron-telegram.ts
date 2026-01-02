@@ -443,9 +443,12 @@ PENTING: Guna format Markdown Telegram (*bold* untuk tajuk). Jangan tambah intro
 
     // Add AI model info and cost estimate
     const videoAnalysisCount = creativeAnalyses.length;
-    const estimatedCost = (videoAnalysisCount * 0.002).toFixed(4); // ~$0.002 per video analysis
+    // Gemini 3 Pro: $2/1M input tokens, $12/1M output tokens
+    // Estimated: ~20K input tokens per video, ~150 output tokens
+    // Cost per video: (20000 * $2/1M) + (150 * $12/1M) ≈ $0.04 + $0.0018 ≈ $0.042
+    const estimatedCost = (videoAnalysisCount * 0.042).toFixed(3);
 
-    finalMessage += `\n\n---\n_AI Model: Gemini 3 Pro (Preview)_\n_Estimated Cost: ~$${estimatedCost} (${videoAnalysisCount} video analysis)_`;
+    finalMessage += `\n\n---\n_AI Model: Gemini 3 Pro (Preview)_\n_Estimated Cost: ~$${estimatedCost} (${videoAnalysisCount} video${videoAnalysisCount > 1 ? 's' : ''})_`;
 
     await sendTelegram(telegram_bot_token, telegram_chat_id, finalMessage);
 }
