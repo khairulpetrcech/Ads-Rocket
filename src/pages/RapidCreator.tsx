@@ -31,7 +31,7 @@ import { AdCampaign, AdSet, AdvantagePlusConfig } from '../types';
 import {
     Upload, Image as ImageIcon, Video, Trash2, X, Plus,
     Zap, Settings, Loader2, Edit2, Rocket, FileVideo, FileImage,
-    ChevronDown, Globe, FolderOpen, Copy, CheckCircle, ShoppingBag, MessageCircle
+    ChevronDown, Globe, FolderOpen, Copy, CheckCircle, ShoppingBag, MessageSquare
 } from 'lucide-react';
 
 // ============================================================
