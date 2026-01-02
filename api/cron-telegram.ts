@@ -213,7 +213,7 @@ Dalam MAKSIMUM 2 ayat sahaja, nyatakan kenapa visual ni menarik:
 PENTING: MESTI 2 ayat sahaja, Bahasa Malaysia ringkas.`;
 
                     const result = await genAI.models.generateContent({
-                        model: 'gemini-2.0-flash-exp',
+                        model: 'gemini-3-pro-preview',  // Gemini 3 Pro - Latest Pro model (Jan 2026)
                         contents: [
                             { text: prompt },
                             { inlineData: { mimeType: 'image/jpeg', data: base64Image } }
