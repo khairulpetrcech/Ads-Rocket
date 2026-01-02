@@ -1182,7 +1182,7 @@ const RapidCreator: React.FC = () => {
             <div className="flex gap-6 min-h-0 overflow-hidden pb-4">
 
                 {/* LEFT PANEL - Upload & Settings */}
-                <div className="w-80 flex-shrink-0 space-y-2 overflow-y-auto pr-2">
+                <div className="w-80 flex-shrink-0 space-y-2 overflow-y-auto overflow-x-hidden pr-2">
                     {/* Header */}
                     <div>
                         <h2 className="text-lg font-bold text-slate-800 mb-1">Rapid Campaign</h2>
