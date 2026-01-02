@@ -72,11 +72,76 @@ const Layout: React.FC = () => {
         }
     };
 
+    // Helper: Check and update comment rate limit (10 per 24 hours)
+    const checkCommentRateLimit = (commentCount: number): { allowed: boolean; remaining: number; resetTime: string } => {
+        const LIMIT = 10;
+        const WINDOW_MS = 24 * 60 * 60 * 1000; // 24 hours in ms
+
+        const now = Date.now();
+        const savedData = localStorage.getItem('ar_comment_rate_limit');
+        let rateData: { timestamps: number[] } = { timestamps: [] };
+
+        if (savedData) {
+            rateData = JSON.parse(savedData);
+            // Filter out timestamps older than 24 hours
+            rateData.timestamps = rateData.timestamps.filter(ts => now - ts < WINDOW_MS);
+        }
+
+        const currentCount = rateData.timestamps.length;
+        const remaining = LIMIT - currentCount;
+
+        // Calculate reset time (oldest timestamp + 24h)
+        let resetTime = '';
+        if (currentCount >= LIMIT && rateData.timestamps.length > 0) {
+            const oldestTs = Math.min(...rateData.timestamps);
+            const resetDate = new Date(oldestTs + WINDOW_MS);
+            resetTime = resetDate.toLocaleTimeString('ms-MY', { hour: '2-digit', minute: '2-digit' });
+        }
+
+        if (currentCount + commentCount > LIMIT) {
+            return { allowed: false, remaining, resetTime };
+        }
+
+        return { allowed: true, remaining: remaining - commentCount, resetTime };
+    };
+
+    const recordComments = (count: number) => {
+        const now = Date.now();
+        const savedData = localStorage.getItem('ar_comment_rate_limit');
+        let rateData: { timestamps: number[] } = { timestamps: [] };
+
+        if (savedData) {
+            rateData = JSON.parse(savedData);
+            // Filter out timestamps older than 24 hours
+            rateData.timestamps = rateData.timestamps.filter(ts => now - ts < 24 * 60 * 60 * 1000);
+        }
+
+        // Add new timestamps
+        for (let i = 0; i < count; i++) {
+            rateData.timestamps.push(now);
+        }
+
+        localStorage.setItem('ar_comment_rate_limit', JSON.stringify(rateData));
+    };
+
     const launchCommentSession = async (ad: Ad, template: CommentTemplate) => {
         if (!ad.creative.effective_object_story_id) return alert("Invalid Ad Post ID");
 
         const items = template.items || [];
         if (items.length === 0) return;
+
+        // Check rate limit before starting
+        const rateCheck = checkCommentRateLimit(items.length);
+        if (!rateCheck.allowed) {
+            alert(
+                `⚠️ Had limit komentar tercapai!\n\n` +
+                `Untuk mengelakkan spam detection oleh Meta, anda hanya boleh post maksimum 10 komen dalam 24 jam.\n\n` +
+                `Baki komen anda: ${rateCheck.remaining} komen\n` +
+                `Mahu post: ${items.length} komen\n\n` +
+                `${rateCheck.resetTime ? `Limit akan reset sekitar: ${rateCheck.resetTime}` : 'Sila cuba lagi kemudian.'}`
+            );
+            return;
+        }
 
         // Initialize Session
         setCommentSession({
@@ -104,6 +169,9 @@ const Layout: React.FC = () => {
                     settings.fbAccessToken
                 );
 
+                // Record this comment to rate limit tracker
+                recordComments(1);
+
                 // Delay logic
                 if (i < items.length - 1) {
                     const delayMs = Math.floor(Math.random() * 5000) + 10000; // 10-15s
@@ -117,7 +185,12 @@ const Layout: React.FC = () => {
             }
 
             // Complete
-            setCommentSession(prev => ({ ...prev, status: 'All comments posted successfully!', complete: true }));
+            const finalCheck = checkCommentRateLimit(0);
+            setCommentSession(prev => ({
+                ...prev,
+                status: `All comments posted! (${finalCheck.remaining} komen baki hari ini)`,
+                complete: true
+            }));
 
             // Save to published list in local storage (handled here globally)
             const savedPub = localStorage.getItem('ar_published_comments');
