@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AlertTriangle, RefreshCw, LogOut, CheckCircle, ArrowRight } from 'lucide-react';
 import { useSettings } from '../App';
+import { useToast } from '../contexts/ToastContext';
 import { initFacebookSdk, loginWithFacebook, getAdAccounts } from '../services/metaService';
 import { MetaAdAccount } from '../types';
 
@@ -11,8 +12,8 @@ const SYSTEM_APP_ID: string = '861724536220118';
 const ConnectPage: React.FC = () => {
   const navigate = useNavigate();
   const { settings, updateSettings, logout } = useSettings();
+  const { showToast } = useToast();
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
 
   const [step, setStep] = useState<1 | 2>(1);
   const [accounts, setAccounts] = useState<MetaAdAccount[]>([]);
@@ -44,7 +45,6 @@ const ConnectPage: React.FC = () => {
 
   const handleLogin = async () => {
     setLoading(true);
-    setError('');
 
     try {
       await initFacebookSdk(appIdToUse);
@@ -76,7 +76,7 @@ const ConnectPage: React.FC = () => {
         } else {
           console.warn("⚠️ Token exchange failed, using short-lived token:", responseText);
           // Show warning to user but continue
-          setError("Note: Using short-lived token (expires in ~1 hour). Long-lived exchange failed.");
+          showToast("Note: Using short-lived token (expires in ~1 hour). Long-lived exchange failed.", 'error');
         }
       } catch (exchangeErr) {
         console.warn("⚠️ Token exchange request failed, using short-lived token:", exchangeErr);
@@ -94,7 +94,7 @@ const ConnectPage: React.FC = () => {
       const adAccounts = await getAdAccounts(accessToken);
 
       if (adAccounts.length === 0) {
-        setError("No Ad Accounts found. Ensure you have admin access.");
+        showToast("No Ad Accounts found. Ensure you have admin access.", 'error');
         return;
       }
 
@@ -103,7 +103,7 @@ const ConnectPage: React.FC = () => {
       setStep(2);
 
     } catch (err: any) {
-      setError(typeof err === 'string' ? err : err.message || "Failed to connect.");
+      showToast(typeof err === 'string' ? err : err.message || "Failed to connect.", 'error');
     } finally {
       setLoading(false);
     }
@@ -180,12 +180,7 @@ const ConnectPage: React.FC = () => {
             Connect your Facebook Ads account to sync campaigns, analyze data, and manage creatives.
           </p>
 
-          {error && (
-            <div className="bg-red-50 border border-red-200 p-3 rounded-lg mb-6 text-red-600 text-sm flex items-start gap-2">
-              <AlertTriangle size={16} className="mt-0.5 flex-shrink-0" />
-              <span>{error}</span>
-            </div>
-          )}
+
 
           {step === 1 && (
             <button
