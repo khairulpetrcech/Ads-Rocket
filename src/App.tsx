@@ -15,6 +15,7 @@ import { UserSettings, AiProvider, GlobalProcess } from './types';
 import { initFacebookSdk, isSecureContext } from './services/metaService';
 import { Loader2, Key } from 'lucide-react';
 import { encryptKey, decryptKey } from './utils';
+import { ToastProvider } from './contexts/ToastContext';
 
 // Declare global augmentation for Window to include aistudio
 declare global {
@@ -329,34 +330,36 @@ const App: React.FC = () => {
 
   return (
     <AppContext.Provider value={{ settings, updateSettings, isAuthenticated, login, logout, loading, reselectApiKey, globalProcess, setGlobalProcess }}>
-      <HashRouter>
-        <Routes>
-          <Route path="/login" element={
-            isAuthenticated ? <Navigate to="/connect" replace /> : <LoginPage />
-          } />
+      <ToastProvider>
+        <HashRouter>
+          <Routes>
+            <Route path="/login" element={
+              isAuthenticated ? <Navigate to="/connect" replace /> : <LoginPage />
+            } />
 
-          <Route path="/admin" element={<AdminPage />} />
+            <Route path="/admin" element={<AdminPage />} />
 
-          <Route path="/connect" element={
-            isAuthenticated ? <ConnectPage /> : <Navigate to="/login" replace />
-          } />
+            <Route path="/connect" element={
+              isAuthenticated ? <ConnectPage /> : <Navigate to="/login" replace />
+            } />
 
-          <Route path="/" element={
-            isAuthenticated ? (
-              settings.isConnected ? <Layout /> : <Navigate to="/connect" replace />
-            ) : <Navigate to="/login" replace />
-          }>
-            <Route index element={<Dashboard />} />
-            <Route path="create-campaign" element={<CreateCampaign />} />
-            <Route path="rapid" element={<RapidCreator />} />
-            <Route path="epic-poster" element={<EpicPoster />} />
-            <Route path="comment-templates" element={<CommentTemplates />} />
-            <Route path="settings" element={<SettingsPage />} />
-          </Route>
+            <Route path="/" element={
+              isAuthenticated ? (
+                settings.isConnected ? <Layout /> : <Navigate to="/connect" replace />
+              ) : <Navigate to="/login" replace />
+            }>
+              <Route index element={<Dashboard />} />
+              <Route path="create-campaign" element={<CreateCampaign />} />
+              <Route path="rapid" element={<RapidCreator />} />
+              <Route path="epic-poster" element={<EpicPoster />} />
+              <Route path="comment-templates" element={<CommentTemplates />} />
+              <Route path="settings" element={<SettingsPage />} />
+            </Route>
 
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </HashRouter>
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </HashRouter>
+      </ToastProvider>
     </AppContext.Provider>
   );
 };
