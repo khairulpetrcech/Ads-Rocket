@@ -16,7 +16,7 @@ import { MOCK_CAMPAIGNS } from '../services/mockData';
 import {
     TrendingUp, DollarSign, MousePointer, Loader2, RefreshCw,
     Filter, Calendar, Briefcase, ChevronDown, ChevronRight, Image as ImageIcon,
-    Edit2, ExternalLink, MessageCircle, ShoppingCart, MessageSquarePlus, Send, X, Check, Layers, ArrowRight, ChevronLeft
+    Edit2, ExternalLink, MessageCircle, ShoppingCart, MessageSquarePlus, Send, X, Check, Layers, ArrowRight, ChevronLeft, Sparkles
 } from 'lucide-react';
 
 const formatMYR = (amount: number) => {
@@ -652,14 +652,15 @@ const Dashboard: React.FC = () => {
                             {loadingCampaigns ? 'Syncing...' : 'LIVE'}
                         </button>
                         {/* TELEGRAM AI ANALYSIS BUTTON */}
+                        {/* TELEGRAM AI ANALYSIS BUTTON (PREMIUM UI) */}
                         <button
                             onClick={handleSendToTelegram}
                             disabled={telegramSending}
                             title="Send AI Analysis to Telegram"
-                            className={`text-xs px-2 py-0.5 rounded-full font-bold flex items-center gap-1 transition-all shadow-sm border ${telegramSending ? 'bg-blue-100 text-blue-700 border-blue-200 cursor-wait' : 'bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100'}`}
+                            className={`text-[10px] px-3 py-1 rounded-full font-bold flex items-center gap-1.5 transition-all shadow-sm border uppercase tracking-wider ${telegramSending ? 'bg-indigo-50 text-indigo-400 border-indigo-100 cursor-wait' : 'bg-white text-indigo-600 border-indigo-200 hover:border-indigo-400 hover:text-indigo-700 hover:shadow-indigo-50'}`}
                         >
-                            {telegramSending ? <RefreshCw size={10} className="animate-spin" /> : <Send size={10} />}
-                            {telegramSending ? 'Sending...' : '📱 AI'}
+                            {telegramSending ? <RefreshCw size={12} className="animate-spin" /> : <Sparkles size={12} />}
+                            {telegramSending ? 'Analyzing...' : 'AI Analysis'}
                         </button>
                     </div>
                     <div className="flex items-center gap-2 text-slate-500 text-sm">
