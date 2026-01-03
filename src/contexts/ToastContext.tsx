@@ -28,18 +28,33 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return (
         <ToastContext.Provider value={{ showToast }}>
             {children}
-            {/* Toast Container - Fixed Bottom Right, Stacking Upwards */}
-            <div className="fixed bottom-6 right-6 z-[9999] flex flex-col gap-3 pointer-events-none">
-                {toasts.map((toast) => (
-                    <div key={toast.id} className="pointer-events-auto">
-                        <ToastItem
-                            id={toast.id}
-                            message={toast.message}
-                            type={toast.type}
-                            onClose={removeToast}
-                        />
-                    </div>
-                ))}
+            {/* Toast Container - Stacking Effect */}
+            <div className="fixed bottom-6 right-6 z-[9999] flex flex-col items-end pointer-events-none p-4">
+                {toasts.map((toast, index) => {
+                    // Stacking Logic: Make older toasts move up and scale down slightly? 
+                    // Or just simple overlap. User wants "berlapik" (layered).
+                    // We'll use a negative margin on subsequent items to pull them up.
+                    const isLast = index === toasts.length - 1;
+                    return (
+                        <div
+                            key={toast.id}
+                            className="pointer-events-auto transition-all duration-500 ease-out"
+                            style={{
+                                marginTop: index === 0 ? 0 : '-16px', // Overlap effect
+                                zIndex: index,
+                                transform: `scale(${1 - (toasts.length - 1 - index) * 0.05}) translateY(-${(toasts.length - 1 - index) * 4}px)`,
+                                opacity: 1 - (toasts.length - 1 - index) * 0.1
+                            }}
+                        >
+                            <ToastItem
+                                id={toast.id}
+                                message={toast.message}
+                                type={toast.type}
+                                onClose={removeToast}
+                            />
+                        </div>
+                    );
+                })}
             </div>
         </ToastContext.Provider>
     );

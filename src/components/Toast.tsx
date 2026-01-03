@@ -14,8 +14,8 @@ export const ToastItem: React.FC<ToastProps> = ({ id, message, type, onClose }) 
     useEffect(() => {
         const timer = setTimeout(() => {
             setIsExiting(true);
-            setTimeout(() => onClose(id), 300); // Wait for exit animation
-        }, 3000);
+            setTimeout(() => onClose(id), 700); // Wait for slower exit animation
+        }, 4000); // Increased duration by 1s (3000 -> 4000)
 
         return () => clearTimeout(timer);
     }, [id, onClose]);
@@ -23,9 +23,9 @@ export const ToastItem: React.FC<ToastProps> = ({ id, message, type, onClose }) 
     return (
         <div
             className={`
-                transition-all duration-300 ease-in-out transform
-                ${isExiting ? 'opacity-0 translate-x-10 scale-95' : 'opacity-100 translate-x-0 scale-100'}
-                animate-in slide-in-from-right-8 fade-in duration-300
+                transition-all duration-700 ease-out transform
+                ${isExiting ? 'opacity-0 translate-y-4 scale-95' : 'opacity-100 translate-y-0 scale-100'}
+                animate-in slide-in-from-right-8 fade-in duration-700
             `}
         >
             <div className="bg-white border border-slate-200 shadow-[0_8px_30px_rgb(0,0,0,0.12)] rounded-xl px-5 py-4 min-w-[320px] max-w-[400px] flex items-start gap-4 hover:shadow-xl transition-shadow cursor-pointer" onClick={() => { setIsExiting(true); setTimeout(() => onClose(id), 300); }}>
