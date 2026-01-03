@@ -107,100 +107,99 @@ const Settings: React.FC = () => {
       }
     }
 
-  }
 
-  showToast('Settings Saved Successfully', 'success');
-};
 
-const handleTestTelegram = async () => {
-  if (!localSettings.telegramBotToken || !localSettings.telegramChatId) {
-    setTelegramTestStatus({ msg: 'Please enter Bot Token and Chat ID', type: 'error' });
-    return;
-  }
-
-  setTestingTelegram(true);
-  setTelegramTestStatus(null);
-
-  try {
-    const response = await fetch('/api/send-telegram', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        chatId: localSettings.telegramChatId,
-        botToken: localSettings.telegramBotToken,
-        message: '✅ *Ads Rocket Connected!*\n\nYour Telegram integration is working correctly.'
-      })
-    });
-
-    const data = await response.json();
-
-    if (data.success) {
-      showToast('Test message sent! Check your Telegram.', 'success');
-    } else {
-      showToast(data.error || 'Failed to send message', 'error');
-    }
-  } catch (err: any) {
-    showToast(err.message || 'Connection failed', 'error');
-  } finally {
-    setTestingTelegram(false);
-  }
-};
-
-const handleExportData = () => {
-  const dataToExport = {
-    settings: localStorage.getItem('ar_settings'),
-    auth: localStorage.getItem('ar_auth'),
-    templates: localStorage.getItem('ar_templates'),
-    comment_templates: localStorage.getItem('ar_comment_templates'),
-    published_comments: localStorage.getItem('ar_published_comments'),
-    exportDate: new Date().toISOString(),
-    version: '2.0'
+    showToast('Settings Saved Successfully', 'success');
   };
 
-  const blob = new Blob([JSON.stringify(dataToExport, null, 2)], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = `AdsRocket_Backup_${new Date().toISOString().split('T')[0]}.json`;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-};
+  const handleTestTelegram = async () => {
+    if (!localSettings.telegramBotToken || !localSettings.telegramChatId) {
+      showToast('Please enter Bot Token and Chat ID', 'error');
+      return;
+    }
 
-const handleImportClick = () => {
-  fileInputRef.current?.click();
-};
+    setTestingTelegram(true);
+    setTestingTelegram(true);
 
-const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-  const file = e.target.files?.[0];
-  if (!file) return;
-
-  const reader = new FileReader();
-  reader.onload = (event) => {
     try {
-      const json = JSON.parse(event.target?.result as string);
-      if (!json.version) throw new Error("Invalid backup file format.");
-      if (json.settings) localStorage.setItem('ar_settings', json.settings);
-      if (json.auth) localStorage.setItem('ar_auth', json.auth);
-      if (json.templates) localStorage.setItem('ar_templates', json.templates);
-      if (json.comment_templates) localStorage.setItem('ar_comment_templates', json.comment_templates);
-      if (json.published_comments) localStorage.setItem('ar_published_comments', json.published_comments);
-      if (json.published_comments) localStorage.setItem('ar_published_comments', json.published_comments);
-      showToast('Data restored successfully! Reloading...', 'success');
-      setTimeout(() => {
-        window.location.reload();
-      }, 1500);
-    } catch (err) {
-      showToast('Failed to restore data. Invalid file.', 'error');
+      const response = await fetch('/api/send-telegram', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chatId: localSettings.telegramChatId,
+          botToken: localSettings.telegramBotToken,
+          message: '✅ *Ads Rocket Connected!*\n\nYour Telegram integration is working correctly.'
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        showToast('Test message sent! Check your Telegram.', 'success');
+      } else {
+        showToast(data.error || 'Failed to send message', 'error');
+      }
+    } catch (err: any) {
+      showToast(err.message || 'Connection failed', 'error');
+    } finally {
+      setTestingTelegram(false);
     }
   };
-  reader.readAsText(file);
-  e.target.value = '';
-};
 
-return (
-  <div className="max-w-3xl mx-auto pb-20 relative">
+  const handleExportData = () => {
+    const dataToExport = {
+      settings: localStorage.getItem('ar_settings'),
+      auth: localStorage.getItem('ar_auth'),
+      templates: localStorage.getItem('ar_templates'),
+      comment_templates: localStorage.getItem('ar_comment_templates'),
+      published_comments: localStorage.getItem('ar_published_comments'),
+      exportDate: new Date().toISOString(),
+      version: '2.0'
+    };
+
+    const blob = new Blob([JSON.stringify(dataToExport, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `AdsRocket_Backup_${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleImportClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const json = JSON.parse(event.target?.result as string);
+        if (!json.version) throw new Error("Invalid backup file format.");
+        if (json.settings) localStorage.setItem('ar_settings', json.settings);
+        if (json.auth) localStorage.setItem('ar_auth', json.auth);
+        if (json.templates) localStorage.setItem('ar_templates', json.templates);
+        if (json.comment_templates) localStorage.setItem('ar_comment_templates', json.comment_templates);
+        if (json.published_comments) localStorage.setItem('ar_published_comments', json.published_comments);
+        showToast('Data restored successfully! Reloading...', 'success');
+        setTimeout(() => {
+          window.location.reload();
+        }, 1500);
+      } catch (err) {
+        showToast('Failed to restore data. Invalid file.', 'error');
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
+
+  return (
     <div className="max-w-3xl mx-auto pb-20 relative">
+
 
       <h1 className="text-2xl font-bold text-slate-800 mb-8">Settings & Configuration</h1>
 
@@ -410,7 +409,7 @@ return (
 
       </div>
     </div>
-    );
+  );
 };
 
-    export default Settings;
+export default Settings;
