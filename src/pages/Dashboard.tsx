@@ -176,6 +176,31 @@ const CalendarPicker: React.FC<CalendarPickerProps> = ({ startDate, endDate, onC
     );
 };
 
+// --- TOAST COMPONENT ---
+const Toast = ({ message, type, onClose }: { message: string, type: 'success' | 'error', onClose: () => void }) => {
+    useEffect(() => {
+        const timer = setTimeout(onClose, 3000);
+        return () => clearTimeout(timer);
+    }, [onClose]);
+
+    return (
+        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[100] animate-in fade-in slide-in-from-top-4 duration-300">
+            <div className={`flex items-center gap-3 px-5 py-3 rounded-full shadow-2xl border ${type === 'success' ? 'bg-slate-900 border-slate-800 text-white' : 'bg-red-50 border-red-200 text-red-800'}`}>
+                {type === 'success' ? (
+                    <div className="bg-green-500 rounded-full p-1 text-slate-900">
+                        <Check size={12} strokeWidth={3} />
+                    </div>
+                ) : (
+                    <div className="bg-red-100 rounded-full p-1 text-red-600">
+                        <X size={12} strokeWidth={3} />
+                    </div>
+                )}
+                <span className="text-sm font-semibold">{message}</span>
+            </div>
+        </div>
+    );
+};
+
 // --- MAIN DASHBOARD ---
 
 type DateRange = 'today' | 'yesterday' | 'last_3d' | 'last_4d' | 'last_7d' | 'maximum' | 'custom';
@@ -260,7 +285,7 @@ const Dashboard: React.FC = () => {
             });
 
             const data = await response.json();
-            const data = await response.json();
+
             if (data.success) {
                 showToast(`Analisis AI dihantar ke Telegram! (${data.adsAnalyzed} iklan)`, 'success');
             } else {
