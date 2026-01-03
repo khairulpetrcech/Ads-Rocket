@@ -1,20 +1,20 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useSettings } from '../App';
+import { useToast } from '../contexts/ToastContext';
 import { AiProvider } from '../types';
-import { Save, Key, Shield, Info, RefreshCw, Server, Eye, EyeOff, Download, Upload, FileJson, CheckCircle, AlertTriangle, Send } from 'lucide-react';
+import { Save, Key, Shield, Info, RefreshCw, Server, Eye, EyeOff, Download, Upload, FileJson, Send } from 'lucide-react';
 import { getAvailableModels } from '../services/aiService';
 import { getPages, getPixels } from '../services/metaService';
 
 const Settings: React.FC = () => {
   const { settings, updateSettings } = useSettings();
+  const { showToast } = useToast();
   const [localSettings, setLocalSettings] = useState(settings);
-  const [saved, setSaved] = useState(false);
   const [loadingModels, setLoadingModels] = useState(false);
   const [availableModels, setAvailableModels] = useState<string[]>([]);
   const [showKey, setShowKey] = useState(false);
   const [showTelegramToken, setShowTelegramToken] = useState(false);
-  const [importStatus, setImportStatus] = useState<{ msg: string, type: 'success' | 'error' } | null>(null);
-  const [telegramTestStatus, setTelegramTestStatus] = useState<{ msg: string, type: 'success' | 'error' } | null>(null);
+  const [testingTelegram, setTestingTelegram] = useState(false);
   const [testingTelegram, setTestingTelegram] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [fbPages, setFbPages] = useState<{ id: string; name: string }[]>([]);
@@ -108,106 +108,100 @@ const Settings: React.FC = () => {
       }
     }
 
-    setSaved(true);
-    setTimeout(() => setSaved(false), 3000);
+  }
+
+  showToast('Settings Saved Successfully', 'success');
+};
+
+const handleTestTelegram = async () => {
+  if (!localSettings.telegramBotToken || !localSettings.telegramChatId) {
+    setTelegramTestStatus({ msg: 'Please enter Bot Token and Chat ID', type: 'error' });
+    return;
+  }
+
+  setTestingTelegram(true);
+  setTelegramTestStatus(null);
+
+  try {
+    const response = await fetch('/api/send-telegram', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chatId: localSettings.telegramChatId,
+        botToken: localSettings.telegramBotToken,
+        message: '✅ *Ads Rocket Connected!*\n\nYour Telegram integration is working correctly.'
+      })
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      showToast('Test message sent! Check your Telegram.', 'success');
+    } else {
+      showToast(data.error || 'Failed to send message', 'error');
+    }
+  } catch (err: any) {
+    showToast(err.message || 'Connection failed', 'error');
+  } finally {
+    setTestingTelegram(false);
+  }
+};
+
+const handleExportData = () => {
+  const dataToExport = {
+    settings: localStorage.getItem('ar_settings'),
+    auth: localStorage.getItem('ar_auth'),
+    templates: localStorage.getItem('ar_templates'),
+    comment_templates: localStorage.getItem('ar_comment_templates'),
+    published_comments: localStorage.getItem('ar_published_comments'),
+    exportDate: new Date().toISOString(),
+    version: '2.0'
   };
 
-  const handleTestTelegram = async () => {
-    if (!localSettings.telegramBotToken || !localSettings.telegramChatId) {
-      setTelegramTestStatus({ msg: 'Please enter Bot Token and Chat ID', type: 'error' });
-      return;
-    }
+  const blob = new Blob([JSON.stringify(dataToExport, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `AdsRocket_Backup_${new Date().toISOString().split('T')[0]}.json`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+};
 
-    setTestingTelegram(true);
-    setTelegramTestStatus(null);
+const handleImportClick = () => {
+  fileInputRef.current?.click();
+};
 
+const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const file = e.target.files?.[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = (event) => {
     try {
-      const response = await fetch('/api/send-telegram', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          chatId: localSettings.telegramChatId,
-          botToken: localSettings.telegramBotToken,
-          message: '✅ *Ads Rocket Connected!*\n\nYour Telegram integration is working correctly.'
-        })
-      });
-
-      const data = await response.json();
-
-      if (data.success) {
-        setTelegramTestStatus({ msg: 'Test message sent! Check your Telegram.', type: 'success' });
-      } else {
-        setTelegramTestStatus({ msg: data.error || 'Failed to send message', type: 'error' });
-      }
-    } catch (err: any) {
-      setTelegramTestStatus({ msg: err.message || 'Connection failed', type: 'error' });
-    } finally {
-      setTestingTelegram(false);
+      const json = JSON.parse(event.target?.result as string);
+      if (!json.version) throw new Error("Invalid backup file format.");
+      if (json.settings) localStorage.setItem('ar_settings', json.settings);
+      if (json.auth) localStorage.setItem('ar_auth', json.auth);
+      if (json.templates) localStorage.setItem('ar_templates', json.templates);
+      if (json.comment_templates) localStorage.setItem('ar_comment_templates', json.comment_templates);
+      if (json.published_comments) localStorage.setItem('ar_published_comments', json.published_comments);
+      if (json.published_comments) localStorage.setItem('ar_published_comments', json.published_comments);
+      showToast('Data restored successfully! Reloading...', 'success');
+      setTimeout(() => {
+        window.location.reload();
+      }, 1500);
+    } catch (err) {
+      showToast('Failed to restore data. Invalid file.', 'error');
     }
   };
+  reader.readAsText(file);
+  e.target.value = '';
+};
 
-  const handleExportData = () => {
-    const dataToExport = {
-      settings: localStorage.getItem('ar_settings'),
-      auth: localStorage.getItem('ar_auth'),
-      templates: localStorage.getItem('ar_templates'),
-      comment_templates: localStorage.getItem('ar_comment_templates'),
-      published_comments: localStorage.getItem('ar_published_comments'),
-      exportDate: new Date().toISOString(),
-      version: '2.0'
-    };
-
-    const blob = new Blob([JSON.stringify(dataToExport, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `AdsRocket_Backup_${new Date().toISOString().split('T')[0]}.json`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
-  const handleImportClick = () => {
-    fileInputRef.current?.click();
-  };
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      try {
-        const json = JSON.parse(event.target?.result as string);
-        if (!json.version) throw new Error("Invalid backup file format.");
-        if (json.settings) localStorage.setItem('ar_settings', json.settings);
-        if (json.auth) localStorage.setItem('ar_auth', json.auth);
-        if (json.templates) localStorage.setItem('ar_templates', json.templates);
-        if (json.comment_templates) localStorage.setItem('ar_comment_templates', json.comment_templates);
-        if (json.published_comments) localStorage.setItem('ar_published_comments', json.published_comments);
-        setImportStatus({ msg: 'Data restored successfully! Reloading...', type: 'success' });
-        setTimeout(() => {
-          window.location.reload();
-        }, 1500);
-      } catch (err) {
-        setImportStatus({ msg: 'Failed to restore data. Invalid file.', type: 'error' });
-      }
-    };
-    reader.readAsText(file);
-    e.target.value = '';
-  };
-
-  return (
+return (
+  <div className="max-w-3xl mx-auto pb-20 relative">
     <div className="max-w-3xl mx-auto pb-20 relative">
-      {/* Toast Notification */}
-      {saved && (
-        <div className="fixed top-6 right-6 z-50 animate-slideIn">
-          <div className="bg-green-500 text-white px-6 py-4 rounded-xl shadow-2xl flex items-center gap-3 transform transition-all duration-300">
-            <CheckCircle size={20} />
-            <span className="font-semibold">Settings Saved!</span>
-          </div>
-        </div>
-      )}
 
       <h1 className="text-2xl font-bold text-slate-800 mb-8">Settings & Configuration</h1>
 
@@ -330,12 +324,7 @@ const Settings: React.FC = () => {
             </div>
           </div>
 
-          {importStatus && (
-            <div className={`mt-4 p-3 rounded-lg text-sm flex items-center gap-2 font-medium ${importStatus.type === 'success' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
-              {importStatus.type === 'success' ? <CheckCircle size={16} /> : <AlertTriangle size={16} />}
-              {importStatus.msg}
-            </div>
-          )}
+
         </div>
 
         {/* Telegram Integration */}
@@ -396,12 +385,7 @@ const Settings: React.FC = () => {
               )}
             </button>
 
-            {telegramTestStatus && (
-              <div className={`p-3 rounded-lg text-sm flex items-center gap-2 font-medium ${telegramTestStatus.type === 'success' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
-                {telegramTestStatus.type === 'success' ? <CheckCircle size={16} /> : <AlertTriangle size={16} />}
-                {telegramTestStatus.msg}
-              </div>
-            )}
+
           </div>
         </div>
 
@@ -420,13 +404,14 @@ const Settings: React.FC = () => {
             className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-lg font-bold transition-all shadow-md shadow-indigo-200 hover:shadow-lg transform hover:scale-[1.01]"
           >
             <Save size={18} />
-            {saved ? 'Changes Saved!' : 'Save Configuration'}
+            <Save size={18} />
+            Save Configuration
           </button>
         </div>
 
       </div>
     </div>
-  );
+    );
 };
 
-export default Settings;
+    export default Settings;
