@@ -184,18 +184,23 @@ const Toast = ({ message, type, onClose }: { message: string, type: 'success' | 
     }, [onClose]);
 
     return (
-        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[100] animate-in fade-in slide-in-from-top-4 duration-300">
-            <div className={`flex items-center gap-3 px-5 py-3 rounded-full shadow-2xl border ${type === 'success' ? 'bg-slate-900 border-slate-800 text-white' : 'bg-red-50 border-red-200 text-red-800'}`}>
+        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[100] animate-in fade-in slide-in-from-top-4 duration-500">
+            <div className={`flex items-center gap-3 pl-3 pr-5 py-2.5 rounded-full shadow-[0_8px_30px_rgb(0,0,0,0.12)] border backdrop-blur-xl transition-all ${type === 'success'
+                    ? 'bg-black/70 border-white/10 text-white'
+                    : 'bg-red-500/10 border-red-500/20 text-red-600'
+                }`}>
                 {type === 'success' ? (
-                    <div className="bg-green-500 rounded-full p-1 text-slate-900">
-                        <Check size={12} strokeWidth={3} />
+                    <div className="bg-green-500/20 backdrop-blur-md rounded-full p-1.5 text-green-400 border border-green-500/20">
+                        <Check size={14} strokeWidth={2.5} />
                     </div>
                 ) : (
-                    <div className="bg-red-100 rounded-full p-1 text-red-600">
-                        <X size={12} strokeWidth={3} />
+                    <div className="bg-red-500/20 backdrop-blur-md rounded-full p-1.5 text-red-500 border border-red-500/20">
+                        <X size={14} strokeWidth={2.5} />
                     </div>
                 )}
-                <span className="text-sm font-semibold">{message}</span>
+                <span className="text-[13px] font-medium tracking-wide antialiased">
+                    {message}
+                </span>
             </div>
         </div>
     );
