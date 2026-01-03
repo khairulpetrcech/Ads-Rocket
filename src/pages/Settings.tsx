@@ -15,7 +15,6 @@ const Settings: React.FC = () => {
   const [showKey, setShowKey] = useState(false);
   const [showTelegramToken, setShowTelegramToken] = useState(false);
   const [testingTelegram, setTestingTelegram] = useState(false);
-  const [testingTelegram, setTestingTelegram] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [fbPages, setFbPages] = useState<{ id: string; name: string }[]>([]);
   const [loadingPages, setLoadingPages] = useState(false);
