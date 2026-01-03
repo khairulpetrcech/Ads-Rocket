@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSettings } from '../App';
+import { useToast } from '../contexts/ToastContext';
 import {
     DndContext,
     DragEndEvent,
@@ -788,6 +789,7 @@ const AdSetSettingsDrawer: React.FC<{
 
 const RapidCreator: React.FC = () => {
     const { settings } = useSettings();
+    const { showToast } = useToast();
 
     // Campaign & AdSet Selection
     const [campaigns, setCampaigns] = useState<AdCampaign[]>([]);
@@ -819,7 +821,6 @@ const RapidCreator: React.FC = () => {
     const [activeId, setActiveId] = useState<string | null>(null);
     const [loadingData, setLoadingData] = useState(true);
     const [expandedAdSets, setExpandedAdSets] = useState<Set<string>>(new Set());
-    const [toastMessage, setToastMessage] = useState<string | null>(null);
 
     const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
@@ -1056,18 +1057,33 @@ const RapidCreator: React.FC = () => {
     // ============================================================
 
     const handleLaunchAds = async () => {
-        if (selectedCampaignId === 'new' && !newCampaignName.trim()) return alert('Please enter a campaign name');
-        if (!selectedPageId) return alert('Please select a Facebook Page');
+        if (selectedCampaignId === 'new' && !newCampaignName.trim()) {
+            showToast('Please enter a campaign name', 'error');
+            return;
+        }
+        if (!selectedPageId) {
+            showToast('Please select a Facebook Page', 'error');
+            return;
+        }
 
         // Conditional validation based on objective
         if (campaignObjective === 'SALES') {
-            if (!destinationUrl) return alert('Please enter a destination URL');
+            if (!destinationUrl) {
+                showToast('Please enter a destination URL', 'error');
+                return;
+            }
         } else {
-            if (!whatsappNumber) return alert('Please enter a WhatsApp number');
+            if (!whatsappNumber) {
+                showToast('Please enter a WhatsApp number', 'error');
+                return;
+            }
         }
 
         const groupedCreatives = creatives.filter(c => c.adsetId !== null);
-        if (groupedCreatives.length === 0) return alert('Please assign at least one creative to an ad set');
+        if (groupedCreatives.length === 0) {
+            showToast('Please assign at least one creative to an ad set', 'error');
+            return;
+        }
 
         setIsLaunching(true);
 
@@ -1128,7 +1144,7 @@ const RapidCreator: React.FC = () => {
                 }
             }
 
-            alert('🎉 All ads launched successfully!');
+            showToast('🎉 All ads launched successfully!', 'success');
             setCreatives([]);
             setAdSets([]);
             setNewCampaignName('');
@@ -1136,9 +1152,9 @@ const RapidCreator: React.FC = () => {
             console.error('Launch failed:', error);
             const errorMsg = error.message?.toLowerCase() || '';
             if (errorMsg.includes('session_expired') || errorMsg.includes('invalid oauth') || errorMsg.includes('access token')) {
-                alert('❌ Session expired! Please reconnect your Meta account in Settings.');
+                showToast('❌ Session expired! Please reconnect your Meta account in Settings.', 'error');
             } else {
-                alert(`Failed: ${error.message}`);
+                showToast(`Failed: ${error.message}`, 'error');
             }
         } finally {
             setIsLaunching(false);
@@ -1467,10 +1483,7 @@ const RapidCreator: React.FC = () => {
                 onClose={() => setEditingCreativeId(null)}
                 onSave={(updates) => { if (editingCreativeId) updateCreative(editingCreativeId, updates); }}
                 allCreatives={creatives}
-                onShowToast={(msg) => {
-                    setToastMessage(msg);
-                    setTimeout(() => setToastMessage(null), 2500);
-                }}
+                onShowToast={(msg) => showToast(msg, 'success')}
             />
 
             <AdSetSettingsDrawer
@@ -1479,18 +1492,6 @@ const RapidCreator: React.FC = () => {
                 onClose={() => setEditingAdSetId(null)}
                 onSave={(updates) => { if (editingAdSetId) updateAdSet(editingAdSetId, updates); }}
             />
-
-            {/* Premium Toast Notification */}
-            {toastMessage && (
-                <div className="fixed bottom-6 right-6 z-50 animate-fadeIn">
-                    <div className="bg-slate-900 border border-slate-800 text-white px-6 py-4 rounded-xl shadow-xl flex items-center gap-3">
-                        <div className="w-8 h-8 bg-white/10 rounded-full flex items-center justify-center">
-                            <CheckCircle size={18} className="text-white" />
-                        </div>
-                        <span className="font-semibold text-sm tracking-wide">{toastMessage}</span>
-                    </div>
-                </div>
-            )}
 
             {/* Drag Overlay with smooth animation */}
             <DragOverlay dropAnimation={{
