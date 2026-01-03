@@ -228,14 +228,21 @@ const Dashboard: React.FC = () => {
     // Telegram AI Alert State
     const [telegramSending, setTelegramSending] = useState(false);
 
+    // Toast State
+    const [toast, setToast] = useState<{ message: string, type: 'success' | 'error' } | null>(null);
+
+    const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+        setToast({ message, type });
+    };
+
     const handleSendToTelegram = async () => {
         if (!settings.telegramBotToken || !settings.telegramChatId) {
-            alert('Telegram not configured. Go to Settings → Telegram Integration');
+            showToast('Telegram not configured. Go to Settings.', 'error');
             return;
         }
 
         if (!settings.adAccountId || !settings.fbAccessToken) {
-            alert('Please connect your Meta Ads account first.');
+            showToast('Please connect your Meta Ads account first.', 'error');
             return;
         }
 
@@ -253,13 +260,14 @@ const Dashboard: React.FC = () => {
             });
 
             const data = await response.json();
+            const data = await response.json();
             if (data.success) {
-                alert(`✅ Analisis AI dihantar ke Telegram! (${data.adsAnalyzed} iklan dianalisa)`);
+                showToast(`Analisis AI dihantar ke Telegram! (${data.adsAnalyzed} iklan)`, 'success');
             } else {
-                alert(`Failed: ${data.error || 'Unknown error'}`);
+                showToast(`Failed: ${data.error || 'Unknown error'}`, 'error');
             }
         } catch (err: any) {
-            alert(`Error: ${err.message}`);
+            showToast(`Error: ${err.message}`, 'error');
         } finally {
             setTelegramSending(false);
         }
@@ -637,6 +645,7 @@ const Dashboard: React.FC = () => {
 
     return (
         <div className="space-y-6 relative">
+            {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
             {/* Header & Controls */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-2">
