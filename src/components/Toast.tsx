@@ -23,10 +23,14 @@ export const ToastItem: React.FC<ToastProps> = ({ id, message, type, onClose }) 
     return (
         <div
             className={`
-                transition-all duration-[1200ms] ease-out transform
+                transition-all ease-out transform
                 ${isExiting ? 'opacity-0 translate-y-4 scale-95' : 'opacity-100 translate-y-0 scale-100'}
-                animate-in slide-in-from-left-12 fade-in duration-[1200ms]
+                animate-in slide-in-from-left-48 fade-in
             `}
+            style={{
+                animationDuration: '1500ms',
+                transitionDuration: '1500ms'
+            }}
         >
             <div className="bg-white border border-slate-200 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.3)] rounded-xl px-5 py-4 min-w-[320px] max-w-[400px] flex items-start gap-4 hover:shadow-2xl transition-shadow cursor-pointer" onClick={() => { setIsExiting(true); setTimeout(() => onClose(id), 700); }}>
                 <div className={`mt-0.5 ${type === 'success' ? 'text-emerald-500' : 'text-red-500'}`}>
