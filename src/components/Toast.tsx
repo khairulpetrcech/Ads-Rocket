@@ -10,27 +10,37 @@ export interface ToastProps {
 
 export const ToastItem: React.FC<ToastProps> = ({ id, message, type, onClose }) => {
     const [isExiting, setIsExiting] = useState(false);
+    const [isVisible, setIsVisible] = useState(false); // For Enter Animation
 
     useEffect(() => {
-        const timer = setTimeout(() => {
-            setIsExiting(true);
-            setTimeout(() => onClose(id), 700); // Wait for slower exit animation
-        }, 4000); // Increased duration by 1s (3000 -> 4000)
+        // Trigger Enter Animation (Left to Right)
+        const enterTimer = setTimeout(() => {
+            setIsVisible(true);
+        }, 50);
 
-        return () => clearTimeout(timer);
+        // Auto Close Timer
+        const closeTimer = setTimeout(() => {
+            setIsExiting(true);
+            setTimeout(() => onClose(id), 1000); // Exit duration
+        }, 5000); // Stay for 5s
+
+        return () => {
+            clearTimeout(enterTimer);
+            clearTimeout(closeTimer);
+        };
     }, [id, onClose]);
 
     return (
         <div
             className={`
-                transition-all ease-out transform
-                ${isExiting ? 'opacity-0 translate-y-4 scale-95' : 'opacity-100 translate-y-0 scale-100'}
-                animate-in slide-in-from-left-48 fade-in
+                transition-all duration-[2000ms] ease-out transform
+                ${isExiting
+                    ? 'opacity-0 translate-y-4 scale-95' // Exit State
+                    : isVisible
+                        ? 'opacity-100 translate-x-0 scale-100' // Active State
+                        : 'opacity-0 -translate-x-24 scale-95' // Enter Start State (From Left)
+                }
             `}
-            style={{
-                animationDuration: '1500ms',
-                transitionDuration: '1500ms'
-            }}
         >
             <div className="bg-white border border-slate-200 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.3)] rounded-xl px-5 py-4 min-w-[320px] max-w-[400px] flex items-start gap-4 hover:shadow-2xl transition-shadow cursor-pointer" onClick={() => { setIsExiting(true); setTimeout(() => onClose(id), 700); }}>
                 <div className={`mt-0.5 ${type === 'success' ? 'text-emerald-500' : 'text-red-500'}`}>
