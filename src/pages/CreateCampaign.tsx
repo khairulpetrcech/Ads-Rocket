@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useSettings } from '../App';
+import { useToast } from '../contexts/ToastContext';
 import {
     getRealCampaigns,
     getAdSets,
@@ -119,9 +120,8 @@ const ToggleSwitch = ({ checked, onChange, label, subtext }: { checked: boolean,
 // ============================================================
 const CreateCampaign: React.FC = () => {
     const { settings, globalProcess, setGlobalProcess } = useSettings();
+    const { showToast } = useToast();
     const [loading, setLoading] = useState(false);
-    const [error, setError] = useState('');
-    const [successMsg, setSuccessMsg] = useState('');
 
     const [templates, setTemplates] = useState<Template[]>([]);
     const [templateName, setTemplateName] = useState('');
@@ -354,7 +354,7 @@ const CreateCampaign: React.FC = () => {
     // TEMPLATE HANDLERS
     // ============================================================
     const handleSaveTemplate = () => {
-        if (!templateName) return alert("Enter a template name");
+        if (!templateName) { showToast("Enter a template name", 'error'); return; }
         let finalName = templateName;
         let counter = 1;
         while (templates.some(t => t.name === finalName)) {
@@ -404,34 +404,34 @@ const CreateCampaign: React.FC = () => {
     // VALIDATION & SUBMIT
     // ============================================================
     const validateForm = (): boolean => {
-        if (campaignMode === 'new' && !newCampaignName) { setError('Enter campaign name'); return false; }
-        if (campaignMode === 'existing' && !selectedCampaignId) { setError('Select a campaign'); return false; }
+        if (campaignMode === 'new' && !newCampaignName) { showToast('Enter campaign name', 'error'); return false; }
+        if (campaignMode === 'existing' && !selectedCampaignId) { showToast('Select a campaign', 'error'); return false; }
 
         if (adSetMode === 'new') {
             for (const adSet of adSets) {
-                if (!adSet.name) { setError('Enter Ad Set name for all Ad Sets'); return false; }
+                if (!adSet.name) { showToast('Enter Ad Set name for all Ad Sets', 'error'); return false; }
                 for (const ad of adSet.ads) {
-                    if (!ad.mediaFile) { setError('Upload media for all ads'); return false; }
-                    if (!ad.adName) { setError('Enter Ad name for all ads'); return false; }
-                    if (!ad.primaryText) { setError('Enter Primary Text for all ads'); return false; }
-                    if (!ad.headline) { setError('Enter Headline for all ads'); return false; }
-                    if (!ad.destinationUrl) { setError('Enter Destination URL for all ads'); return false; }
+                    if (!ad.mediaFile) { showToast('Upload media for all ads', 'error'); return false; }
+                    if (!ad.adName) { showToast('Enter Ad name for all ads', 'error'); return false; }
+                    if (!ad.primaryText) { showToast('Enter Primary Text for all ads', 'error'); return false; }
+                    if (!ad.headline) { showToast('Enter Headline for all ads', 'error'); return false; }
+                    if (!ad.destinationUrl) { showToast('Enter Destination URL for all ads', 'error'); return false; }
                 }
             }
         } else {
-            if (!selectedAdSetId) { setError('Select an Ad Set'); return false; }
+            if (!selectedAdSetId) { showToast('Select an Ad Set', 'error'); return false; }
             // For existing adset, validate ads in first adset
             const firstAdSet = adSets[0];
             for (const ad of firstAdSet.ads) {
-                if (!ad.mediaFile) { setError('Upload media for all ads'); return false; }
-                if (!ad.adName) { setError('Enter Ad name for all ads'); return false; }
-                if (!ad.primaryText) { setError('Enter Primary Text for all ads'); return false; }
-                if (!ad.headline) { setError('Enter Headline for all ads'); return false; }
-                if (!ad.destinationUrl) { setError('Enter Destination URL for all ads'); return false; }
+                if (!ad.mediaFile) { showToast('Upload media for all ads', 'error'); return false; }
+                if (!ad.adName) { showToast('Enter Ad name for all ads', 'error'); return false; }
+                if (!ad.primaryText) { showToast('Enter Primary Text for all ads', 'error'); return false; }
+                if (!ad.headline) { showToast('Enter Headline for all ads', 'error'); return false; }
+                if (!ad.destinationUrl) { showToast('Enter Destination URL for all ads', 'error'); return false; }
             }
         }
 
-        if (!selectedPageId) { setError('Select a Facebook Page'); return false; }
+        if (!selectedPageId) { showToast('Select a Facebook Page', 'error'); return false; }
         return true;
     };
 
@@ -440,12 +440,12 @@ const CreateCampaign: React.FC = () => {
 
         const now = Date.now();
         if (now - lastPublishTime.current < 5000) {
-            return setError("Please wait a few seconds before publishing again.");
+            showToast("Please wait a few seconds before publishing again.", 'error');
+            return;
         }
         lastPublishTime.current = now;
 
         setLoading(true);
-        setError('');
 
         setGlobalProcess({ active: true, name: "Creating Campaign...", message: "Initializing...", type: "CAMPAIGN_CREATION" });
 
@@ -511,7 +511,7 @@ const CreateCampaign: React.FC = () => {
                 }
             }
 
-            setSuccessMsg(`🎉 Campaign Created Successfully! (${totalAds} ads created)`);
+            showToast(`🎉 Campaign Created Successfully! (${totalAds} ads created)`, 'success');
             window.scrollTo(0, 0);
 
             // Log campaign to admin tracking
@@ -548,7 +548,7 @@ const CreateCampaign: React.FC = () => {
 
         } catch (e: any) {
             console.error(e);
-            setError(e.message || "Failed to create campaign.");
+            showToast(e.message || "Failed to create campaign.", 'error');
             window.scrollTo(0, 0);
             setGlobalProcess({ active: false, name: "", message: "", type: "NONE" });
         } finally {
@@ -755,20 +755,6 @@ const CreateCampaign: React.FC = () => {
                 </div>
             )}
 
-            {/* Alerts */}
-            {error && (
-                <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 flex items-center gap-3">
-                    <AlertTriangle size={20} className="text-red-500 flex-shrink-0" />
-                    <span className="text-sm">{error}</span>
-                </div>
-            )}
-
-            {successMsg && (
-                <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-xl text-green-700 flex items-center gap-3">
-                    <CheckCircle size={20} className="text-green-500" />
-                    <span className="font-medium">{successMsg}</span>
-                </div>
-            )}
 
             {/* Loading Overlay */}
             {loading && (
