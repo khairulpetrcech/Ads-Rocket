@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSettings } from '../App';
+import { useToast } from '../contexts/ToastContext';
 import { Zap, Loader2, LayoutTemplate, User, Lock, X } from 'lucide-react';
 
 // Hardcoded credentials
@@ -15,18 +16,17 @@ const ADMIN_PASSWORD = 'rocket@admin2024';
 const LoginPage: React.FC = () => {
   const navigate = useNavigate();
   const { login, updateSettings } = useSettings();
+  const { showToast } = useToast();
   const [loading, setLoading] = useState(false);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
   const [showTermsModal, setShowTermsModal] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
 
     if (!username.trim() || !password.trim()) {
-      setError('Please enter both username and password.');
+      showToast('Please enter both username and password.', 'error');
       return;
     }
 
@@ -42,7 +42,7 @@ const LoginPage: React.FC = () => {
 
     // Check for tester login
     if (username !== TESTER_USERNAME || password !== TESTER_PASSWORD) {
-      setError('Invalid username or password.');
+      showToast('Invalid username or password.', 'error');
       return;
     }
 
@@ -145,11 +145,7 @@ const LoginPage: React.FC = () => {
           </div>
 
           {/* Error Message */}
-          {error && (
-            <div className="bg-red-50 border border-red-200 text-red-600 text-sm p-3 rounded-lg">
-              {error}
-            </div>
-          )}
+
 
           {/* Terms and Conditions Link */}
           <div className="text-center pt-1">
