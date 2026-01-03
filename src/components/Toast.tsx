@@ -47,8 +47,8 @@ export const ToastItem: React.FC<ToastProps> = ({ id, message, type, onClose }) 
                     {type === 'success' ? <Check size={18} strokeWidth={2.5} /> : <X size={18} strokeWidth={2.5} />}
                 </div>
                 <div>
-                    <h4 className="text-sm font-bold text-slate-800 tracking-tight leading-none mb-1">{type === 'success' ? 'Success' : 'Attention'}</h4>
-                    <p className="text-xs text-slate-500 font-medium leading-relaxed">{message}</p>
+                    <h4 className="text-base font-bold text-slate-800 tracking-tight leading-none mb-1">{type === 'success' ? 'Success' : 'Attention'}</h4>
+                    <p className="text-sm text-slate-500 font-medium leading-relaxed">{message}</p>
                 </div>
             </div>
         </div>
