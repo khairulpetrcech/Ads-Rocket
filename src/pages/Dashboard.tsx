@@ -670,8 +670,9 @@ const Dashboard: React.FC = () => {
                         <div className="flex bg-slate-100 rounded-lg p-1 mr-4">
                             <button onClick={() => {
                                 showToast('Generating analysis...', 'success');
-                                setTimeout(() => showToast('AI Analysis Complete!', 'success'), 800);
-                                setTimeout(() => showToast('Telegram Sent Successfully', 'success'), 1600);
+                                setTimeout(() => showToast('AI Analysis Complete!', 'success'), 1200); // Delayed to let first one settle
+                                setTimeout(() => showToast('Failed to sync to database', 'error'), 2500); // Error case
+                                setTimeout(() => showToast('Telegram Sent Successfully', 'success'), 4000);
                             }} className="px-2 py-0.5 text-[10px] font-bold hover:bg-white rounded hover:shadow-sm transition-all text-indigo-600">Test Stacking</button>
                         </div>
 

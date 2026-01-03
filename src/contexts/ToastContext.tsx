@@ -38,12 +38,15 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                     return (
                         <div
                             key={toast.id}
-                            className="pointer-events-auto transition-all duration-500 ease-out"
+                            className="pointer-events-auto transition-all duration-700 ease-out"
                             style={{
-                                marginTop: index === 0 ? 0 : '-16px', // Overlap effect
+                                marginTop: index === 0 ? 0 : '-48px', // Tighter overlap (was -16px)
                                 zIndex: index,
-                                transform: `scale(${1 - (toasts.length - 1 - index) * 0.05}) translateY(-${(toasts.length - 1 - index) * 4}px)`,
-                                opacity: 1 - (toasts.length - 1 - index) * 0.1
+                                // Stack visually: each card moves down slightly to show the top edge of the one behind? 
+                                // No, usually stack means new one on top/bottom. 
+                                // Let's make the previous ones scale down and just peek out.
+                                transform: `scale(${1 - (toasts.length - 1 - index) * 0.05}) translateY(-${(toasts.length - 1 - index) * 12}px)`,
+                                opacity: 1 - (toasts.length - 1 - index) * 0.2
                             }}
                         >
                             <ToastItem
