@@ -177,30 +177,58 @@ const CalendarPicker: React.FC<CalendarPickerProps> = ({ startDate, endDate, onC
 };
 
 // --- TOAST COMPONENT ---
-const Toast = ({ message, type, onClose }: { message: string, type: 'success' | 'error', onClose: () => void }) => {
+type ToastDesign = 'A' | 'B' | 'C';
+
+const Toast = ({ message, type, design, onClose }: { message: string, type: 'success' | 'error', design: ToastDesign, onClose: () => void }) => {
     useEffect(() => {
         const timer = setTimeout(onClose, 3000);
         return () => clearTimeout(timer);
     }, [onClose]);
 
+    // POSITION: Bottom Right (fixed bottom-6 right-6)
+
+    // DESIGN A: Modern Clean (Vercel Style) - Default
+    if (design === 'A') {
+        return (
+            <div className="fixed bottom-6 right-6 z-[100] animate-in slide-in-from-right-8 duration-300">
+                <div className="bg-white border border-slate-200 shadow-[0_4px_12px_rgba(0,0,0,0.08)] rounded-xl px-5 py-4 min-w-[300px] flex items-start gap-4">
+                    <div className={type === 'success' ? 'text-emerald-500' : 'text-red-500'}>
+                        {type === 'success' ? <Check size={20} /> : <X size={20} />}
+                    </div>
+                    <div>
+                        <h4 className="text-sm font-bold text-slate-800 tracking-tight">{type === 'success' ? 'Success' : 'Error'}</h4>
+                        <p className="text-xs text-slate-500 mt-0.5 font-medium leading-relaxed">{message}</p>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    // DESIGN B: Glassmorphism (Premium Dark)
+    if (design === 'B') {
+        return (
+            <div className="fixed bottom-6 right-6 z-[100] animate-in slide-in-from-bottom-8 duration-500">
+                <div className="bg-slate-900/90 backdrop-blur-md border border-white/10 shadow-2xl text-white flex items-center gap-4 px-5 py-3.5 rounded-full ring-1 ring-white/5">
+                    <div className={`p-1 rounded-full ${type === 'success' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}>
+                        {type === 'success' ? <Check size={14} strokeWidth={3} /> : <X size={14} strokeWidth={3} />}
+                    </div>
+                    <span className="text-[13px] font-medium tracking-wide antialiased pr-2">{message}</span>
+                </div>
+            </div>
+        );
+    }
+
+    // DESIGN C: Stripe (Corporate)
     return (
-        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[100] animate-in fade-in slide-in-from-top-4 duration-500">
-            <div className={`flex items-center gap-3 pl-3 pr-5 py-2.5 rounded-full shadow-[0_8px_30px_rgb(0,0,0,0.12)] border backdrop-blur-xl transition-all ${type === 'success'
-                    ? 'bg-black/70 border-white/10 text-white'
-                    : 'bg-red-500/10 border-red-500/20 text-red-600'
-                }`}>
-                {type === 'success' ? (
-                    <div className="bg-green-500/20 backdrop-blur-md rounded-full p-1.5 text-green-400 border border-green-500/20">
-                        <Check size={14} strokeWidth={2.5} />
-                    </div>
-                ) : (
-                    <div className="bg-red-500/20 backdrop-blur-md rounded-full p-1.5 text-red-500 border border-red-500/20">
-                        <X size={14} strokeWidth={2.5} />
-                    </div>
-                )}
-                <span className="text-[13px] font-medium tracking-wide antialiased">
-                    {message}
-                </span>
+        <div className="fixed bottom-6 right-6 z-[100] animate-in slide-in-from-right-8 duration-300">
+            <div className={`bg-white shadow-xl rounded-r-lg border-l-4 ${type === 'success' ? 'border-emerald-500' : 'border-red-500'} flex items-center p-4 min-w-[320px]`}>
+                <div className="flex-1">
+                    <p className={`text-sm font-bold ${type === 'success' ? 'text-emerald-700' : 'text-red-700'}`}>
+                        {type === 'success' ? 'System Notification' : 'System Error'}
+                    </p>
+                    <p className="text-xs text-slate-600 font-medium mt-0.5">{message}</p>
+                </div>
+                <button onClick={onClose} className="text-slate-400 hover:text-slate-600 pl-4"><X size={14} /></button>
             </div>
         </div>
     );
@@ -259,10 +287,11 @@ const Dashboard: React.FC = () => {
     const [telegramSending, setTelegramSending] = useState(false);
 
     // Toast State
-    const [toast, setToast] = useState<{ message: string, type: 'success' | 'error' } | null>(null);
+    const [toast, setToast] = useState<{ message: string, type: 'success' | 'error', design: ToastDesign } | null>(null);
 
-    const showToast = (message: string, type: 'success' | 'error' = 'success') => {
-        setToast({ message, type });
+    // Default design to B (Glass) initially, but allow override
+    const showToast = (message: string, type: 'success' | 'error' = 'success', design: ToastDesign = 'B') => {
+        setToast({ message, type, design });
     };
 
     const handleSendToTelegram = async () => {
@@ -675,7 +704,7 @@ const Dashboard: React.FC = () => {
 
     return (
         <div className="space-y-6 relative">
-            {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+            {toast && <Toast message={toast.message} type={toast.type} design={toast.design} onClose={() => setToast(null)} />}
 
             {/* Header & Controls */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-2">
@@ -703,6 +732,13 @@ const Dashboard: React.FC = () => {
                         </button>
                     </div>
                     <div className="flex items-center gap-2 text-slate-500 text-sm">
+                        {/* PREVIEW BUTTONS FOR TOAST DESIGN */}
+                        <div className="flex bg-slate-100 rounded-lg p-1 mr-4">
+                            <button onClick={() => showToast('Design A: Modern Clean', 'success', 'A')} className="px-2 py-0.5 text-[10px] font-bold hover:bg-white rounded hover:shadow-sm transition-all">Test A</button>
+                            <button onClick={() => showToast('Design B: Glass Premium', 'success', 'B')} className="px-2 py-0.5 text-[10px] font-bold hover:bg-white rounded hover:shadow-sm transition-all text-indigo-600">Test B</button>
+                            <button onClick={() => showToast('Design C: Corporate Stripe', 'success', 'C')} className="px-2 py-0.5 text-[10px] font-bold hover:bg-white rounded hover:shadow-sm transition-all">Test C</button>
+                        </div>
+
                         <Briefcase size={14} />
                         {settings.availableAccounts?.length > 0 ? (
                             <select
