@@ -301,7 +301,7 @@ Dalam MAKSIMUM 3 ayat sahaja, analisa kenapa video ni WIN:
 PENTING: Bahasa Malaysia ringkas. Fokus pada APA YANG KAU NAMPAK & DENGAR.`;
 
                 const result = await genAI.models.generateContent({
-                    model: 'gemini-2.0-flash',
+                    model: 'gemini-3-pro-preview',  // Gemini 3 Pro for deep multimodal analysis
                     contents: [
                         { text: prompt },
                         { fileData: { fileUri: uploadResult.uri, mimeType: 'video/mp4' } }
@@ -363,7 +363,7 @@ Dalam MAKSIMUM 3 ayat sahaja, nyatakan kenapa visual ni WIN:
 PENTING: Bahasa Malaysia ringkas. Fokus pada APA YANG KAU NAMPAK.`;
 
         const result = await genAI.models.generateContent({
-            model: 'gemini-2.0-flash',
+            model: 'gemini-3-pro-preview',  // Gemini 3 Pro for deep multimodal analysis
             contents: [
                 { text: prompt },
                 { inlineData: { mimeType: mimeType, data: base64Image } }
