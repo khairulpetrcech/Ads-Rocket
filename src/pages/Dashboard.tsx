@@ -663,10 +663,10 @@ const Dashboard: React.FC = () => {
                                 {telegramSending ? <RefreshCw size={14} className="animate-spin" /> : <Sparkles size={14} />}
                             </button>
                             {/* Tooltip on hover */}
-                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-slate-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50 shadow-xl max-w-[220px] text-center leading-relaxed">
+                            <div className="absolute bottom-full left-0 mb-2 px-3 py-2 bg-slate-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 shadow-xl w-[260px] text-left leading-relaxed">
                                 <span className="font-bold">AI Analysis</span><br />
                                 AI akan analysis win ads dan hantar performance last 4 days ke Telegram anda.
-                                <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-800"></div>
+                                <div className="absolute top-full left-4 border-4 border-transparent border-t-slate-800"></div>
                             </div>
                         </div>
                     </div>
@@ -992,13 +992,13 @@ const Dashboard: React.FC = () => {
                                                                                 <div className="max-h-[350px] overflow-y-auto custom-scrollbar border-y border-slate-200 bg-slate-50/80">
                                                                                     <table className="w-full table-fixed">
                                                                                         <colgroup>
-                                                                                            <col className="w-[35%]" />
-                                                                                            <col className="w-[9%]" />
-                                                                                            <col className="w-[9%]" />
-                                                                                            <col className="w-[9%]" />
-                                                                                            <col className="w-[9%]" />
-                                                                                            <col className="w-[9%]" />
-                                                                                            <col className="w-[9%]" />
+                                                                                            <col style={{ width: '35%' }} />
+                                                                                            <col style={{ width: '10.8%' }} />
+                                                                                            <col style={{ width: '10.8%' }} />
+                                                                                            <col style={{ width: '10.8%' }} />
+                                                                                            <col style={{ width: '10.8%' }} />
+                                                                                            <col style={{ width: '10.8%' }} />
+                                                                                            <col style={{ width: '10.8%' }} />
                                                                                         </colgroup>
                                                                                         <tbody>
                                                                                             {adsData[adset.id] ? (
@@ -1007,7 +1007,7 @@ const Dashboard: React.FC = () => {
                                                                                                         const isCommented = publishedComments.has(ad.id);
                                                                                                         return (
                                                                                                             <tr key={ad.id} className="text-xs hover:bg-white border-b border-slate-100 last:border-0 group/ad transition-colors">
-                                                                                                                <td className="p-3 pl-20 w-[35%]">
+                                                                                                                <td className="p-3 pl-16">
                                                                                                                     <div className="flex items-center gap-3">
                                                                                                                         <div className="w-10 h-10 bg-white rounded overflow-hidden flex-shrink-0 border border-slate-200 shadow-sm">
                                                                                                                             {ad.creative.thumbnail_url || ad.creative.image_url ? (
