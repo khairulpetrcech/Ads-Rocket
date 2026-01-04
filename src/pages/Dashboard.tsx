@@ -662,11 +662,11 @@ const Dashboard: React.FC = () => {
                             >
                                 {telegramSending ? <RefreshCw size={14} className="animate-spin" /> : <Sparkles size={14} />}
                             </button>
-                            {/* Tooltip on hover */}
-                            <div className="absolute bottom-full left-0 mb-2 px-3 py-2 bg-slate-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 shadow-xl w-[260px] text-left leading-relaxed">
+                            {/* Tooltip on hover - positioned BELOW */}
+                            <div className="absolute top-full left-0 mt-2 px-3 py-2 bg-slate-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 shadow-xl w-[260px] text-left leading-relaxed">
+                                <div className="absolute bottom-full left-4 border-4 border-transparent border-b-slate-800"></div>
                                 <span className="font-bold">AI Analysis</span><br />
                                 AI akan analysis win ads dan hantar performance last 4 days ke Telegram anda.
-                                <div className="absolute top-full left-4 border-4 border-transparent border-t-slate-800"></div>
                             </div>
                         </div>
                     </div>
@@ -992,13 +992,13 @@ const Dashboard: React.FC = () => {
                                                                                 <div className="max-h-[350px] overflow-y-auto custom-scrollbar border-y border-slate-200 bg-slate-50/80">
                                                                                     <table className="w-full table-fixed">
                                                                                         <colgroup>
-                                                                                            <col style={{ width: '35%' }} />
-                                                                                            <col style={{ width: '10.8%' }} />
-                                                                                            <col style={{ width: '10.8%' }} />
-                                                                                            <col style={{ width: '10.8%' }} />
-                                                                                            <col style={{ width: '10.8%' }} />
-                                                                                            <col style={{ width: '10.8%' }} />
-                                                                                            <col style={{ width: '10.8%' }} />
+                                                                                            <col style={{ width: '45%' }} />
+                                                                                            <col style={{ width: '10%' }} />
+                                                                                            <col style={{ width: '9%' }} />
+                                                                                            <col style={{ width: '9%' }} />
+                                                                                            <col style={{ width: '9%' }} />
+                                                                                            <col style={{ width: '9%' }} />
+                                                                                            <col style={{ width: '9%' }} />
                                                                                         </colgroup>
                                                                                         <tbody>
                                                                                             {adsData[adset.id] ? (
