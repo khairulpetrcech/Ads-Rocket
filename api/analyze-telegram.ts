@@ -30,7 +30,7 @@ export default async function handler(req: any, res: any) {
             return res.status(500).json({ error: 'GEMINI_3_API not configured' });
         }
 
-        // --- STEP 1: Fetch Account Name and Top Ads from Meta API (last 4 days) ---
+        // --- STEP 1: Fetch Account Name and Top Ads with Creatives from Meta API (last 4 days) ---
         const actId = adAccountId.startsWith('act_') ? adAccountId : `act_${adAccountId}`;
 
         // Calculate date range: last 4 days
@@ -62,9 +62,10 @@ export default async function handler(req: any, res: any) {
         const accountInfo = await accountInfoResponse.json();
         const accountName = accountInfo.name || adAccountId;
 
-        // 1b. Fetch Ads Insights
-        const insightsQuery = `insights.time_range(${timeRange}){spend,impressions,clicks,cpc,ctr,actions,action_values}`;
-        const fields = ['id', 'name', 'status', 'effective_status', insightsQuery].join(',');
+        // 1b. Fetch Ads Insights WITH Creative Data
+        const insightsQuery = `insights.time_range(${timeRange}){spend,impressions,clicks,cpc,ctr,actions,action_values,cost_per_action_type}`;
+        const creativeFields = 'creative{thumbnail_url,image_url,object_story_spec}';
+        const fields = ['id', 'name', 'status', 'effective_status', creativeFields, insightsQuery].join(',');
         const filtering = encodeURIComponent(`[{"field":"effective_status","operator":"IN","value":["ACTIVE","PAUSED"]}]`);
 
         const metaUrl = `https://graph.facebook.com/v19.0/${actId}/ads?fields=${encodeURIComponent(fields)}&access_token=${fbAccessToken}&limit=50&filtering=${filtering}`;
@@ -88,7 +89,15 @@ export default async function handler(req: any, res: any) {
             const leads = insights.actions?.find((a: any) => a.action_type === 'lead')?.value || 0;
             const messages = insights.actions?.find((a: any) => a.action_type === 'onsite_conversion.messaging_conversation_started_7d')?.value || 0;
 
+            // Get CPA (Cost Per Purchase)
+            const cpaData = insights.cost_per_action_type?.find((a: any) => a.action_type === 'purchase');
+            const cpa = cpaData ? parseFloat(cpaData.value) : (parseInt(purchaseAction) > 0 ? spend / parseInt(purchaseAction) : 0);
+
+            // Get creative image URL
+            const imageUrl = ad.creative?.thumbnail_url || ad.creative?.image_url || null;
+
             return {
+                id: ad.id,
                 name: ad.name,
                 status: ad.effective_status || ad.status,
                 spend,
@@ -96,7 +105,9 @@ export default async function handler(req: any, res: any) {
                 ctr: parseFloat(insights.ctr || '0'),
                 purchases: parseInt(purchaseAction),
                 leads: parseInt(leads) + parseInt(messages),
-                revenue
+                revenue,
+                cpa,
+                imageUrl
             };
         });
 
@@ -121,51 +132,103 @@ export default async function handler(req: any, res: any) {
             return res.status(200).json({ success: true, message: 'No ads with spend found' });
         }
 
-        // --- STEP 2: AI Analysis in Bahasa Malaysia with New Template ---
+        // --- STEP 2: Fetch Creative Images for Multimodal Analysis ---
+        const imageContents: any[] = [];
+
+        for (const ad of topAds) {
+            if (ad.imageUrl) {
+                try {
+                    console.log(`Fetching image for ad: ${ad.name}`);
+                    const imageResponse = await fetch(ad.imageUrl);
+                    const imageBuffer = await imageResponse.arrayBuffer();
+                    const base64Image = Buffer.from(imageBuffer).toString('base64');
+                    const mimeType = imageResponse.headers.get('content-type') || 'image/jpeg';
+
+                    imageContents.push({
+                        adName: ad.name,
+                        inlineData: {
+                            mimeType: mimeType,
+                            data: base64Image
+                        }
+                    });
+                } catch (imgErr) {
+                    console.warn(`Failed to fetch image for ${ad.name}:`, imgErr);
+                }
+            }
+        }
+
+        console.log(`Fetched ${imageContents.length} ad images for multimodal analysis`);
+
+        // --- STEP 3: AI Multimodal Analysis with Gemini ---
         const adDetails = topAds.map((ad: any, i: number) =>
-            `${i + 1}. "${ad.name}" - Spend: RM${ad.spend.toFixed(2)}, ROAS: ${ad.roas.toFixed(2)}x, Purchase: ${ad.purchases}`
+            `${i + 1}. "${ad.name}" - Spend: RM${ad.spend.toFixed(2)}, ROAS: ${ad.roas.toFixed(2)}x, CPA: RM${ad.cpa.toFixed(2)}, Purchase: ${ad.purchases}`
         ).join('\n');
 
-        const prompt = `Kau seorang pakar Meta Ads Malaysia. Analisa data iklan untuk Ads Manager "${accountName}" bagi tempoh 4 hari lepas (${startDateMY} - ${endDateMY}).
+        // Build multimodal content array
+        const contentParts: any[] = [];
 
-Data Iklan:
+        // Add instruction text first
+        contentParts.push({
+            text: `Kau seorang pakar Meta Ads Malaysia. Analisa VISUAL iklan dan data prestasi untuk Ads Manager "${accountName}" bagi tempoh 4 hari lepas (${startDateMY} - ${endDateMY}).
+
+Data Prestasi Iklan:
 ${adDetails}
 
-Sila hasilkan laporan mengikut format TEPAT di bawah (Bahasa Malaysia):
+Di bawah adalah gambar/thumbnail untuk setiap iklan. Analisa VISUAL setiap creative dengan teliti.`
+        });
 
-Report : ${accountName}
+        // Add images with labels
+        for (let i = 0; i < imageContents.length; i++) {
+            contentParts.push({
+                text: `\n\n--- Creative ${i + 1}: "${imageContents[i].adName}" ---`
+            });
+            contentParts.push({
+                inlineData: imageContents[i].inlineData
+            });
+        }
+
+        // Add final prompt
+        contentParts.push({
+            text: `
+
+Berdasarkan VISUAL creatives di atas dan data prestasi, hasilkan laporan mengikut format TEPAT (Bahasa Malaysia):
+
+📊 *Report : ${accountName}*
 past 4 Days
 (${startDateMY} - ${endDateMY})
 
-3 Win Ad :
-1) [Nama Ad 1] | ROAS : [Nilai] | Total Purchase : [Nilai]
-2) [Nama Ad 2] | ROAS : [Nilai] | Total Purchase : [Nilai]
-3) [Nama Ad 3] | ROAS : [Nilai] | Total Purchase : [Nilai]
+*3 Win Ad :*
+1) [Nama Ad 1] | ROAS : [Nilai]x | CPA : RM[Nilai] | Purchase : [Nilai]
+2) [Nama Ad 2] | ROAS : [Nilai]x | CPA : RM[Nilai] | Purchase : [Nilai]
+3) [Nama Ad 3] | ROAS : [Nilai]x | CPA : RM[Nilai] | Purchase : [Nilai]
 
-Kenapa Iklan Ini Win?
-1) [Nama Ad 1] - [Analisa: Overall flow video/image + elemen emosi + first 3 second hook yang menarik perhatian audience.]
-2) [Nama Ad 2] - [Analisa: Overall flow video/image + elemen emosi + first 3 second hook.]
-3) [Nama Ad 3] - [Analisa: Overall flow video/image + elemen emosi + first 3 second hook.]
+*Kenapa Iklan Ini Win?*
+1) [Nama Ad 1] - [Analisa VISUAL: Warna dominan, komposisi gambar, elemen visual menarik, first 3 second hook, teks/headline yang stand out, emosi yang dipancarkan oleh visual.]
+2) [Nama Ad 2] - [Analisa VISUAL berdasarkan apa yang kau NAMPAK dalam gambar tersebut.]
+3) [Nama Ad 3] - [Analisa VISUAL yang specific dan detailed.]
 
-Overall Campaign Analysis : [Analisis keseluruhan akaun dalam 20 patah perkataan sahaja.]
+*Overall Campaign Analysis :* [Analisis keseluruhan prestasi dalam 20 patah perkataan.]
 
-PENTING: 
-- Guna format Markdown Telegram (*bold* untuk tajuk). 
+PENTING:
+- Guna format Markdown Telegram (*bold* untuk tajuk).
 - Jangan tambah intro atau outro.
-- Fokus pada FLOW visual dan HOOK 3 saat pertama, BUKAN suasana suram/lemau/mood.
-- Analisa kenapa ads tu dapat hooked audience.`;
+- Analisa berdasarkan APA YANG KAU NAMPAK dalam gambar - warna, teks, produk, model, komposisi, dll.
+- Nyatakan elemen visual SPECIFIC yang membuat iklan ini perform.
+- Include CPA dalam report.`
+        });
 
-        console.log('Calling Gemini API...');
+        console.log('Calling Gemini API with multimodal content...');
         const genAI = new GoogleGenAI({ apiKey: geminiApiKey });
+
         const response = await genAI.models.generateContent({
-            model: 'gemini-2.0-flash',
-            contents: prompt
+            model: 'gemini-2.0-flash', // Flash model supports multimodal
+            contents: contentParts
         });
 
         const analysisText = response.text || 'Tidak dapat generate analisis.';
-        console.log('Gemini response received');
+        console.log('Gemini multimodal response received');
 
-        // --- STEP 3: Send to Telegram ---
+        // --- STEP 4: Send to Telegram ---
         const telegramUrl = `https://api.telegram.org/bot${telegramBotToken}/sendMessage`;
         const telegramResponse = await fetch(telegramUrl, {
             method: 'POST',
@@ -189,8 +252,9 @@ PENTING:
 
         return res.status(200).json({
             success: true,
-            message: 'Analisis dihantar ke Telegram!',
-            adsAnalyzed: topAds.length
+            message: 'Analisis multimodal dihantar ke Telegram!',
+            adsAnalyzed: topAds.length,
+            imagesAnalyzed: imageContents.length
         });
 
     } catch (error: any) {
