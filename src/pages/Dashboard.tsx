@@ -644,7 +644,7 @@ const Dashboard: React.FC = () => {
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-2">
                 <div>
                     <div className="flex items-center gap-2 mb-1">
-                        <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Performance Overview</h1>
+                        {/* Header removed - cleaner UI */}
                         {/* CLICKABLE LIVE BUTTON */}
                         <button
                             onClick={() => fetchData()}
@@ -653,17 +653,22 @@ const Dashboard: React.FC = () => {
                             {loadingCampaigns ? <RefreshCw size={10} className="animate-spin" /> : null}
                             {loadingCampaigns ? 'Syncing...' : 'LIVE'}
                         </button>
-                        {/* TELEGRAM AI ANALYSIS BUTTON */}
-                        {/* TELEGRAM AI ANALYSIS BUTTON (PREMIUM UI) */}
-                        <button
-                            onClick={handleSendToTelegram}
-                            disabled={telegramSending}
-                            title="Send AI Analysis to Telegram"
-                            className={`text-[10px] px-3 py-1 rounded-full font-bold flex items-center gap-1.5 transition-all shadow-sm border uppercase tracking-wider ${telegramSending ? 'bg-indigo-50 text-indigo-400 border-indigo-100 cursor-wait' : 'bg-white text-indigo-600 border-indigo-200 hover:border-indigo-400 hover:text-indigo-700 hover:shadow-indigo-50'}`}
-                        >
-                            {telegramSending ? <RefreshCw size={12} className="animate-spin" /> : <Sparkles size={12} />}
-                            {telegramSending ? 'Analyzing...' : 'AI Analysis'}
-                        </button>
+                        {/* TELEGRAM AI ANALYSIS BUTTON (ICON ONLY + TOOLTIP) */}
+                        <div className="relative group">
+                            <button
+                                onClick={handleSendToTelegram}
+                                disabled={telegramSending}
+                                className={`w-8 h-8 rounded-full flex items-center justify-center transition-all shadow-sm border ${telegramSending ? 'bg-indigo-50 text-indigo-400 border-indigo-100 cursor-wait' : 'bg-white text-indigo-600 border-indigo-200 hover:border-indigo-400 hover:bg-indigo-50'}`}
+                            >
+                                {telegramSending ? <RefreshCw size={14} className="animate-spin" /> : <Sparkles size={14} />}
+                            </button>
+                            {/* Tooltip on hover */}
+                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-slate-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50 shadow-xl max-w-[220px] text-center leading-relaxed">
+                                <span className="font-bold">AI Analysis</span><br />
+                                AI akan analysis win ads dan hantar performance last 4 days ke Telegram anda.
+                                <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-800"></div>
+                            </div>
+                        </div>
                     </div>
                     <div className="flex items-center gap-2 text-slate-500 text-sm">
                         {/* PREVIEW BUTTON (STACKING TEST) */}
@@ -986,6 +991,15 @@ const Dashboard: React.FC = () => {
                                                                             <td colSpan={7} className="p-0 border-b border-slate-100">
                                                                                 <div className="max-h-[350px] overflow-y-auto custom-scrollbar border-y border-slate-200 bg-slate-50/80">
                                                                                     <table className="w-full table-fixed">
+                                                                                        <colgroup>
+                                                                                            <col className="w-[35%]" />
+                                                                                            <col className="w-[9%]" />
+                                                                                            <col className="w-[9%]" />
+                                                                                            <col className="w-[9%]" />
+                                                                                            <col className="w-[9%]" />
+                                                                                            <col className="w-[9%]" />
+                                                                                            <col className="w-[9%]" />
+                                                                                        </colgroup>
                                                                                         <tbody>
                                                                                             {adsData[adset.id] ? (
                                                                                                 adsData[adset.id].filter(ad => ad.status === 'ACTIVE').length > 0 ? (

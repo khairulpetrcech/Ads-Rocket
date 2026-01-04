@@ -142,14 +142,18 @@ past 4 Days
 2) [Nama Ad 2] | ROAS : [Nilai] | Total Purchase : [Nilai]
 3) [Nama Ad 3] | ROAS : [Nilai] | Total Purchase : [Nilai]
 
-Why Wins?
-1) [Nama Ad 1] - [Satu ayat pendek kenapa menang]
-2) [Nama Ad 2] - [Satu ayat pendek kenapa menang]
-3) [Nama Ad 3] - [Satu ayat pendek kenapa menang]
+Kenapa Iklan Ini Win?
+1) [Nama Ad 1] - [Analisa: Overall flow video/image + elemen emosi + first 3 second hook yang menarik perhatian audience.]
+2) [Nama Ad 2] - [Analisa: Overall flow video/image + elemen emosi + first 3 second hook.]
+3) [Nama Ad 3] - [Analisa: Overall flow video/image + elemen emosi + first 3 second hook.]
 
 Overall Campaign Analysis : [Analisis keseluruhan akaun dalam 20 patah perkataan sahaja.]
 
-PENTING: Guna format Markdown Telegram (*bold* untuk tajuk). Jangan tambah intro atau outro.`;
+PENTING: 
+- Guna format Markdown Telegram (*bold* untuk tajuk). 
+- Jangan tambah intro atau outro.
+- Fokus pada FLOW visual dan HOOK 3 saat pertama, BUKAN suasana suram/lemau/mood.
+- Analisa kenapa ads tu dapat hooked audience.`;
 
         console.log('Calling Gemini API...');
         const genAI = new GoogleGenAI({ apiKey: geminiApiKey });
