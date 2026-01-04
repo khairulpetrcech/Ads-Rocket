@@ -62,9 +62,9 @@ export default async function handler(req: any, res: any) {
         const accountInfo = await accountInfoResponse.json();
         const accountName = accountInfo.name || adAccountId;
 
-        // 1b. Fetch Ads Insights WITH Creative Data
+        // 1b. Fetch Ads Insights WITH Creative Data (video_id, effective_instagram_media_id, image_url)
         const insightsQuery = `insights.time_range(${timeRange}){spend,impressions,clicks,cpc,ctr,actions,action_values,cost_per_action_type}`;
-        const creativeFields = 'creative{thumbnail_url,image_url,object_story_spec}';
+        const creativeFields = 'creative{video_id,image_url,thumbnail_url,effective_instagram_media_id,object_story_spec}';
         const fields = ['id', 'name', 'status', 'effective_status', creativeFields, insightsQuery].join(',');
         const filtering = encodeURIComponent(`[{"field":"effective_status","operator":"IN","value":["ACTIVE","PAUSED"]}]`);
 
@@ -93,9 +93,6 @@ export default async function handler(req: any, res: any) {
             const cpaData = insights.cost_per_action_type?.find((a: any) => a.action_type === 'purchase');
             const cpa = cpaData ? parseFloat(cpaData.value) : (parseInt(purchaseAction) > 0 ? spend / parseInt(purchaseAction) : 0);
 
-            // Get creative image URL
-            const imageUrl = ad.creative?.thumbnail_url || ad.creative?.image_url || null;
-
             return {
                 id: ad.id,
                 name: ad.name,
@@ -107,7 +104,7 @@ export default async function handler(req: any, res: any) {
                 leads: parseInt(leads) + parseInt(messages),
                 revenue,
                 cpa,
-                imageUrl
+                creative: ad.creative || {}
             };
         });
 
@@ -118,7 +115,6 @@ export default async function handler(req: any, res: any) {
             .slice(0, 3);
 
         if (topAds.length === 0) {
-            // Send message that no ads found
             const telegramUrl = `https://api.telegram.org/bot${telegramBotToken}/sendMessage`;
             await fetch(telegramUrl, {
                 method: 'POST',
@@ -132,101 +128,47 @@ export default async function handler(req: any, res: any) {
             return res.status(200).json({ success: true, message: 'No ads with spend found' });
         }
 
-        // --- STEP 2: Fetch Creative Images for Multimodal Analysis ---
-        const imageContents: any[] = [];
+        // --- STEP 2: Analyze Each Ad Creative (Video/Image) with Gemini Multimodal ---
+        const genAI = new GoogleGenAI({ apiKey: geminiApiKey });
+        const creativeAnalyses: { name: string; analysis: string }[] = [];
 
         for (const ad of topAds) {
-            if (ad.imageUrl) {
-                try {
-                    console.log(`Fetching image for ad: ${ad.name}`);
-                    const imageResponse = await fetch(ad.imageUrl);
-                    const imageBuffer = await imageResponse.arrayBuffer();
-                    const base64Image = Buffer.from(imageBuffer).toString('base64');
-                    const mimeType = imageResponse.headers.get('content-type') || 'image/jpeg';
-
-                    imageContents.push({
-                        adName: ad.name,
-                        inlineData: {
-                            mimeType: mimeType,
-                            data: base64Image
-                        }
-                    });
-                } catch (imgErr) {
-                    console.warn(`Failed to fetch image for ${ad.name}:`, imgErr);
+            try {
+                const analysis = await analyzeAdCreative(ad, genAI, fbAccessToken);
+                if (analysis) {
+                    creativeAnalyses.push({ name: ad.name, analysis });
                 }
+            } catch (err) {
+                console.error(`Failed to analyze creative for ${ad.name}:`, err);
             }
         }
 
-        console.log(`Fetched ${imageContents.length} ad images for multimodal analysis`);
+        console.log(`Analyzed ${creativeAnalyses.length} creatives with Gemini multimodal`);
 
-        // --- STEP 3: AI Multimodal Analysis with Gemini ---
-        const adDetails = topAds.map((ad: any, i: number) =>
-            `${i + 1}. "${ad.name}" - Spend: RM${ad.spend.toFixed(2)}, ROAS: ${ad.roas.toFixed(2)}x, CPA: RM${ad.cpa.toFixed(2)}, Purchase: ${ad.purchases}`
-        ).join('\n');
+        // --- STEP 3: Build Final Report ---
+        let reportText = `📊 *Report : ${accountName}*\npast 4 Days\n(${startDateMY} - ${endDateMY})\n\n`;
 
-        // Build multimodal content array
-        const contentParts: any[] = [];
-
-        // Add instruction text first
-        contentParts.push({
-            text: `Kau seorang pakar Meta Ads Malaysia. Analisa VISUAL iklan dan data prestasi untuk Ads Manager "${accountName}" bagi tempoh 4 hari lepas (${startDateMY} - ${endDateMY}).
-
-Data Prestasi Iklan:
-${adDetails}
-
-Di bawah adalah gambar/thumbnail untuk setiap iklan. Analisa VISUAL setiap creative dengan teliti.`
+        reportText += `*3 Win Ad :*\n`;
+        topAds.forEach((ad: any, i: number) => {
+            reportText += `${i + 1}) ${ad.name} | ROAS : ${ad.roas.toFixed(2)}x | CPA : RM${ad.cpa.toFixed(2)} | Purchase : ${ad.purchases}\n`;
         });
 
-        // Add images with labels
-        for (let i = 0; i < imageContents.length; i++) {
-            contentParts.push({
-                text: `\n\n--- Creative ${i + 1}: "${imageContents[i].adName}" ---`
-            });
-            contentParts.push({
-                inlineData: imageContents[i].inlineData
-            });
+        reportText += `\n*Kenapa Iklan Ini Win?*\n`;
+        creativeAnalyses.forEach((item, i) => {
+            reportText += `${i + 1}) ${item.name} - ${item.analysis}\n\n`;
+        });
+
+        // If no creative analyses, add placeholder
+        if (creativeAnalyses.length === 0) {
+            reportText += `(Creative analysis tidak tersedia)\n\n`;
         }
 
-        // Add final prompt
-        contentParts.push({
-            text: `
+        // Calculate overall metrics
+        const totalSpend = topAds.reduce((sum: number, ad: any) => sum + ad.spend, 0);
+        const totalRevenue = topAds.reduce((sum: number, ad: any) => sum + ad.revenue, 0);
+        const avgRoas = totalSpend > 0 ? (totalRevenue / totalSpend) : 0;
 
-Berdasarkan VISUAL creatives di atas dan data prestasi, hasilkan laporan mengikut format TEPAT (Bahasa Malaysia):
-
-📊 *Report : ${accountName}*
-past 4 Days
-(${startDateMY} - ${endDateMY})
-
-*3 Win Ad :*
-1) [Nama Ad 1] | ROAS : [Nilai]x | CPA : RM[Nilai] | Purchase : [Nilai]
-2) [Nama Ad 2] | ROAS : [Nilai]x | CPA : RM[Nilai] | Purchase : [Nilai]
-3) [Nama Ad 3] | ROAS : [Nilai]x | CPA : RM[Nilai] | Purchase : [Nilai]
-
-*Kenapa Iklan Ini Win?*
-1) [Nama Ad 1] - [Analisa VISUAL: Warna dominan, komposisi gambar, elemen visual menarik, first 3 second hook, teks/headline yang stand out, emosi yang dipancarkan oleh visual.]
-2) [Nama Ad 2] - [Analisa VISUAL berdasarkan apa yang kau NAMPAK dalam gambar tersebut.]
-3) [Nama Ad 3] - [Analisa VISUAL yang specific dan detailed.]
-
-*Overall Campaign Analysis :* [Analisis keseluruhan prestasi dalam 20 patah perkataan.]
-
-PENTING:
-- Guna format Markdown Telegram (*bold* untuk tajuk).
-- Jangan tambah intro atau outro.
-- Analisa berdasarkan APA YANG KAU NAMPAK dalam gambar - warna, teks, produk, model, komposisi, dll.
-- Nyatakan elemen visual SPECIFIC yang membuat iklan ini perform.
-- Include CPA dalam report.`
-        });
-
-        console.log('Calling Gemini API with multimodal content...');
-        const genAI = new GoogleGenAI({ apiKey: geminiApiKey });
-
-        const response = await genAI.models.generateContent({
-            model: 'gemini-2.0-flash', // Flash model supports multimodal
-            contents: contentParts
-        });
-
-        const analysisText = response.text || 'Tidak dapat generate analisis.';
-        console.log('Gemini multimodal response received');
+        reportText += `*Overall Campaign Analysis :* ${topAds.length} winning ads dengan average ROAS ${avgRoas.toFixed(2)}x. Total spend RM${totalSpend.toFixed(2)}.`;
 
         // --- STEP 4: Send to Telegram ---
         const telegramUrl = `https://api.telegram.org/bot${telegramBotToken}/sendMessage`;
@@ -235,7 +177,7 @@ PENTING:
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 chat_id: telegramChatId,
-                text: analysisText,
+                text: reportText,
                 parse_mode: 'Markdown'
             })
         });
@@ -254,11 +196,184 @@ PENTING:
             success: true,
             message: 'Analisis multimodal dihantar ke Telegram!',
             adsAnalyzed: topAds.length,
-            imagesAnalyzed: imageContents.length
+            creativesAnalyzed: creativeAnalyses.length
         });
 
     } catch (error: any) {
         console.error('Error:', error);
         return res.status(500).json({ error: error.message || 'Internal error' });
+    }
+}
+
+/**
+ * Analyze ad creative (video or image) using Gemini 3 Pro multimodal
+ * Supports: Video via video_id, Instagram media fallback, Image fallback
+ */
+async function analyzeAdCreative(ad: any, genAI: any, fbAccessToken: string): Promise<string | null> {
+    try {
+        const creative = ad.creative;
+        if (!creative) {
+            console.log(`[Creative Analysis] No creative data for ad: ${ad.name}`);
+            return null;
+        }
+
+        console.log(`[Creative Analysis] Starting analysis for ad: ${ad.name}`);
+
+        // Check if video or image
+        if (creative.video_id) {
+            console.log(`[Creative Analysis] Video detected for ${ad.name}, video_id: ${creative.video_id}`);
+
+            // Fetch video URL from Meta
+            const videoUrl = `https://graph.facebook.com/v19.0/${creative.video_id}?fields=source,permalink_url,picture&access_token=${fbAccessToken}`;
+            const videoResponse = await fetch(videoUrl);
+            const videoData = await videoResponse.json();
+
+            console.log(`[Creative Analysis] Video API response for ${ad.name}:`, JSON.stringify(videoData));
+
+            let videoSourceUrl = videoData.source;
+
+            // Fallback: Try Instagram media ID
+            if (!videoSourceUrl && creative.effective_instagram_media_id) {
+                console.log(`[Creative Analysis] Trying Instagram media ID for ${ad.name}...`);
+                try {
+                    const igMediaUrl = `https://graph.facebook.com/v19.0/${creative.effective_instagram_media_id}?fields=media_url&access_token=${fbAccessToken}`;
+                    const igResponse = await fetch(igMediaUrl);
+                    const igData = await igResponse.json();
+                    if (igData.media_url) {
+                        videoSourceUrl = igData.media_url;
+                        console.log(`[Creative Analysis] Got video from Instagram media ID for ${ad.name}`);
+                    }
+                } catch (err) {
+                    console.log(`[Creative Analysis] Instagram media ID failed for ${ad.name}`);
+                }
+            }
+
+            // If we have video source URL, download and analyze it
+            if (videoSourceUrl) {
+                console.log(`[Creative Analysis] Downloading video for ${ad.name}...`);
+                const videoFileResponse = await fetch(videoSourceUrl);
+                const videoArrayBuffer = await videoFileResponse.arrayBuffer();
+
+                // Create Blob for upload
+                const videoBlob = new Blob([videoArrayBuffer], { type: 'video/mp4' });
+
+                console.log(`[Creative Analysis] Uploading video to Gemini for ${ad.name}...`);
+                // Upload to Gemini Files API
+                const uploadResult = await genAI.files.upload({
+                    file: videoBlob
+                });
+
+                console.log(`[Creative Analysis] Waiting for file to be processed for ${ad.name}...`);
+                // Wait for file to be ACTIVE (poll status)
+                let fileReady = false;
+                let attempts = 0;
+                const maxAttempts = 15; // Max 15 seconds
+
+                while (!fileReady && attempts < maxAttempts) {
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    try {
+                        const fileStatus = await genAI.files.get({ name: uploadResult.name });
+                        if (fileStatus.state === 'ACTIVE') {
+                            fileReady = true;
+                            console.log(`[Creative Analysis] File ready for ${ad.name} after ${attempts + 1}s`);
+                        }
+                    } catch (err) {
+                        console.log(`[Creative Analysis] File status check failed, attempt ${attempts + 1}`);
+                    }
+                    attempts++;
+                }
+
+                if (!fileReady) {
+                    console.log(`[Creative Analysis] File not ready after ${maxAttempts}s for ${ad.name}, skipping...`);
+                    await genAI.files.delete({ name: uploadResult.name });
+                    return null;
+                }
+
+                console.log(`[Creative Analysis] Analyzing video with Gemini 3 Pro for ${ad.name}...`);
+
+                const prompt = `Tonton video iklan ini (ROAS ${ad.roas.toFixed(2)}x, CPA RM${ad.cpa.toFixed(2)}).
+
+Dalam MAKSIMUM 3 ayat sahaja, analisa kenapa video ni WIN:
+- Hook 3 saat pertama (apa yang menarik perhatian)
+- Flow visual & audio
+- Elemen yang buat audience terus tonton
+
+PENTING: Bahasa Malaysia ringkas. Fokus pada APA YANG KAU NAMPAK & DENGAR.`;
+
+                const result = await genAI.models.generateContent({
+                    model: 'gemini-2.0-flash',
+                    contents: [
+                        { text: prompt },
+                        { fileData: { fileUri: uploadResult.uri, mimeType: 'video/mp4' } }
+                    ]
+                });
+
+                // Delete uploaded file
+                await genAI.files.delete({ name: uploadResult.name });
+
+                console.log(`[Creative Analysis] ✅ Video analysis complete for ${ad.name}`);
+                return result.text || null;
+            }
+
+            // Fallback to thumbnail if no video source available
+            if (!videoSourceUrl) {
+                console.log(`[Creative Analysis] No video source URL for ${ad.name}. Using thumbnail...`);
+                const thumbnailUrl = videoData.picture || creative.thumbnail_url || creative.image_url;
+
+                if (thumbnailUrl) {
+                    return await analyzeImage(ad, thumbnailUrl, genAI);
+                }
+            }
+
+            return null;
+
+        } else if (creative.image_url || creative.thumbnail_url) {
+            console.log(`[Creative Analysis] Image detected for ${ad.name}`);
+            const imageUrl = creative.image_url || creative.thumbnail_url;
+            return await analyzeImage(ad, imageUrl, genAI);
+        }
+
+        console.log(`[Creative Analysis] No video or image found for ${ad.name}`);
+        return null;
+    } catch (error) {
+        console.error(`[Creative Analysis] ❌ Failed to analyze creative for ad "${ad.name}":`, error);
+        return null;
+    }
+}
+
+/**
+ * Analyze image using Gemini multimodal
+ */
+async function analyzeImage(ad: any, imageUrl: string, genAI: any): Promise<string | null> {
+    try {
+        console.log(`[Creative Analysis] Analyzing image for ${ad.name}...`);
+
+        const imageResponse = await fetch(imageUrl);
+        const imageBuffer = await imageResponse.arrayBuffer();
+        const base64Image = Buffer.from(imageBuffer).toString('base64');
+        const mimeType = imageResponse.headers.get('content-type') || 'image/jpeg';
+
+        const prompt = `Analisa visual iklan ini (ROAS ${ad.roas.toFixed(2)}x, CPA RM${ad.cpa.toFixed(2)}).
+
+Dalam MAKSIMUM 3 ayat sahaja, nyatakan kenapa visual ni WIN:
+- Warna, komposisi & design
+- Headline/teks yang standout
+- Elemen visual yang tarik perhatian
+
+PENTING: Bahasa Malaysia ringkas. Fokus pada APA YANG KAU NAMPAK.`;
+
+        const result = await genAI.models.generateContent({
+            model: 'gemini-2.0-flash',
+            contents: [
+                { text: prompt },
+                { inlineData: { mimeType: mimeType, data: base64Image } }
+            ]
+        });
+
+        console.log(`[Creative Analysis] ✅ Image analysis complete for ${ad.name}`);
+        return result.text || null;
+    } catch (error) {
+        console.error(`[Creative Analysis] ❌ Image analysis failed for ${ad.name}:`, error);
+        return null;
     }
 }
