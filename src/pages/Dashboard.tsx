@@ -662,11 +662,11 @@ const Dashboard: React.FC = () => {
                             >
                                 {telegramSending ? <RefreshCw size={14} className="animate-spin" /> : <Sparkles size={14} />}
                             </button>
-                            {/* Tooltip on hover - positioned BELOW */}
-                            <div className="absolute top-full left-0 mt-2 px-3 py-2 bg-slate-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 shadow-xl w-[260px] text-left leading-relaxed">
-                                <div className="absolute bottom-full left-4 border-4 border-transparent border-b-slate-800"></div>
-                                <span className="font-bold">AI Analysis</span><br />
-                                AI akan analysis win ads dan hantar performance last 4 days ke Telegram anda.
+                            {/* Tooltip on hover - iOS Glassmorphism Style */}
+                            <div className="absolute top-full left-0 mt-2 px-4 py-3 backdrop-blur-xl bg-white/80 text-slate-700 text-xs rounded-2xl opacity-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none z-50 shadow-[0_8px_32px_rgba(0,0,0,0.12)] border border-white/60 w-[260px] text-left leading-relaxed">
+                                <div className="absolute bottom-full left-4 border-[6px] border-transparent border-b-white/80" style={{ filter: 'drop-shadow(0 -1px 1px rgba(0,0,0,0.05))' }}></div>
+                                <span className="font-semibold text-slate-800 text-sm">AI Analysis</span>
+                                <p className="mt-1 text-slate-600">AI akan analysis win ads dan hantar performance last 4 days ke Telegram anda.</p>
                             </div>
                         </div>
                     </div>
