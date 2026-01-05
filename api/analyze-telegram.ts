@@ -325,7 +325,7 @@ PERATURAN KETAT:
 3. Bahasa Malaysia ringkas tapi padat`;
 
                 const result = await genAI.models.generateContent({
-                    model: 'gemini-3.0-pro-preview',
+                    model: 'gemini-3-pro-preview',
                     contents: [
                         { text: prompt },
                         { fileData: { fileUri: uploadResult.uri, mimeType: 'video/mp4' } }
@@ -396,7 +396,7 @@ PERATURAN KETAT:
 3. Bahasa Malaysia ringkas tapi padat`;
 
         const result = await genAI.models.generateContent({
-            model: 'gemini-3.0-pro-preview',
+            model: 'gemini-3-pro-preview',
             contents: [
                 { text: prompt },
                 { inlineData: { mimeType: mimeType, data: base64Image } }
