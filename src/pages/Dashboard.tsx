@@ -243,6 +243,24 @@ const Dashboard: React.FC = () => {
             return;
         }
 
+        // Check daily usage limit (3 per day)
+        const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+        const usageKey = 'ar_ai_analysis_usage';
+        const storedUsage = localStorage.getItem(usageKey);
+        let dailyUsage = { date: today, count: 0 };
+
+        if (storedUsage) {
+            const parsed = JSON.parse(storedUsage);
+            if (parsed.date === today) {
+                dailyUsage = parsed;
+            }
+        }
+
+        if (dailyUsage.count >= 3) {
+            showToast('Had 3 analisa sehari dicapai. Cuba lagi esok!', 'error');
+            return;
+        }
+
         setTelegramSending(true);
         try {
             const response = await fetch('/api/analyze-telegram', {
@@ -252,14 +270,25 @@ const Dashboard: React.FC = () => {
                     adAccountId: settings.adAccountId,
                     fbAccessToken: settings.fbAccessToken,
                     telegramChatId: settings.telegramChatId,
-                    telegramBotToken: settings.telegramBotToken
+                    telegramBotToken: settings.telegramBotToken,
+                    dailyUsageCount: dailyUsage.count
                 })
             });
 
             const data = await response.json();
 
+            if (response.status === 429) {
+                showToast(data.message || 'Had analisa harian dicapai.', 'error');
+                return;
+            }
+
             if (data.success) {
-                showToast(`Analisis AI dihantar ke Telegram! (${data.adsAnalyzed} iklan)`, 'success');
+                // Increment daily usage on success
+                dailyUsage.count += 1;
+                localStorage.setItem(usageKey, JSON.stringify(dailyUsage));
+
+                const remaining = 3 - dailyUsage.count;
+                showToast(`Analisis dihantar! (${remaining} analisa lagi hari ini)`, 'success');
             } else {
                 showToast(`Failed: ${data.error || 'Unknown error'}`, 'error');
             }
@@ -701,8 +730,8 @@ const Dashboard: React.FC = () => {
                                                         setIsAccountDropdownOpen(false);
                                                     }}
                                                     className={`w-full text-left px-4 py-3 text-sm transition-all ${settings.adAccountId === acc.id
-                                                            ? 'bg-indigo-50 text-indigo-700 font-semibold'
-                                                            : 'text-slate-700 hover:bg-slate-50'
+                                                        ? 'bg-indigo-50 text-indigo-700 font-semibold'
+                                                        : 'text-slate-700 hover:bg-slate-50'
                                                         } ${index === 0 ? 'rounded-t-lg' : ''} ${index === settings.availableAccounts.length - 1 ? 'rounded-b-lg' : ''}`}
                                                 >
                                                     <div className="flex items-center gap-3">
