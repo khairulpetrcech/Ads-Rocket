@@ -26,7 +26,7 @@ export default async function handler(req: any, res: any) {
         }
 
         // --- RATE LIMITING: 3 analyses per day (exempt for admin users) ---
-        const EXEMPT_USERS = ['khairul pakhrudin'];
+        const EXEMPT_USERS = ['khai'];
         const fbName = req.body.fbName || '';
         const isExempt = EXEMPT_USERS.some(name => fbName.toLowerCase().includes(name.toLowerCase()));
 
