@@ -257,8 +257,13 @@ const Dashboard: React.FC = () => {
         }
 
         if (dailyUsage.count >= 3) {
-            showToast('Had 3 analisa sehari dicapai. Cuba lagi esok!', 'error');
-            return;
+            // Check for exemption (khai)
+            const isExempt = (settings.businessName || '').toLowerCase().includes('khai');
+
+            if (!isExempt) {
+                showToast('Had 3 analisa sehari dicapai. Cuba lagi esok!', 'error');
+                return;
+            }
         }
 
         setTelegramSending(true);
