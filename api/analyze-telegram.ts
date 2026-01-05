@@ -152,8 +152,13 @@ export default async function handler(req: any, res: any) {
                 if (analysis) {
                     creativeAnalyses.push({ name: ad.name, analysis });
                 }
-            } catch (err) {
+            } catch (err: any) {
                 console.error(`Failed to analyze creative for ${ad.name}:`, err);
+                // Push error to report so user sees it
+                creativeAnalyses.push({
+                    name: ad.name,
+                    analysis: `❌ Error: ${err.message || 'Unknown error'}`
+                });
             }
         }
 
@@ -179,7 +184,8 @@ export default async function handler(req: any, res: any) {
         }
 
         // Footer with cost estimate and AI model
-        const estimatedCost = (creativeAnalyses.length * 0.05).toFixed(2); // ~RM0.05 with Pro
+        const validAnalyses = creativeAnalyses.filter(a => !a.analysis.includes('❌ Error'));
+        const estimatedCost = (validAnalyses.length * 0.05).toFixed(2); // ~RM0.05 with Pro
         reportText += `---\n_AI: Gemini 3.0 Pro | Est. Cost: ~RM${estimatedCost}_`;
 
         // --- STEP 4: Send to Telegram ---
