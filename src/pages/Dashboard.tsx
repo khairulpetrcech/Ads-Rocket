@@ -216,6 +216,9 @@ const Dashboard: React.FC = () => {
     const [fetchError, setFetchError] = useState('');
     const [authError, setAuthError] = useState(false);
 
+    // Account Dropdown State
+    const [isAccountDropdownOpen, setIsAccountDropdownOpen] = useState(false);
+
     // Comment Modal State
     const [commentModalOpen, setCommentModalOpen] = useState(false);
     const [selectedAdForComment, setSelectedAdForComment] = useState<Ad | null>(null);
@@ -552,14 +555,13 @@ const Dashboard: React.FC = () => {
         if (viewMode === 'TRAFFIC') {
             return (
                 <tr className="bg-slate-50 text-slate-500 text-xs uppercase border-b border-slate-200">
-                    <th className="p-4 w-[30%] font-semibold">Name</th>
+                    <th className="p-4 w-[35%] font-semibold">Name</th>
                     <th className="p-3 text-right w-[11%] font-semibold">Spend</th>
-                    <th className="p-3 text-right w-[10%] font-semibold">Results</th>
-                    <th className="p-3 text-right w-[11%] font-semibold">Total Lead</th>
-                    <th className="p-3 text-right w-[11%] font-semibold">Cost/Res</th>
-                    <th className="p-3 text-right w-[9%] font-semibold">CTR (All)</th>
-                    <th className="p-3 text-right w-[9%] font-semibold">CTR (Link)</th>
-                    <th className="p-3 text-right w-[9%] font-semibold"></th>
+                    <th className="p-3 text-right w-[11%] font-semibold">Lead</th>
+                    <th className="p-3 text-right w-[11%] font-semibold">Cost/Lead</th>
+                    <th className="p-3 text-right w-[11%] font-semibold">CTR (All)</th>
+                    <th className="p-3 text-right w-[11%] font-semibold">CTR (Link)</th>
+                    <th className="p-3 text-right w-[10%] font-semibold"></th>
                 </tr>
             );
         }
@@ -581,10 +583,7 @@ const Dashboard: React.FC = () => {
             return (
                 <>
                     <td className="p-3 text-right whitespace-nowrap text-slate-700">{formatMYR(metrics.spend)}</td>
-                    <td className="p-3 text-right font-bold text-slate-900 whitespace-nowrap">
-                        {metrics.results}
-                    </td>
-                    <td className="p-3 text-right whitespace-nowrap text-indigo-600 font-semibold">
+                    <td className="p-3 text-right whitespace-nowrap text-indigo-600 font-bold">
                         {metrics.totalLeads}
                     </td>
                     <td className="p-3 text-right whitespace-nowrap text-slate-700">{formatMYR(metrics.costPerResult)}</td>
@@ -676,18 +675,48 @@ const Dashboard: React.FC = () => {
 
                         <Briefcase size={14} />
                         {settings.availableAccounts?.length > 0 ? (
-                            <select
-                                value={settings.adAccountId}
-                                onChange={(e) => {
-                                    const acc = settings.availableAccounts.find(a => a.id === e.target.value);
-                                    if (acc) updateSettings({ adAccountId: acc.id, businessName: acc.name });
-                                }}
-                                className="bg-transparent focus:outline-none cursor-pointer hover:text-indigo-600 max-w-[200px] truncate font-medium text-slate-700"
-                            >
-                                {settings.availableAccounts.map(acc => (
-                                    <option key={acc.id} value={acc.id} className="bg-white">{acc.name}</option>
-                                ))}
-                            </select>
+                            <div className="relative">
+                                <button
+                                    onClick={() => setIsAccountDropdownOpen(!isAccountDropdownOpen)}
+                                    className="flex items-center gap-2 max-w-[280px] truncate font-medium text-slate-700 hover:text-indigo-600 transition-colors cursor-pointer"
+                                >
+                                    <span className="truncate">{settings.businessName}</span>
+                                    <ChevronDown size={14} className={`transition-transform ${isAccountDropdownOpen ? 'rotate-180' : ''}`} />
+                                </button>
+
+                                {/* Glassmorphism Dropdown */}
+                                {isAccountDropdownOpen && (
+                                    <>
+                                        {/* Backdrop to close dropdown */}
+                                        <div
+                                            className="fixed inset-0 z-40"
+                                            onClick={() => setIsAccountDropdownOpen(false)}
+                                        />
+                                        <div className="absolute top-full left-0 mt-2 z-50 w-[320px] max-h-[400px] overflow-y-auto backdrop-blur-xl bg-white/90 rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.12)] border border-white/60 py-2 animate-in fade-in slide-in-from-top-2 duration-200">
+                                            {settings.availableAccounts.map((acc, index) => (
+                                                <button
+                                                    key={acc.id}
+                                                    onClick={() => {
+                                                        updateSettings({ adAccountId: acc.id, businessName: acc.name });
+                                                        setIsAccountDropdownOpen(false);
+                                                    }}
+                                                    className={`w-full text-left px-4 py-3 text-sm transition-all ${settings.adAccountId === acc.id
+                                                            ? 'bg-indigo-50 text-indigo-700 font-semibold'
+                                                            : 'text-slate-700 hover:bg-slate-50'
+                                                        } ${index === 0 ? 'rounded-t-lg' : ''} ${index === settings.availableAccounts.length - 1 ? 'rounded-b-lg' : ''}`}
+                                                >
+                                                    <div className="flex items-center gap-3">
+                                                        {settings.adAccountId === acc.id && (
+                                                            <div className="w-2 h-2 rounded-full bg-indigo-500" />
+                                                        )}
+                                                        <span className={settings.adAccountId !== acc.id ? 'ml-5' : ''}>{acc.name}</span>
+                                                    </div>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </>
+                                )}
+                            </div>
                         ) : <span>{settings.businessName}</span>}
                     </div>
                 </div>
@@ -992,13 +1021,27 @@ const Dashboard: React.FC = () => {
                                                                                 <div className="max-h-[350px] overflow-y-auto custom-scrollbar border-y border-slate-200 bg-slate-50/80">
                                                                                     <table className="w-full table-fixed">
                                                                                         <colgroup>
-                                                                                            <col style={{ width: '45%' }} />
-                                                                                            <col style={{ width: '10%' }} />
-                                                                                            <col style={{ width: '9%' }} />
-                                                                                            <col style={{ width: '9%' }} />
-                                                                                            <col style={{ width: '9%' }} />
-                                                                                            <col style={{ width: '9%' }} />
-                                                                                            <col style={{ width: '9%' }} />
+                                                                                            {viewMode === 'TRAFFIC' ? (
+                                                                                                <>
+                                                                                                    <col style={{ width: '35%' }} />
+                                                                                                    <col style={{ width: '11%' }} />
+                                                                                                    <col style={{ width: '11%' }} />
+                                                                                                    <col style={{ width: '11%' }} />
+                                                                                                    <col style={{ width: '11%' }} />
+                                                                                                    <col style={{ width: '11%' }} />
+                                                                                                    <col style={{ width: '10%' }} />
+                                                                                                </>
+                                                                                            ) : (
+                                                                                                <>
+                                                                                                    <col style={{ width: '45%' }} />
+                                                                                                    <col style={{ width: '10%' }} />
+                                                                                                    <col style={{ width: '9%' }} />
+                                                                                                    <col style={{ width: '9%' }} />
+                                                                                                    <col style={{ width: '9%' }} />
+                                                                                                    <col style={{ width: '9%' }} />
+                                                                                                    <col style={{ width: '9%' }} />
+                                                                                                </>
+                                                                                            )}
                                                                                         </colgroup>
                                                                                         <tbody>
                                                                                             {adsData[adset.id] ? (
