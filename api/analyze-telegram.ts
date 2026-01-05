@@ -108,10 +108,10 @@ export default async function handler(req: any, res: any) {
             };
         });
 
-        // Filter only ads with spend and sort by ROAS
+        // Filter only ads with spend and sort by PURCHASES first, then ROAS
         const topAds = ads
             .filter((a: any) => a.spend > 0)
-            .sort((a: any, b: any) => b.roas - a.roas || b.spend - a.spend)
+            .sort((a: any, b: any) => b.purchases - a.purchases || b.roas - a.roas)
             .slice(0, 3);
 
         if (topAds.length === 0) {
@@ -146,16 +146,17 @@ export default async function handler(req: any, res: any) {
         console.log(`Analyzed ${creativeAnalyses.length} creatives with Gemini multimodal`);
 
         // --- STEP 3: Build Final Report ---
+        const emojis = ['🥇', '🥈', '🥉'];
         let reportText = `📊 *Report : ${accountName}*\npast 4 Days\n(${startDateMY} - ${endDateMY})\n\n`;
 
-        reportText += `*3 Win Ad :*\n`;
+        reportText += `*🏆 Top 3 Win Ads :*\n`;
         topAds.forEach((ad: any, i: number) => {
-            reportText += `${i + 1}) ${ad.name} | ROAS : ${ad.roas.toFixed(2)}x | CPA : RM${ad.cpa.toFixed(2)} | Purchase : ${ad.purchases}\n`;
+            reportText += `${emojis[i] || '•'} ${ad.name}\n    Purchase: ${ad.purchases} | ROAS: ${ad.roas.toFixed(2)}x | CPA: RM${ad.cpa.toFixed(2)}\n`;
         });
 
-        reportText += `\n*Kenapa Iklan Ini Win?*\n`;
-        creativeAnalyses.forEach((item, i) => {
-            reportText += `${i + 1}) ${item.name} - ${item.analysis}\n\n`;
+        reportText += `\n*🎯 Kenapa Iklan Win?*\n\n`;
+        creativeAnalyses.forEach((item) => {
+            reportText += `*${item.name}*\n${item.analysis}\n\n`;
         });
 
         // If no creative analyses, add placeholder
@@ -163,12 +164,9 @@ export default async function handler(req: any, res: any) {
             reportText += `(Creative analysis tidak tersedia)\n\n`;
         }
 
-        // Calculate overall metrics
+        // Footer with AI model info
         const totalSpend = topAds.reduce((sum: number, ad: any) => sum + ad.spend, 0);
-        const totalRevenue = topAds.reduce((sum: number, ad: any) => sum + ad.revenue, 0);
-        const avgRoas = totalSpend > 0 ? (totalRevenue / totalSpend) : 0;
-
-        reportText += `*Overall Campaign Analysis :* ${topAds.length} winning ads dengan average ROAS ${avgRoas.toFixed(2)}x. Total spend RM${totalSpend.toFixed(2)}.`;
+        reportText += `---\n_AI Model: Gemini 3 Pro | Total Spend: RM${totalSpend.toFixed(2)}_`;
 
         // --- STEP 4: Send to Telegram ---
         const telegramUrl = `https://api.telegram.org/bot${telegramBotToken}/sendMessage`;
@@ -291,14 +289,14 @@ async function analyzeAdCreative(ad: any, genAI: any, fbAccessToken: string): Pr
 
                 console.log(`[Creative Analysis] Analyzing video with Gemini 3 Pro for ${ad.name}...`);
 
-                const prompt = `Tonton video iklan ini (ROAS ${ad.roas.toFixed(2)}x, CPA RM${ad.cpa.toFixed(2)}).
+                const prompt = `Tonton video iklan ini (${ad.purchases} purchases, ROAS ${ad.roas.toFixed(2)}x).
 
-Dalam MAKSIMUM 3 ayat sahaja, analisa kenapa video ni WIN:
-- Hook 3 saat pertama (apa yang menarik perhatian)
-- Flow visual & audio
-- Elemen yang buat audience terus tonton
+Terus analisa kenapa video ni WIN dalam 2-3 ayat:
+- Hook 3 saat pertama
+- Flow visual & audio yang menarik
+- Elemen emosi yang buat audience terus tonton
 
-PENTING: Bahasa Malaysia ringkas. Fokus pada APA YANG KAU NAMPAK & DENGAR.`;
+PENTING: Bahasa Malaysia. JANGAN tulis intro seperti "Berikut adalah analisis". Terus masuk analisa.`;
 
                 const result = await genAI.models.generateContent({
                     model: 'gemini-3-pro-preview',  // Gemini 3 Pro for deep multimodal analysis
@@ -353,14 +351,14 @@ async function analyzeImage(ad: any, imageUrl: string, genAI: any): Promise<stri
         const base64Image = Buffer.from(imageBuffer).toString('base64');
         const mimeType = imageResponse.headers.get('content-type') || 'image/jpeg';
 
-        const prompt = `Analisa visual iklan ini (ROAS ${ad.roas.toFixed(2)}x, CPA RM${ad.cpa.toFixed(2)}).
+        const prompt = `Analisa poster/image iklan ini (${ad.purchases} purchases, ROAS ${ad.roas.toFixed(2)}x).
 
-Dalam MAKSIMUM 3 ayat sahaja, nyatakan kenapa visual ni WIN:
+Terus analisa kenapa visual ni WIN dalam 2-3 ayat:
 - Warna, komposisi & design
 - Headline/teks yang standout
 - Elemen visual yang tarik perhatian
 
-PENTING: Bahasa Malaysia ringkas. Fokus pada APA YANG KAU NAMPAK.`;
+PENTING: Bahasa Malaysia. JANGAN tulis intro seperti "Berikut adalah analisis". Terus masuk analisa.`;
 
         const result = await genAI.models.generateContent({
             model: 'gemini-3-pro-preview',  // Gemini 3 Pro for deep multimodal analysis
