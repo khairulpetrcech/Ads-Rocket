@@ -185,8 +185,8 @@ export default async function handler(req: any, res: any) {
 
         // Footer with cost estimate and AI model
         const validAnalyses = creativeAnalyses.filter(a => !a.analysis.includes('❌ Error'));
-        const estimatedCost = (validAnalyses.length * 0.05).toFixed(2); // ~RM0.05 with Pro
-        reportText += `---\n_AI: Gemini 3.0 Pro | Est. Cost: ~RM${estimatedCost}_`;
+        const estimatedCost = (validAnalyses.length * 0.10).toFixed(2); // ~RM0.10 per video with Pro
+        reportText += `---\n_AI: Gemini 3 Pro | Est. Cost: ~RM${estimatedCost}_`;
 
         // --- STEP 4: Send to Telegram ---
         const telegramUrl = `https://api.telegram.org/bot${telegramBotToken}/sendMessage`;
