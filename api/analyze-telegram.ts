@@ -179,8 +179,8 @@ export default async function handler(req: any, res: any) {
         }
 
         // Footer with cost estimate and AI model
-        const estimatedCost = (creativeAnalyses.length * 0.05).toFixed(2); // ~RM0.05 per video with Pro
-        reportText += `---\n_AI: Gemini 3 Pro | Est. Cost: ~RM${estimatedCost}_`;
+        const estimatedCost = (creativeAnalyses.length * 0.01).toFixed(2); // ~RM0.01 with Flash
+        reportText += `---\n_AI: Gemini 3.0 Flash | Est. Cost: ~RM${estimatedCost}_`;
 
         // --- STEP 4: Send to Telegram ---
         const telegramUrl = `https://api.telegram.org/bot${telegramBotToken}/sendMessage`;
@@ -319,11 +319,14 @@ PERATURAN KETAT:
 3. Bahasa Malaysia ringkas tapi padat`;
 
                 const result = await genAI.models.generateContent({
-                    model: 'gemini-1.5-pro',
+                    model: 'gemini-3.0-flash-preview',
                     contents: [
                         { text: prompt },
                         { fileData: { fileUri: uploadResult.uri, mimeType: 'video/mp4' } }
                     ]
+                }).catch((err: any) => {
+                    console.error('Gemini 3.0 Analysis Error:', err);
+                    throw new Error(`Gemini Error: ${err.message}`);
                 });
 
                 // Delete uploaded file
@@ -387,11 +390,14 @@ PERATURAN KETAT:
 3. Bahasa Malaysia ringkas tapi padat`;
 
         const result = await genAI.models.generateContent({
-            model: 'gemini-1.5-pro',
+            model: 'gemini-3.0-flash-preview',
             contents: [
                 { text: prompt },
                 { inlineData: { mimeType: mimeType, data: base64Image } }
             ]
+        }).catch((err: any) => {
+            console.error('Gemini 3.0 Image Error:', err);
+            throw new Error(`Gemini Error: ${err.message}`);
         });
 
         console.log(`[Creative Analysis] ✅ Image analysis complete for ${ad.name}`);
