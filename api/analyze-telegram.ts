@@ -181,7 +181,7 @@ export default async function handler(req: any, res: any) {
         // Footer with cost estimate and AI model
         const totalSpend = topAds.reduce((sum: number, ad: any) => sum + ad.spend, 0);
         const estimatedCost = (creativeAnalyses.length * 0.01).toFixed(2); // ~RM0.01 per video with Flash
-        reportText += `---\n_AI: Gemini 2.0 Flash | Est. Cost: ~RM${estimatedCost} | Spend: RM${totalSpend.toFixed(2)}_`;
+        reportText += `---\n_AI: Gemini 3.0 Flash | Est. Cost: ~RM${estimatedCost} | Spend: RM${totalSpend.toFixed(2)}_`;
 
         // --- STEP 4: Send to Telegram ---
         const telegramUrl = `https://api.telegram.org/bot${telegramBotToken}/sendMessage`;
@@ -320,7 +320,7 @@ PERATURAN KETAT:
 3. Bahasa Malaysia ringkas tapi padat`;
 
                 const result = await genAI.models.generateContent({
-                    model: 'gemini-2.0-flash',
+                    model: 'gemini-3.0-flash-preview',
                     contents: [
                         { text: prompt },
                         { fileData: { fileUri: uploadResult.uri, mimeType: 'video/mp4' } }
@@ -388,7 +388,7 @@ PERATURAN KETAT:
 3. Bahasa Malaysia ringkas tapi padat`;
 
         const result = await genAI.models.generateContent({
-            model: 'gemini-2.0-flash',
+            model: 'gemini-3.0-flash-preview',
             contents: [
                 { text: prompt },
                 { inlineData: { mimeType: mimeType, data: base64Image } }
