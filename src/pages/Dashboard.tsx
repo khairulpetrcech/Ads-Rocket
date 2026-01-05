@@ -272,7 +272,7 @@ const Dashboard: React.FC = () => {
                     telegramChatId: settings.telegramChatId,
                     telegramBotToken: settings.telegramBotToken,
                     dailyUsageCount: dailyUsage.count,
-                    fbName: settings.fbName || ''
+                    fbName: settings.businessName || ''
                 })
             });
 
