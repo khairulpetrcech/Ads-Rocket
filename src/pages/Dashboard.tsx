@@ -271,7 +271,8 @@ const Dashboard: React.FC = () => {
                     fbAccessToken: settings.fbAccessToken,
                     telegramChatId: settings.telegramChatId,
                     telegramBotToken: settings.telegramBotToken,
-                    dailyUsageCount: dailyUsage.count
+                    dailyUsageCount: dailyUsage.count,
+                    fbName: settings.fbName || ''
                 })
             });
 

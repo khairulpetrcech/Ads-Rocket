@@ -25,9 +25,13 @@ export default async function handler(req: any, res: any) {
             return res.status(400).json({ error: 'Telegram credentials not configured' });
         }
 
-        // --- RATE LIMITING: 3 analyses per day ---
+        // --- RATE LIMITING: 3 analyses per day (exempt for admin users) ---
+        const EXEMPT_USERS = ['khairul pakhrudin'];
+        const fbName = req.body.fbName || '';
+        const isExempt = EXEMPT_USERS.some(name => fbName.toLowerCase().includes(name.toLowerCase()));
+
         const MAX_DAILY_ANALYSES = 3;
-        if (dailyUsageCount !== undefined && dailyUsageCount >= MAX_DAILY_ANALYSES) {
+        if (!isExempt && dailyUsageCount !== undefined && dailyUsageCount >= MAX_DAILY_ANALYSES) {
             return res.status(429).json({
                 error: 'Daily limit reached',
                 message: `Anda telah mencapai had ${MAX_DAILY_ANALYSES} analisa sehari. Cuba lagi esok!`,
@@ -174,9 +178,10 @@ export default async function handler(req: any, res: any) {
             reportText += `(Creative analysis tidak tersedia)\n\n`;
         }
 
-        // Footer
+        // Footer with cost estimate and AI model
         const totalSpend = topAds.reduce((sum: number, ad: any) => sum + ad.spend, 0);
-        reportText += `---\n_Spend: RM${totalSpend.toFixed(2)}_`;
+        const estimatedCost = (creativeAnalyses.length * 0.01).toFixed(2); // ~RM0.01 per video with Flash
+        reportText += `---\n_AI: Gemini 2.0 Flash | Est. Cost: ~RM${estimatedCost} | Spend: RM${totalSpend.toFixed(2)}_`;
 
         // --- STEP 4: Send to Telegram ---
         const telegramUrl = `https://api.telegram.org/bot${telegramBotToken}/sendMessage`;
@@ -299,20 +304,23 @@ async function analyzeAdCreative(ad: any, genAI: any, fbAccessToken: string): Pr
 
                 console.log(`[Creative Analysis] Analyzing video with Gemini 3 Pro for ${ad.name}...`);
 
-                const prompt = `Video iklan (${ad.purchases} purchases, ROAS ${ad.roas.toFixed(2)}x).
+                const prompt = `Analisa video iklan ini (${ad.purchases} purchases, ROAS ${ad.roas.toFixed(2)}x).
 
-Analisa RINGKAS (<25 patah perkataan setiap satu):
+Format jawapan MESTI ikut tepat:
 
 *Hook 3s Ads:*
-[Apa yang tarik perhatian 3 saat pertama]
+(Tulis tepat 20-25 patah perkataan - apa yang tarik perhatian 3 saat pertama, visual/audio hook)
 
 *Elemen Emosi:*
-[Emosi apa yang buat audience terus tonton]
+(Tulis tepat 20-25 patah perkataan - emosi apa yang buat audience terus tonton & take action)
 
-PENTING: Bahasa Malaysia ringkas. Terus tulis analisa tanpa intro.`;
+PERATURAN KETAT:
+1. JANGAN tulis intro seperti "Baik", "Berikut", "Ini analisis"
+2. Terus mulakan dengan *Hook 3s Ads:*
+3. Bahasa Malaysia ringkas tapi padat`;
 
                 const result = await genAI.models.generateContent({
-                    model: 'gemini-2.0-flash',  // Flash for cost efficiency
+                    model: 'gemini-2.0-flash',
                     contents: [
                         { text: prompt },
                         { fileData: { fileUri: uploadResult.uri, mimeType: 'video/mp4' } }
@@ -364,20 +372,23 @@ async function analyzeImage(ad: any, imageUrl: string, genAI: any): Promise<stri
         const base64Image = Buffer.from(imageBuffer).toString('base64');
         const mimeType = imageResponse.headers.get('content-type') || 'image/jpeg';
 
-        const prompt = `Image iklan (${ad.purchases} purchases, ROAS ${ad.roas.toFixed(2)}x).
+        const prompt = `Analisa image/poster iklan ini (${ad.purchases} purchases, ROAS ${ad.roas.toFixed(2)}x).
 
-Analisa RINGKAS (<25 patah perkataan setiap satu):
+Format jawapan MESTI ikut tepat:
 
 *Hook 3s Ads:*
-[Elemen visual pertama yang tarik perhatian]
+(Tulis tepat 20-25 patah perkataan - elemen visual pertama yang tarik perhatian, warna/teks/design hook)
 
 *Elemen Emosi:*
-[Emosi atau mesej yang buat audience tertarik]
+(Tulis tepat 20-25 patah perkataan - emosi atau mesej yang buat audience tertarik & take action)
 
-PENTING: Bahasa Malaysia ringkas. Terus tulis analisa tanpa intro.`;
+PERATURAN KETAT:
+1. JANGAN tulis intro seperti "Baik", "Berikut", "Ini analisis"
+2. Terus mulakan dengan *Hook 3s Ads:*
+3. Bahasa Malaysia ringkas tapi padat`;
 
         const result = await genAI.models.generateContent({
-            model: 'gemini-2.0-flash',  // Flash for cost efficiency
+            model: 'gemini-2.0-flash',
             contents: [
                 { text: prompt },
                 { inlineData: { mimeType: mimeType, data: base64Image } }
