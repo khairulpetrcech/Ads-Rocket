@@ -166,18 +166,25 @@ async function analyzeAdCreative(ad: any, geminiApiKey: string, fbAccessToken: s
                     return null;
                 }
 
-                console.log(`[Creative Analysis] Analyzing video with Gemini 2.0 Flash for ${ad.name}...`);
+                console.log(`[Creative Analysis] Analyzing video with Gemini 3 Pro for ${ad.name}...`);
                 // Analyze video
-                const prompt = `Tonton video iklan ini (ROAS ${ad.roas.toFixed(2)}x).
+                const prompt = `Analisa video iklan ini (${ad.purchases} purchases, ROAS ${ad.roas.toFixed(2)}x).
 
-Dalam MAKSIMUM 2 ayat sahaja, nyatakan kenapa video ni menarik:
-- Hook video (3 saat pertama)
-- Audio & visual yang standout
+Format jawapan MESTI ikut tepat:
 
-PENTING: MESTI 2 ayat sahaja, Bahasa Malaysia ringkas.`;
+*Hook 3s Ads:*
+(Tulis tepat 20-25 patah perkataan - apa yang tarik perhatian 3 saat pertama, visual/audio hook)
+
+*Elemen Emosi:*
+(Tulis tepat 20-25 patah perkataan - emosi apa yang buat audience terus tonton & take action)
+
+PERATURAN KETAT:
+1. JANGAN tulis intro seperti "Baik", "Berikut", "Ini analisis"
+2. Terus mulakan dengan *Hook 3s Ads:*
+3. Bahasa Malaysia ringkas tapi padat`;
 
                 const result = await genAI.models.generateContent({
-                    model: 'gemini-3-pro-preview',  // Gemini 3 Pro - Latest Pro model (Jan 2026)
+                    model: 'gemini-3-pro-preview',
                     contents: [
                         { text: prompt },
                         { fileData: { fileUri: uploadResult.uri, mimeType: 'video/mp4' } }
@@ -204,16 +211,23 @@ PENTING: MESTI 2 ayat sahaja, Bahasa Malaysia ringkas.`;
                     const imageBuffer = await imageResponse.arrayBuffer();
                     const base64Image = Buffer.from(imageBuffer).toString('base64');
 
-                    const prompt = `Analisa thumbnail video iklan ini (ROAS ${ad.roas.toFixed(2)}x).
+                    const prompt = `Analisa image/poster iklan ini (${ad.purchases} purchases, ROAS ${ad.roas.toFixed(2)}x).
 
-Dalam MAKSIMUM 2 ayat sahaja, nyatakan kenapa visual ni menarik:
-- Hook visual pertama
-- Elemen yang standout
+Format jawapan MESTI ikut tepat:
 
-PENTING: MESTI 2 ayat sahaja, Bahasa Malaysia ringkas.`;
+*Hook 3s Ads:*
+(Tulis tepat 20-25 patah perkataan - elemen visual pertama yang tarik perhatian, warna/teks/design hook)
+
+*Elemen Emosi:*
+(Tulis tepat 20-25 patah perkataan - emosi atau mesej yang buat audience tertarik & take action)
+
+PERATURAN KETAT:
+1. JANGAN tulis intro seperti "Baik", "Berikut", "Ini analisis"
+2. Terus mulakan dengan *Hook 3s Ads:*
+3. Bahasa Malaysia ringkas tapi padat`;
 
                     const result = await genAI.models.generateContent({
-                        model: 'gemini-3-pro-preview',  // Gemini 3 Pro - Latest Pro model (Jan 2026)
+                        model: 'gemini-3-pro-preview',
                         contents: [
                             { text: prompt },
                             { inlineData: { mimeType: 'image/jpeg', data: base64Image } }
@@ -387,70 +401,53 @@ async function processUserAnalysis(user: any, geminiApiKey: string) {
         return;
     }
 
-    // AI Analysis
-    const adDetails = topAds.map((ad: any, i: number) =>
-        `${i + 1}. "${ad.name}" - RM${ad.spend.toFixed(2)}, ROAS: ${ad.roas.toFixed(2)}x, Purchase: ${ad.purchases}`
-    ).join('\n');
+    // --- Build Report (matching analyze-telegram.ts template) ---
+    const emojis = ['🥇', '🥈', '🥉'];
+    let reportText = `📊 *Report : ${accountName}*\npast 4 Days\n(${startDateMY} - ${endDateMY})\n\n`;
 
-    const prompt = `Kau seorang pakar Meta Ads Malaysia. Analisa data iklan untuk Ads Manager "${accountName}" bagi tempoh 4 hari lepas (${startDateMY} - ${endDateMY}).
-
-Data Iklan:
-${adDetails}
-
-Sila hasilkan laporan mengikut format TEPAT di bawah (Bahasa Malaysia):
-
-Report : ${accountName}
-past 4 Days
-(${startDateMY} - ${endDateMY})
-
-3 Win Ad :
-1) [Nama Ad 1] | ROAS : [Nilai] | Total Purchase : [Nilai]
-2) [Nama Ad 2] | ROAS : [Nilai] | Total Purchase : [Nilai]
-3) [Nama Ad 3] | ROAS : [Nilai] | Total Purchase : [Nilai]
-
-Why Wins?
-1) [Nama Ad 1] - [Satu ayat pendek kenapa menang]
-2) [Nama Ad 2] - [Satu ayat pendek kenapa menang]
-3) [Nama Ad 3] - [Satu ayat pendek kenapa menang]
-
-Overall Campaign Analysis : [Analisis keseluruhan akaun dalam 20 patah perkataan sahaja.]
-
-PENTING: Guna format Markdown Telegram (*bold* untuk tajuk). Jangan tambah intro atau outro.`;
-
-    const genAI = new GoogleGenAI({ apiKey: geminiApiKey });
-    const response = await genAI.models.generateContent({
-        model: 'gemini-2.0-flash',
-        contents: prompt
+    // Calculate CPA for each ad
+    topAds.forEach((ad: any) => {
+        ad.cpa = ad.purchases > 0 ? ad.spend / ad.purchases : 0;
     });
 
-    const analysisText = response.text || 'Tidak dapat generate analisis.';
+    reportText += `*Top 3 Win Ads*\n`;
+    topAds.forEach((ad: any, i: number) => {
+        reportText += `${emojis[i]} ${ad.name}\n   ${ad.purchases} purch | ${ad.roas.toFixed(2)}x ROAS | RM${ad.cpa.toFixed(2)} CPA\n`;
+    });
 
     // Multimodal Creative Analysis for each winning ad
-    const creativeAnalyses: string[] = [];
+    const creativeAnalyses: { name: string; analysis: string }[] = [];
     for (const ad of topAds) {
-        const creativeInsight = await analyzeAdCreative(ad, geminiApiKey, fb_access_token);
-        if (creativeInsight) {
-            creativeAnalyses.push(`*${ad.name}*\n${creativeInsight}`);
+        try {
+            const creativeInsight = await analyzeAdCreative(ad, geminiApiKey, fb_access_token);
+            if (creativeInsight) {
+                creativeAnalyses.push({ name: ad.name, analysis: creativeInsight });
+            }
+        } catch (err: any) {
+            console.error(`Failed to analyze creative for ${ad.name}:`, err);
+            creativeAnalyses.push({
+                name: ad.name,
+                analysis: `❌ Error: ${err.message || 'Unknown error'}`
+            });
         }
     }
 
-    // Build final message
-    let finalMessage = analysisText;
+    reportText += `\n*🎯 Kenapa Iklan Win?*\n\n`;
+    creativeAnalyses.forEach((item) => {
+        reportText += `*${item.name}*\n${item.analysis}\n\n`;
+    });
 
-    if (creativeAnalyses.length > 0) {
-        finalMessage += `\n\n🎯 *Kenapa Iklan Win?*\n\n${creativeAnalyses.join('\n\n')}`;
+    // If no creative analyses, add placeholder
+    if (creativeAnalyses.length === 0) {
+        reportText += `(Creative analysis tidak tersedia)\n\n`;
     }
 
-    // Add AI model info and cost estimate
-    const videoAnalysisCount = creativeAnalyses.length;
-    // Gemini 3 Pro: $2/1M input tokens, $12/1M output tokens
-    // Estimated: ~20K input tokens per video, ~150 output tokens
-    // Cost per video: (20000 * $2/1M) + (150 * $12/1M) ≈ $0.04 + $0.0018 ≈ $0.042
-    const estimatedCost = (videoAnalysisCount * 0.042).toFixed(3);
+    // Footer with cost estimate and AI model
+    const validAnalyses = creativeAnalyses.filter(a => !a.analysis.includes('❌ Error'));
+    const estimatedCost = (validAnalyses.length * 0.10).toFixed(2); // ~RM0.10 per video with Pro
+    reportText += `---\n_AI: Gemini 3 Pro | Est. Cost: ~RM${estimatedCost}_`;
 
-    finalMessage += `\n\n---\n_AI Model: Gemini 3 Pro (Preview)_\n_Estimated Cost: ~$${estimatedCost} (${videoAnalysisCount} video${videoAnalysisCount > 1 ? 's' : ''})_`;
-
-    await sendTelegram(telegram_bot_token, telegram_chat_id, finalMessage);
+    await sendTelegram(telegram_bot_token, telegram_chat_id, reportText);
 }
 
 async function sendTelegram(botToken: string, chatId: string, text: string) {
