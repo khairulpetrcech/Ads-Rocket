@@ -10,6 +10,7 @@ import CreateCampaign from './pages/CreateCampaign';
 import RapidCreator from './pages/RapidCreator';
 import CommentTemplates from './pages/CommentTemplates';
 import EpicPoster from './pages/EpicPoster';
+import EpicVideo from './pages/EpicVideo';
 import AdminPage from './pages/Admin';
 import { UserSettings, AiProvider, GlobalProcess } from './types';
 import { initFacebookSdk, isSecureContext } from './services/metaService';
@@ -352,6 +353,7 @@ const App: React.FC = () => {
               <Route path="create-campaign" element={<CreateCampaign />} />
               <Route path="rapid" element={<RapidCreator />} />
               <Route path="epic-poster" element={<EpicPoster />} />
+              <Route path="epic-video" element={<EpicVideo />} />
               <Route path="comment-templates" element={<CommentTemplates />} />
               <Route path="settings" element={<SettingsPage />} />
             </Route>

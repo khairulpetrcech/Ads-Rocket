@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Settings, LogOut, Rocket, Loader2, ChevronDown, ChevronUp, Play, PlusCircle, MessageSquareText, Menu, X, Minimize2, Maximize2, CheckCircle, Image, Activity, Search, HelpCircle, Bell, Users, FileText } from 'lucide-react';
+import { LayoutDashboard, Settings, LogOut, Rocket, Loader2, ChevronDown, ChevronUp, Play, PlusCircle, MessageSquareText, Menu, X, Minimize2, Maximize2, CheckCircle, Image, Activity, Search, HelpCircle, Bell, Users, FileText, Video } from 'lucide-react';
 import { useSettings } from '../App';
 import { getTopAdsForAccount, publishComment } from '../services/metaService';
 import { analyzeAccountPerformance } from '../services/aiService';
@@ -264,6 +264,10 @@ const Layout: React.FC = () => {
                                 <Image size={18} /><span>Epic Poster</span>
                             </NavLink>
 
+                            <NavLink to="/epic-video" className={navLinkClass}>
+                                <Video size={18} /><span>Epic Video</span>
+                            </NavLink>
+
                             <NavLink to="/comment-templates" className={navLinkClass}>
                                 <MessageSquareText size={18} /><span>Comment Templates</span>
                             </NavLink>
@@ -368,6 +372,10 @@ const Layout: React.FC = () => {
 
                                     <NavLink to="/epic-poster" onClick={() => setIsMobileMenuOpen(false)} className={mobileNavLinkClass}>
                                         <Image size={20} /><span>Epic Poster</span>
+                                    </NavLink>
+
+                                    <NavLink to="/epic-video" onClick={() => setIsMobileMenuOpen(false)} className={mobileNavLinkClass}>
+                                        <Video size={20} /><span>Epic Video</span>
                                     </NavLink>
 
                                     <NavLink to="/comment-templates" onClick={() => setIsMobileMenuOpen(false)} className={mobileNavLinkClass}>
