@@ -184,7 +184,7 @@ PERATURAN KETAT:
 3. Bahasa Malaysia ringkas tapi padat`;
 
                 const result = await genAI.models.generateContent({
-                    model: 'gemini-3-pro-preview',
+                    model: 'gemini-3-flash-preview',
                     contents: [
                         { text: prompt },
                         { fileData: { fileUri: uploadResult.uri, mimeType: 'video/mp4' } }
@@ -227,7 +227,7 @@ PERATURAN KETAT:
 3. Bahasa Malaysia ringkas tapi padat`;
 
                     const result = await genAI.models.generateContent({
-                        model: 'gemini-3-pro-preview',
+                        model: 'gemini-3-flash-preview',
                         contents: [
                             { text: prompt },
                             { inlineData: { mimeType: 'image/jpeg', data: base64Image } }
@@ -303,7 +303,7 @@ Dalam MAKSIMUM 2 ayat sahaja, nyatakan kenapa visual ni menarik:
 PENTING: MESTI 2 ayat sahaja, Bahasa Malaysia ringkas.`;
 
             const result = await genAI.models.generateContent({
-                model: 'gemini-3-pro-preview',  // Gemini 3 Pro - Latest Pro model (Jan 2026)
+                model: 'gemini-3-flash-preview',  // Gemini 3 Pro - Latest Pro model (Jan 2026)
                 contents: [
                     { text: prompt },
                     { inlineData: { mimeType: 'image/jpeg', data: base64Image } }
@@ -444,8 +444,8 @@ async function processUserAnalysis(user: any, geminiApiKey: string) {
 
     // Footer with cost estimate and AI model
     const validAnalyses = creativeAnalyses.filter(a => !a.analysis.includes('❌ Error'));
-    const estimatedCost = (validAnalyses.length * 0.10).toFixed(2); // ~RM0.10 per video with Pro
-    reportText += `---\n_AI: Gemini 3 Pro | Est. Cost: ~RM${estimatedCost}_`;
+    const estimatedCost = (validAnalyses.length * 0.02).toFixed(2); // ~RM0.02 per video with Flash
+    reportText += `---\n_AI: Gemini 3 Flash | Est. Cost: ~RM${estimatedCost}_`;
 
     await sendTelegram(telegram_bot_token, telegram_chat_id, reportText);
 }
