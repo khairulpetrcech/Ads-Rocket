@@ -1,7 +1,8 @@
 /**
  * Video Status Polling API
- * Check status of video generation and return URL when complete
+ * Check status of Veo video generation operation
  */
+import { GoogleGenAI } from "@google/genai";
 
 export default async function handler(req: any, res: any) {
     // CORS headers
@@ -18,42 +19,65 @@ export default async function handler(req: any, res: any) {
     }
 
     try {
-        const { videoId } = req.query;
+        const { operationName } = req.query;
 
-        if (!videoId) {
-            return res.status(400).json({ error: 'Video ID is required' });
+        if (!operationName) {
+            return res.status(400).json({ error: 'Operation name is required' });
         }
 
-        const apiKey = process.env.GEMINIGEN_API_KEY;
+        const apiKey = process.env.GEMINI_3_API || process.env.GEMINIGEN_API_KEY;
         if (!apiKey) {
-            return res.status(500).json({ error: 'GEMINIGEN_API_KEY not configured' });
+            return res.status(500).json({ error: 'API key not configured' });
         }
 
-        // Call GeminiGen.ai to get video status
-        const response = await fetch(`https://api.geminigen.ai/v1/videos/${videoId}`, {
-            method: 'GET',
-            headers: {
-                'Authorization': `Bearer ${apiKey}`,
-                'Content-Type': 'application/json'
+        const genAI = new GoogleGenAI({ apiKey });
+
+        // Poll operation status
+        const operation = await genAI.operations.get({ name: operationName });
+
+        if (!operation.done) {
+            return res.status(200).json({
+                success: true,
+                status: 'processing',
+                done: false,
+                progress: 50 // Estimated
+            });
+        }
+
+        // Operation complete - get video
+        if (operation.response && operation.response.generatedVideos) {
+            const video = operation.response.generatedVideos[0];
+
+            // Get video data
+            let videoUrl = null;
+            if (video.video && video.video.uri) {
+                videoUrl = video.video.uri;
             }
-        });
 
-        const data = await response.json();
+            return res.status(200).json({
+                success: true,
+                status: 'completed',
+                done: true,
+                url: videoUrl,
+                progress: 100
+            });
+        }
 
-        if (!response.ok) {
-            console.error('[Video Status] API Error:', data);
-            return res.status(response.status).json({
-                error: data.error || 'Failed to get video status',
-                details: data
+        // Check for error
+        if (operation.error) {
+            return res.status(200).json({
+                success: false,
+                status: 'failed',
+                done: true,
+                error: operation.error.message || 'Video generation failed'
             });
         }
 
         return res.status(200).json({
             success: true,
-            videoId: data.id,
-            status: data.status, // 'processing', 'completed', 'failed'
-            url: data.url || null, // Video URL when completed
-            progress: data.progress || 0
+            status: 'processing',
+            done: false,
+            progress: 75
         });
 
     } catch (error: any) {

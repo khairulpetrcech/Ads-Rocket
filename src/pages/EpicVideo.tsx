@@ -5,9 +5,8 @@ import { Video, Download, Image as ImageIcon, Loader2, AlertTriangle, Sparkles, 
 const EpicVideo: React.FC = () => {
     const { settings } = useSettings();
     const [prompt, setPrompt] = useState('');
-    const [model, setModel] = useState<'sora-2' | 'sora-2-pro'>('sora-2');
-    const [seconds, setSeconds] = useState<4 | 8 | 12>(8);
-    const [aspectRatio, setAspectRatio] = useState<'1080x1920' | '1920x1080' | '1080x1080'>('1080x1920');
+    const [seconds, setSeconds] = useState<4 | 8 | 12 | 15>(8);
+    const [aspectRatio, setAspectRatio] = useState<'9:16' | '16:9' | '1:1'>('9:16');
     const [loading, setLoading] = useState(false);
     const [generatedVideoUrl, setGeneratedVideoUrl] = useState<string | null>(null);
     const [error, setError] = useState('');
@@ -38,19 +37,19 @@ const EpicVideo: React.FC = () => {
         reader.readAsDataURL(file);
     };
 
-    const pollVideoStatus = async (videoId: string) => {
+    const pollVideoStatus = async (operationName: string) => {
         try {
-            const response = await fetch(`/api/video-status?videoId=${videoId}`);
+            const response = await fetch(`/api/video-status?operationName=${encodeURIComponent(operationName)}`);
             const data = await response.json();
 
-            if (data.status === 'completed' && data.url) {
+            if (data.done && data.status === 'completed' && data.url) {
                 setGeneratedVideoUrl(data.url);
                 setLoading(false);
                 setStatusMessage('Video ready!');
                 setProgress(100);
                 if (pollingRef.current) clearInterval(pollingRef.current);
-            } else if (data.status === 'failed') {
-                setError('Video generation failed. Please try again.');
+            } else if (data.done && data.status === 'failed') {
+                setError(data.error || 'Video generation failed. Please try again.');
                 setLoading(false);
                 if (pollingRef.current) clearInterval(pollingRef.current);
             } else {
@@ -74,9 +73,8 @@ const EpicVideo: React.FC = () => {
         try {
             const requestBody: any = {
                 prompt,
-                model,
-                seconds,
-                size: aspectRatio
+                duration: seconds,
+                aspectRatio: aspectRatio
             };
 
             // If reference image, add base64
@@ -101,8 +99,8 @@ const EpicVideo: React.FC = () => {
 
             // Start polling for status
             pollingRef.current = setInterval(() => {
-                pollVideoStatus(data.videoId);
-            }, 3000);
+                pollVideoStatus(data.operationName);
+            }, 5000);
 
         } catch (e: any) {
             console.error("Gen Error", e);
@@ -143,7 +141,7 @@ const EpicVideo: React.FC = () => {
                 </div>
                 <div>
                     <h1 className="text-2xl font-bold text-slate-800">Epic Video</h1>
-                    <p className="text-xs text-purple-600 font-bold uppercase tracking-wide">Powered by Sora 2 via GeminiGen.ai</p>
+                    <p className="text-xs text-purple-600 font-bold uppercase tracking-wide">Powered by Google Veo 2</p>
                 </div>
             </div>
 
@@ -211,33 +209,14 @@ const EpicVideo: React.FC = () => {
                             />
                         </div>
 
-                        {/* Model Selection */}
-                        <div className="mb-4">
-                            <label className="block text-sm font-bold text-slate-600 mb-2">Model</label>
-                            <div className="grid grid-cols-2 gap-2">
-                                <button
-                                    onClick={() => setModel('sora-2')}
-                                    className={`py-2 px-3 rounded-lg border text-sm font-bold transition-all ${model === 'sora-2' ? 'bg-purple-600 text-white border-purple-600 shadow-md' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}
-                                >
-                                    Sora 2 (Fast)
-                                </button>
-                                <button
-                                    onClick={() => setModel('sora-2-pro')}
-                                    className={`py-2 px-3 rounded-lg border text-sm font-bold transition-all ${model === 'sora-2-pro' ? 'bg-purple-600 text-white border-purple-600 shadow-md' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}
-                                >
-                                    Sora 2 Pro (HD)
-                                </button>
-                            </div>
-                        </div>
-
                         {/* Duration */}
                         <div className="mb-4">
                             <label className="block text-sm font-bold text-slate-600 mb-2">Duration</label>
-                            <div className="grid grid-cols-3 gap-2">
-                                {[4, 8, 12].map((s) => (
+                            <div className="grid grid-cols-4 gap-2">
+                                {[4, 8, 12, 15].map((s) => (
                                     <button
                                         key={s}
-                                        onClick={() => setSeconds(s as 4 | 8 | 12)}
+                                        onClick={() => setSeconds(s as 4 | 8 | 12 | 15)}
                                         className={`py-2 px-3 rounded-lg border text-sm font-bold transition-all flex items-center justify-center gap-1 ${seconds === s ? 'bg-purple-600 text-white border-purple-600 shadow-md' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}
                                     >
                                         <Clock size={14} />
@@ -252,20 +231,20 @@ const EpicVideo: React.FC = () => {
                             <label className="block text-sm font-bold text-slate-600 mb-2">Aspect Ratio</label>
                             <div className="grid grid-cols-3 gap-2">
                                 <button
-                                    onClick={() => setAspectRatio("1080x1080")}
-                                    className={`py-2 px-3 rounded-lg border text-sm font-bold transition-all ${aspectRatio === "1080x1080" ? 'bg-purple-600 text-white border-purple-600 shadow-md' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}
+                                    onClick={() => setAspectRatio("1:1")}
+                                    className={`py-2 px-3 rounded-lg border text-sm font-bold transition-all ${aspectRatio === "1:1" ? 'bg-purple-600 text-white border-purple-600 shadow-md' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}
                                 >
                                     1:1
                                 </button>
                                 <button
-                                    onClick={() => setAspectRatio("1080x1920")}
-                                    className={`py-2 px-3 rounded-lg border text-sm font-bold transition-all ${aspectRatio === "1080x1920" ? 'bg-purple-600 text-white border-purple-600 shadow-md' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}
+                                    onClick={() => setAspectRatio("9:16")}
+                                    className={`py-2 px-3 rounded-lg border text-sm font-bold transition-all ${aspectRatio === "9:16" ? 'bg-purple-600 text-white border-purple-600 shadow-md' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}
                                 >
                                     9:16
                                 </button>
                                 <button
-                                    onClick={() => setAspectRatio("1920x1080")}
-                                    className={`py-2 px-3 rounded-lg border text-sm font-bold transition-all ${aspectRatio === "1920x1080" ? 'bg-purple-600 text-white border-purple-600 shadow-md' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}
+                                    onClick={() => setAspectRatio("16:9")}
+                                    className={`py-2 px-3 rounded-lg border text-sm font-bold transition-all ${aspectRatio === "16:9" ? 'bg-purple-600 text-white border-purple-600 shadow-md' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}
                                 >
                                     16:9
                                 </button>
