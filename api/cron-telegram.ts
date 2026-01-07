@@ -444,7 +444,7 @@ async function processUserAnalysis(user: any, geminiApiKey: string) {
 
     // Footer with cost estimate and AI model
     const validAnalyses = creativeAnalyses.filter(a => !a.analysis.includes('❌ Error'));
-    const estimatedCost = (validAnalyses.length * 0.02).toFixed(2); // ~RM0.02 per video with Flash
+    const estimatedCost = (validAnalyses.length * 0.025).toFixed(2); // Flash = Pro/4 (~RM0.025 per video)
     reportText += `---\n_AI: Gemini 3 Flash | Est. Cost: ~RM${estimatedCost}_`;
 
     await sendTelegram(telegram_bot_token, telegram_chat_id, reportText);
