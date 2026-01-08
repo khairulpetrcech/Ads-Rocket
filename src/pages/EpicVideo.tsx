@@ -5,13 +5,16 @@ import { Video, Download, Image as ImageIcon, Loader2, AlertTriangle, Sparkles, 
 const EpicVideo: React.FC = () => {
     const { settings } = useSettings();
     const [prompt, setPrompt] = useState('');
-    const [seconds, setSeconds] = useState<4 | 8 | 12 | 15>(8);
-    const [aspectRatio, setAspectRatio] = useState<'9:16' | '16:9' | '1:1'>('9:16');
+    const [model, setModel] = useState<'sora-2' | 'sora-2-pro' | 'sora-2-pro-hd'>('sora-2');
+    const [seconds, setSeconds] = useState<10 | 15 | 25>(10);
+    const [aspectRatio, setAspectRatio] = useState<'portrait' | 'landscape'>('portrait');
+    const [resolution, setResolution] = useState<'small' | 'large'>('small');
     const [loading, setLoading] = useState(false);
     const [generatedVideoUrl, setGeneratedVideoUrl] = useState<string | null>(null);
     const [error, setError] = useState('');
     const [progress, setProgress] = useState(0);
     const [statusMessage, setStatusMessage] = useState('');
+    const [uuid, setUuid] = useState<string | null>(null);
 
     // Image-to-video
     const [referenceImage, setReferenceImage] = useState<string | null>(null);
@@ -37,9 +40,9 @@ const EpicVideo: React.FC = () => {
         reader.readAsDataURL(file);
     };
 
-    const pollVideoStatus = async (operationName: string) => {
+    const pollVideoStatus = async (uuid: string) => {
         try {
-            const response = await fetch(`/api/video-status?operationName=${encodeURIComponent(operationName)}`);
+            const response = await fetch(`/api/video-status?uuid=${uuid}`);
             const data = await response.json();
 
             if (data.done && data.status === 'completed' && data.url) {
@@ -73,8 +76,10 @@ const EpicVideo: React.FC = () => {
         try {
             const requestBody: any = {
                 prompt,
+                model,
                 duration: seconds,
-                aspectRatio: aspectRatio
+                resolution,
+                aspectRatio
             };
 
             // If reference image, add base64
@@ -98,8 +103,9 @@ const EpicVideo: React.FC = () => {
             setProgress(10);
 
             // Start polling for status
+            setUuid(data.uuid);
             pollingRef.current = setInterval(() => {
-                pollVideoStatus(data.operationName);
+                pollVideoStatus(data.uuid);
             }, 5000);
 
         } catch (e: any) {
@@ -141,7 +147,7 @@ const EpicVideo: React.FC = () => {
                 </div>
                 <div>
                     <h1 className="text-2xl font-bold text-slate-800">Epic Video</h1>
-                    <p className="text-xs text-purple-600 font-bold uppercase tracking-wide">Powered by Google Veo 2</p>
+                    <p className="text-xs text-purple-600 font-bold uppercase tracking-wide">Powered by Sora 2 via GeminiGen.ai</p>
                 </div>
             </div>
 
@@ -209,44 +215,84 @@ const EpicVideo: React.FC = () => {
                             />
                         </div>
 
-                        {/* Duration */}
+                        {/* Model Selection */}
                         <div className="mb-4">
-                            <label className="block text-sm font-bold text-slate-600 mb-2">Duration</label>
-                            <div className="grid grid-cols-4 gap-2">
-                                {[4, 8, 12, 15].map((s) => (
+                            <label className="block text-sm font-bold text-slate-600 mb-2">Model</label>
+                            <div className="grid grid-cols-3 gap-2">
+                                <button
+                                    onClick={() => setModel('sora-2')}
+                                    className={`py-2 px-2 rounded-lg border text-xs font-bold transition-all ${model === 'sora-2' ? 'bg-purple-600 text-white border-purple-600 shadow-md' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}
+                                >
+                                    Sora 2
+                                </button>
+                                <button
+                                    onClick={() => setModel('sora-2-pro')}
+                                    className={`py-2 px-2 rounded-lg border text-xs font-bold transition-all ${model === 'sora-2-pro' ? 'bg-purple-600 text-white border-purple-600 shadow-md' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}
+                                >
+                                    Sora 2 Pro
+                                </button>
+                                <button
+                                    onClick={() => setModel('sora-2-pro-hd')}
+                                    className={`py-2 px-2 rounded-lg border text-xs font-bold transition-all ${model === 'sora-2-pro-hd' ? 'bg-purple-600 text-white border-purple-600 shadow-md' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}
+                                >
+                                    Sora 2 HD
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Duration & Resolution */}
+                        <div className="grid grid-cols-2 gap-4 mb-4">
+                            <div>
+                                <label className="block text-sm font-bold text-slate-600 mb-2">Duration</label>
+                                <div className="grid grid-cols-3 gap-2">
+                                    {[10, 15, 25].map((s) => (
+                                        <button
+                                            key={s}
+                                            onClick={() => setSeconds(s as 10 | 15 | 25)}
+                                            disabled={(model === 'sora-2' && s === 25) || (model.includes('pro') && s === 10)}
+                                            className={`py-2 px-1 rounded-lg border text-xs font-bold transition-all flex items-center justify-center gap-1 ${seconds === s ? 'bg-purple-600 text-white border-purple-600 shadow-md' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed'}`}
+                                        >
+                                            {s}s
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold text-slate-600 mb-2">Resolution</label>
+                                <div className="grid grid-cols-2 gap-2">
                                     <button
-                                        key={s}
-                                        onClick={() => setSeconds(s as 4 | 8 | 12 | 15)}
-                                        className={`py-2 px-3 rounded-lg border text-sm font-bold transition-all flex items-center justify-center gap-1 ${seconds === s ? 'bg-purple-600 text-white border-purple-600 shadow-md' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}
+                                        onClick={() => setResolution('small')}
+                                        disabled={model === 'sora-2-pro-hd'}
+                                        className={`py-2 px-2 rounded-lg border text-xs font-bold transition-all ${resolution === 'small' ? 'bg-purple-600 text-white border-purple-600 shadow-md' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50 disabled:opacity-50'}`}
                                     >
-                                        <Clock size={14} />
-                                        {s}s
+                                        720p
                                     </button>
-                                ))}
+                                    <button
+                                        onClick={() => setResolution('large')}
+                                        disabled={model !== 'sora-2-pro-hd'}
+                                        className={`py-2 px-2 rounded-lg border text-xs font-bold transition-all ${resolution === 'large' ? 'bg-purple-600 text-white border-purple-600 shadow-md' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50 disabled:opacity-50'}`}
+                                    >
+                                        1080p
+                                    </button>
+                                </div>
                             </div>
                         </div>
 
                         {/* Aspect Ratio */}
                         <div className="mb-6">
                             <label className="block text-sm font-bold text-slate-600 mb-2">Aspect Ratio</label>
-                            <div className="grid grid-cols-3 gap-2">
+                            <div className="grid grid-cols-2 gap-2">
                                 <button
-                                    onClick={() => setAspectRatio("1:1")}
-                                    className={`py-2 px-3 rounded-lg border text-sm font-bold transition-all ${aspectRatio === "1:1" ? 'bg-purple-600 text-white border-purple-600 shadow-md' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}
+                                    onClick={() => setAspectRatio("portrait")}
+                                    className={`py-2 px-3 rounded-lg border text-sm font-bold transition-all ${aspectRatio === "portrait" ? 'bg-purple-600 text-white border-purple-600 shadow-md' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}
                                 >
-                                    1:1
+                                    9:16 (Portrait)
                                 </button>
                                 <button
-                                    onClick={() => setAspectRatio("9:16")}
-                                    className={`py-2 px-3 rounded-lg border text-sm font-bold transition-all ${aspectRatio === "9:16" ? 'bg-purple-600 text-white border-purple-600 shadow-md' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}
+                                    onClick={() => setAspectRatio("landscape")}
+                                    className={`py-2 px-3 rounded-lg border text-sm font-bold transition-all ${aspectRatio === "landscape" ? 'bg-purple-600 text-white border-purple-600 shadow-md' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}
                                 >
-                                    9:16
-                                </button>
-                                <button
-                                    onClick={() => setAspectRatio("16:9")}
-                                    className={`py-2 px-3 rounded-lg border text-sm font-bold transition-all ${aspectRatio === "16:9" ? 'bg-purple-600 text-white border-purple-600 shadow-md' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}
-                                >
-                                    16:9
+                                    16:9 (Landscape)
                                 </button>
                             </div>
                         </div>

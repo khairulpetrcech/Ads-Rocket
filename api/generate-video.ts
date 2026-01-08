@@ -1,8 +1,14 @@
 /**
- * Video Generation API via Google Veo (Gemini)
+ * Video Generation API via GeminiGen.ai (Sora 2)
  * Supports text-to-video and image-to-video generation
  */
-import { GoogleGenAI } from "@google/genai";
+export const config = {
+    api: {
+        bodyParser: {
+            sizeLimit: '10mb', // Setup limit for image uploads
+        },
+    },
+};
 
 export default async function handler(req: any, res: any) {
     // CORS headers
@@ -19,53 +25,68 @@ export default async function handler(req: any, res: any) {
     }
 
     try {
-        const { prompt, duration = 8, aspectRatio = '9:16', imageBase64 } = req.body;
+        const { prompt, duration, aspectRatio, model = 'sora-2', resolution = 'small', imageBase64 } = req.body;
 
         if (!prompt) {
             return res.status(400).json({ error: 'Prompt is required' });
         }
 
-        // Use GEMINI_3_API for Veo video generation
-        const apiKey = process.env.GEMINI_3_API || process.env.GEMINIGEN_API_KEY;
+        const apiKey = process.env.GEMINIGEN_API_KEY;
         if (!apiKey) {
-            return res.status(500).json({ error: 'GEMINI_3_API or GEMINIGEN_API_KEY not configured' });
+            return res.status(500).json({ error: 'GEMINIGEN_API_KEY not configured' });
         }
 
-        console.log(`[Veo] Generating video: ${prompt.substring(0, 50)}...`);
+        console.log(`[GeminiGen] Generating video (${model}): ${prompt.substring(0, 50)}...`);
 
-        const genAI = new GoogleGenAI({ apiKey });
+        // Prepare FormData
+        const formData = new FormData();
+        formData.append("prompt", prompt);
+        formData.append("model", model);
+        formData.append("duration", duration.toString());
+        formData.append("resolution", resolution);
+        formData.append("aspect_ratio", aspectRatio); // 'landscape' or 'portrait'
 
-        // Generate video using Veo 2
-        const result = await genAI.models.generateVideos({
-            model: 'veo-2.0-generate-001',
-            prompt: prompt,
-            config: {
-                aspectRatio: aspectRatio, // '9:16', '16:9', or '1:1'
-                numberOfVideos: 1,
-                durationSeconds: duration, // 4, 8, 12, or 15
-                personGeneration: 'allow_adult'
-            }
+        // Handle Image Upload (if present)
+        if (imageBase64) {
+            // Convert Base64 to Blob/File for FormData
+            const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, "");
+            const buffer = Buffer.from(base64Data, 'base64');
+            const blob = new Blob([buffer], { type: 'image/png' });
+            formData.append("files", blob, "reference_image.png");
+        }
+
+        // Send Request to GeminiGen.ai
+        const response = await fetch("https://api.geminigen.ai/uapi/v1/video-gen/sora", {
+            method: "POST",
+            headers: {
+                "x-api-key": apiKey,
+                // Do NOT set Content-Type header manually for FormData, fetch does it automatically with boundary
+            },
+            body: formData as any // Type assertion for fetch compatibility
         });
 
-        // Video generation is async - result is the operation
-        if (!result || !result.name) {
-            return res.status(500).json({
-                error: 'Failed to start video generation',
-                details: 'No operation returned'
+        const data = await response.json();
+
+        if (!response.ok || data.error_code) {
+            console.error('[GeminiGen] API Error:', data);
+            return res.status(response.status).json({
+                error: data.error_message || data.message || 'Failed to start video generation',
+                details: data
             });
         }
 
-        console.log(`[Veo] Video generation started: ${result.name}`);
+        console.log(`[GeminiGen] Generation started! UUID: ${data.uuid}, ID: ${data.id}`);
 
         return res.status(200).json({
             success: true,
-            operationName: result.name,
+            uuid: data.uuid, // Use UUID for status polling
+            id: data.id,
             status: 'processing',
-            message: 'Video generation started. Poll /api/video-status for completion.'
+            message: 'Video generation started.'
         });
 
     } catch (error: any) {
-        console.error('[Veo] Error:', error);
+        console.error('[GeminiGen] Server Error:', error);
         return res.status(500).json({
             error: error.message || 'Internal server error',
             details: error.toString()

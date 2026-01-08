@@ -1,9 +1,6 @@
 /**
- * Video Status Polling API
- * Check status of Veo video generation operation
+ * Video Status Polling API via GeminiGen.ai History
  */
-import { GoogleGenAI } from "@google/genai";
-
 export default async function handler(req: any, res: any) {
     // CORS headers
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -19,39 +16,46 @@ export default async function handler(req: any, res: any) {
     }
 
     try {
-        const { operationName } = req.query;
+        const { uuid } = req.query; // Use UUID from GeminiGen response
 
-        if (!operationName) {
-            return res.status(400).json({ error: 'Operation name is required' });
+        if (!uuid) {
+            return res.status(400).json({ error: 'UUID is required' });
         }
 
-        const apiKey = process.env.GEMINI_3_API || process.env.GEMINIGEN_API_KEY;
+        const apiKey = process.env.GEMINIGEN_API_KEY;
         if (!apiKey) {
-            return res.status(500).json({ error: 'API key not configured' });
+            return res.status(500).json({ error: 'GEMINIGEN_API_KEY not configured' });
         }
 
-        const genAI = new GoogleGenAI({ apiKey });
+        // Poll GeminiGen.ai History API
+        const url = `https://api.geminigen.ai/uapi/v1/history/${uuid}`;
+        const response = await fetch(url, {
+            headers: {
+                "x-api-key": apiKey
+            }
+        });
 
-        // Poll operation status
-        const operation = await genAI.operations.get({ name: operationName });
+        const data = await response.json();
 
-        if (!operation.done) {
-            return res.status(200).json({
-                success: true,
-                status: 'processing',
-                done: false,
-                progress: 50 // Estimated
-            });
+        if (!response.ok) {
+            return res.status(response.status).json({ error: 'Failed to fetch status' });
         }
 
-        // Operation complete - get video
-        if (operation.response && operation.response.generatedVideos) {
-            const video = operation.response.generatedVideos[0];
+        /* 
+         GeminiGen Status:
+         1: Processing
+         2: Completed
+         3: Failed
+        */
+        const status = data.status;
+        const progress = data.status_percentage || 0;
 
-            // Get video data
+        if (status === 2) {
+            // Completed
+            // Video availability checking logic
             let videoUrl = null;
-            if (video.video && video.video.uri) {
-                videoUrl = video.video.uri;
+            if (data.generated_video && data.generated_video.length > 0) {
+                videoUrl = data.generated_video[0].video_url; // Assuming first video
             }
 
             return res.status(200).json({
@@ -61,24 +65,25 @@ export default async function handler(req: any, res: any) {
                 url: videoUrl,
                 progress: 100
             });
-        }
 
-        // Check for error
-        if (operation.error) {
+        } else if (status === 3) {
+            // Failed
             return res.status(200).json({
                 success: false,
                 status: 'failed',
                 done: true,
-                error: operation.error.message || 'Video generation failed'
+                error: data.error_message || 'Video generation failed'
+            });
+
+        } else {
+            // Processing (Status 1)
+            return res.status(200).json({
+                success: true,
+                status: 'processing',
+                done: false,
+                progress: progress
             });
         }
-
-        return res.status(200).json({
-            success: true,
-            status: 'processing',
-            done: false,
-            progress: 75
-        });
 
     } catch (error: any) {
         console.error('[Video Status] Error:', error);
