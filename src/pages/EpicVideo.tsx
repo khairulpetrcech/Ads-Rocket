@@ -14,6 +14,31 @@ interface VideoHistoryItem {
     expiresAt: string;
 }
 
+const STORAGE_KEY = 'epicvideo_created_uuids';
+
+// Helper to get created UUIDs from localStorage
+const getCreatedUUIDs = (): string[] => {
+    try {
+        const stored = localStorage.getItem(STORAGE_KEY);
+        return stored ? JSON.parse(stored) : [];
+    } catch {
+        return [];
+    }
+};
+
+// Helper to add UUID to localStorage
+const addCreatedUUID = (uuid: string) => {
+    try {
+        const uuids = getCreatedUUIDs();
+        if (!uuids.includes(uuid)) {
+            uuids.push(uuid);
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(uuids));
+        }
+    } catch (e) {
+        console.error('Failed to save UUID:', e);
+    }
+};
+
 const EpicVideo: React.FC = () => {
     const { settings } = useSettings();
     const [prompt, setPrompt] = useState('');
@@ -37,7 +62,7 @@ const EpicVideo: React.FC = () => {
     const [historyPage, setHistoryPage] = useState(1);
     const [historyTotalPages, setHistoryTotalPages] = useState(1);
     const [historyLoading, setHistoryLoading] = useState(false);
-    const [playingVideoId, setPlayingVideoId] = useState<number | null>(null);
+    const [playingVideo, setPlayingVideo] = useState<VideoHistoryItem | null>(null);
 
     useEffect(() => {
         fetchVideoHistory(1);
@@ -52,9 +77,15 @@ const EpicVideo: React.FC = () => {
             const response = await fetch(`/api/media-api?action=video-history&page=${page}`);
             const data = await response.json();
             if (data.success) {
-                setHistory(data.videos || []);
+                // Filter to only show videos created by this app
+                const createdUUIDs = getCreatedUUIDs();
+                const filteredVideos = (data.videos || []).filter((v: VideoHistoryItem) =>
+                    createdUUIDs.includes(v.uuid)
+                );
+                setHistory(filteredVideos);
                 setHistoryPage(data.page);
-                setHistoryTotalPages(data.totalPages);
+                // Recalculate total pages based on filtered results
+                setHistoryTotalPages(Math.max(1, Math.ceil(filteredVideos.length / 6)));
             }
         } catch (err) {
             console.error('Failed to fetch video history:', err);
@@ -85,7 +116,7 @@ const EpicVideo: React.FC = () => {
                 setStatusMessage('Video ready!');
                 setProgress(100);
                 if (pollingRef.current) clearInterval(pollingRef.current);
-                fetchVideoHistory(1); // Refresh history
+                fetchVideoHistory(1);
             } else if (data.done && data.status === 'failed') {
                 setError(data.error || 'Video generation failed. Please try again.');
                 setLoading(false);
@@ -111,7 +142,7 @@ const EpicVideo: React.FC = () => {
         try {
             const requestBody: any = {
                 prompt,
-                model: 'sora-2', // Fixed to sora-2 only
+                model: 'sora-2',
                 duration: seconds,
                 resolution: 'small',
                 aspectRatio
@@ -131,6 +162,11 @@ const EpicVideo: React.FC = () => {
 
             if (!response.ok) {
                 throw new Error(data.error || 'Failed to start video generation');
+            }
+
+            // Store UUID in localStorage to track videos created by this app
+            if (data.uuid) {
+                addCreatedUUID(data.uuid);
             }
 
             setStatusMessage('Video generation started. Processing...');
@@ -332,21 +368,21 @@ const EpicVideo: React.FC = () => {
                             <>
                                 <div className="grid grid-cols-2 gap-3">
                                     {history.map((video) => (
-                                        <div key={video.id} className="relative group rounded-lg overflow-hidden border border-slate-200 bg-slate-50">
+                                        <div key={video.id} className="relative rounded-lg overflow-hidden border border-slate-200 bg-slate-50">
                                             {/* Thumbnail */}
                                             <div className="aspect-video bg-slate-200 relative">
                                                 {video.thumbnailUrl ? (
                                                     <img src={video.thumbnailUrl} alt="" className="w-full h-full object-cover" />
                                                 ) : (
-                                                    <div className="w-full h-full flex items-center justify-center">
+                                                    <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200">
                                                         <Video size={24} className="text-slate-400" />
                                                     </div>
                                                 )}
 
                                                 {/* Status Badge */}
                                                 {video.status === 1 && (
-                                                    <div className="absolute top-1 left-1 bg-amber-500 text-white text-[8px] px-1.5 py-0.5 rounded font-bold">
-                                                        Processing
+                                                    <div className="absolute top-1 left-1 bg-amber-500 text-white text-[8px] px-1.5 py-0.5 rounded font-bold animate-pulse">
+                                                        Processing...
                                                     </div>
                                                 )}
                                                 {video.status === 3 && (
@@ -354,46 +390,36 @@ const EpicVideo: React.FC = () => {
                                                         Failed
                                                     </div>
                                                 )}
-
-                                                {/* Play/Download Overlay */}
-                                                {video.status === 2 && video.videoUrl && (
-                                                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                                                        <button
-                                                            onClick={() => setPlayingVideoId(playingVideoId === video.id ? null : video.id)}
-                                                            className="p-2 bg-white rounded-full shadow-lg hover:scale-110 transition-transform"
-                                                            title="Play"
-                                                        >
-                                                            <Play size={16} className="text-purple-600 fill-purple-600" />
-                                                        </button>
-                                                        <button
-                                                            onClick={() => handleDownload(video.videoUrl!)}
-                                                            className="p-2 bg-white rounded-full shadow-lg hover:scale-110 transition-transform"
-                                                            title="Download"
-                                                        >
-                                                            <Download size={16} className="text-slate-600" />
-                                                        </button>
+                                                {video.status === 2 && (
+                                                    <div className="absolute top-1 left-1 bg-green-500 text-white text-[8px] px-1.5 py-0.5 rounded font-bold">
+                                                        Ready
                                                     </div>
                                                 )}
                                             </div>
 
-                                            {/* Playing Video */}
-                                            {playingVideoId === video.id && video.videoUrl && (
-                                                <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
-                                                    <div className="relative max-w-3xl w-full">
-                                                        <video src={video.videoUrl} controls autoPlay className="w-full rounded-lg" />
-                                                        <button
-                                                            onClick={() => setPlayingVideoId(null)}
-                                                            className="absolute -top-10 right-0 text-white hover:text-purple-400"
-                                                        >
-                                                            <X size={28} />
-                                                        </button>
-                                                    </div>
+                                            {/* Action Buttons - Always visible */}
+                                            <div className="p-2 flex items-center justify-between bg-white">
+                                                <p className="text-[10px] text-slate-500 truncate flex-1 mr-2">{video.prompt}</p>
+                                                <div className="flex gap-1">
+                                                    {video.status === 2 && (
+                                                        <>
+                                                            <button
+                                                                onClick={() => setPlayingVideo(video)}
+                                                                className="p-1.5 bg-purple-100 rounded-md hover:bg-purple-200 transition-colors"
+                                                                title="Play"
+                                                            >
+                                                                <Play size={12} className="text-purple-600 fill-purple-600" />
+                                                            </button>
+                                                            <button
+                                                                onClick={() => handleDownload(video.videoUrl || video.thumbnailUrl || '')}
+                                                                className="p-1.5 bg-slate-100 rounded-md hover:bg-slate-200 transition-colors"
+                                                                title="Download"
+                                                            >
+                                                                <Download size={12} className="text-slate-600" />
+                                                            </button>
+                                                        </>
+                                                    )}
                                                 </div>
-                                            )}
-
-                                            {/* Prompt Preview */}
-                                            <div className="p-2">
-                                                <p className="text-[10px] text-slate-500 truncate">{video.prompt}</p>
                                             </div>
                                         </div>
                                     ))}
@@ -476,6 +502,34 @@ const EpicVideo: React.FC = () => {
                     </div>
                 </div>
             </div>
+
+            {/* Video Playback Modal */}
+            {playingVideo && (
+                <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4" onClick={() => setPlayingVideo(null)}>
+                    <div className="relative max-w-3xl w-full" onClick={(e) => e.stopPropagation()}>
+                        <video
+                            src={playingVideo.videoUrl || ''}
+                            controls
+                            autoPlay
+                            className="w-full rounded-lg shadow-2xl"
+                        />
+                        <button
+                            onClick={() => setPlayingVideo(null)}
+                            className="absolute -top-12 right-0 text-white hover:text-purple-400 transition-colors"
+                        >
+                            <X size={32} />
+                        </button>
+                        <div className="mt-3 text-center">
+                            <button
+                                onClick={() => handleDownload(playingVideo.videoUrl || '')}
+                                className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded-lg font-bold flex items-center gap-2 mx-auto"
+                            >
+                                <Download size={16} /> Download Video
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

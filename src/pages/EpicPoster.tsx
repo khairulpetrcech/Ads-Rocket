@@ -14,6 +14,31 @@ interface ImageHistoryItem {
     expiresAt: string;
 }
 
+const STORAGE_KEY = 'epicposter_created_uuids';
+
+// Helper to get created UUIDs from localStorage
+const getCreatedUUIDs = (): string[] => {
+    try {
+        const stored = localStorage.getItem(STORAGE_KEY);
+        return stored ? JSON.parse(stored) : [];
+    } catch {
+        return [];
+    }
+};
+
+// Helper to add UUID to localStorage
+const addCreatedUUID = (uuid: string) => {
+    try {
+        const uuids = getCreatedUUIDs();
+        if (!uuids.includes(uuid)) {
+            uuids.push(uuid);
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(uuids));
+        }
+    } catch (e) {
+        console.error('Failed to save UUID:', e);
+    }
+};
+
 const EpicPoster: React.FC = () => {
     const { settings } = useSettings();
     const [prompt, setPrompt] = useState('');
@@ -33,7 +58,7 @@ const EpicPoster: React.FC = () => {
     const [historyPage, setHistoryPage] = useState(1);
     const [historyTotalPages, setHistoryTotalPages] = useState(1);
     const [historyLoading, setHistoryLoading] = useState(false);
-    const [viewingImageId, setViewingImageId] = useState<number | null>(null);
+    const [viewingImage, setViewingImage] = useState<ImageHistoryItem | null>(null);
 
     // Polling for status
     const pollingRef = useRef<NodeJS.Timeout | null>(null);
@@ -56,9 +81,14 @@ const EpicPoster: React.FC = () => {
             const response = await fetch(`/api/media-api?action=image-history&page=${page}`);
             const data = await response.json();
             if (data.success) {
-                setHistory(data.images || []);
+                // Filter to only show images created by this app
+                const createdUUIDs = getCreatedUUIDs();
+                const filteredImages = (data.images || []).filter((img: ImageHistoryItem) =>
+                    createdUUIDs.includes(img.uuid)
+                );
+                setHistory(filteredImages);
                 setHistoryPage(data.page);
-                setHistoryTotalPages(data.totalPages);
+                setHistoryTotalPages(Math.max(1, Math.ceil(filteredImages.length / 6)));
             }
         } catch (err) {
             console.error('Failed to fetch image history:', err);
@@ -76,18 +106,6 @@ const EpicPoster: React.FC = () => {
             setReferenceImage(reader.result as string);
         };
         reader.readAsDataURL(file);
-    };
-
-    const pollImageStatus = async (uuid: string) => {
-        try {
-            const response = await fetch(`https://api.geminigen.ai/uapi/v1/history/${uuid}`, {
-                headers: { 'x-api-key': '' } // API key is server-side only, so we poll via our own endpoint
-            });
-            // For simplicity, we'll just fetch history again
-            fetchImageHistory(1);
-        } catch (err) {
-            console.error('Polling error:', err);
-        }
     };
 
     const handleGenerate = async () => {
@@ -119,6 +137,11 @@ const EpicPoster: React.FC = () => {
 
             if (!response.ok) {
                 throw new Error(data.error || 'Failed to generate image');
+            }
+
+            // Store UUID in localStorage to track images created by this app
+            if (data.uuid) {
+                addCreatedUUID(data.uuid);
             }
 
             // If image is ready immediately
@@ -339,54 +362,47 @@ const EpicPoster: React.FC = () => {
                             <>
                                 <div className="grid grid-cols-3 gap-2">
                                     {history.map((img) => (
-                                        <div key={img.id} className="relative group rounded-lg overflow-hidden border border-slate-200 bg-slate-50 aspect-square">
-                                            {img.thumbnailUrl ? (
-                                                <img src={img.thumbnailUrl} alt="" className="w-full h-full object-cover" />
-                                            ) : (
-                                                <div className="w-full h-full flex items-center justify-center">
-                                                    <ImageIcon size={20} className="text-slate-400" />
-                                                </div>
-                                            )}
+                                        <div key={img.id} className="relative rounded-lg overflow-hidden border border-slate-200 bg-slate-50">
+                                            {/* Thumbnail */}
+                                            <div className="aspect-square bg-slate-200 relative">
+                                                {img.thumbnailUrl ? (
+                                                    <img src={img.thumbnailUrl} alt="" className="w-full h-full object-cover" />
+                                                ) : (
+                                                    <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200">
+                                                        <ImageIcon size={20} className="text-slate-400" />
+                                                    </div>
+                                                )}
 
-                                            {/* Status Badge */}
-                                            {img.status === 1 && (
-                                                <div className="absolute top-1 left-1 bg-amber-500 text-white text-[8px] px-1.5 py-0.5 rounded font-bold">
-                                                    Processing
-                                                </div>
-                                            )}
+                                                {/* Status Badge */}
+                                                {img.status === 1 && (
+                                                    <div className="absolute top-1 left-1 bg-amber-500 text-white text-[8px] px-1.5 py-0.5 rounded font-bold animate-pulse">
+                                                        Processing
+                                                    </div>
+                                                )}
+                                                {img.status === 2 && (
+                                                    <div className="absolute top-1 left-1 bg-green-500 text-white text-[8px] px-1.5 py-0.5 rounded font-bold">
+                                                        Ready
+                                                    </div>
+                                                )}
+                                            </div>
 
-                                            {/* Overlay */}
-                                            {img.status === 2 && img.imageUrl && (
-                                                <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                                            {/* Action Buttons - Always visible */}
+                                            {img.status === 2 && (
+                                                <div className="absolute bottom-0 left-0 right-0 p-1 bg-white/90 backdrop-blur-sm flex justify-center gap-1">
                                                     <button
-                                                        onClick={() => setViewingImageId(viewingImageId === img.id ? null : img.id)}
-                                                        className="p-1.5 bg-white rounded-full shadow-lg hover:scale-110 transition-transform"
+                                                        onClick={() => setViewingImage(img)}
+                                                        className="p-1 bg-indigo-100 rounded hover:bg-indigo-200 transition-colors"
                                                         title="View"
                                                     >
-                                                        <Maximize2 size={12} className="text-indigo-600" />
+                                                        <Maximize2 size={10} className="text-indigo-600" />
                                                     </button>
                                                     <button
-                                                        onClick={() => handleDownload(img.imageUrl!)}
-                                                        className="p-1.5 bg-white rounded-full shadow-lg hover:scale-110 transition-transform"
+                                                        onClick={() => handleDownload(img.imageUrl || img.thumbnailUrl || '')}
+                                                        className="p-1 bg-slate-100 rounded hover:bg-slate-200 transition-colors"
                                                         title="Download"
                                                     >
-                                                        <Download size={12} className="text-slate-600" />
+                                                        <Download size={10} className="text-slate-600" />
                                                     </button>
-                                                </div>
-                                            )}
-
-                                            {/* Lightbox */}
-                                            {viewingImageId === img.id && img.imageUrl && (
-                                                <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
-                                                    <div className="relative max-w-3xl w-full">
-                                                        <img src={img.imageUrl} alt="" className="w-full rounded-lg" />
-                                                        <button
-                                                            onClick={() => setViewingImageId(null)}
-                                                            className="absolute -top-10 right-0 text-white hover:text-indigo-400"
-                                                        >
-                                                            <X size={28} />
-                                                        </button>
-                                                    </div>
                                                 </div>
                                             )}
                                         </div>
@@ -458,6 +474,33 @@ const EpicPoster: React.FC = () => {
                     </div>
                 </div>
             </div>
+
+            {/* Image Lightbox Modal */}
+            {viewingImage && (
+                <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4" onClick={() => setViewingImage(null)}>
+                    <div className="relative max-w-3xl w-full" onClick={(e) => e.stopPropagation()}>
+                        <img
+                            src={viewingImage.imageUrl || viewingImage.thumbnailUrl || ''}
+                            alt=""
+                            className="w-full rounded-lg shadow-2xl"
+                        />
+                        <button
+                            onClick={() => setViewingImage(null)}
+                            className="absolute -top-12 right-0 text-white hover:text-indigo-400 transition-colors"
+                        >
+                            <X size={32} />
+                        </button>
+                        <div className="mt-3 text-center">
+                            <button
+                                onClick={() => handleDownload(viewingImage.imageUrl || viewingImage.thumbnailUrl || '')}
+                                className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-lg font-bold flex items-center gap-2 mx-auto"
+                            >
+                                <Download size={16} /> Download Image
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
