@@ -49,7 +49,7 @@ const EpicVideo: React.FC = () => {
     const fetchVideoHistory = async (page: number) => {
         setHistoryLoading(true);
         try {
-            const response = await fetch(`/api/video-history?page=${page}`);
+            const response = await fetch(`/api/media-api?action=video-history&page=${page}`);
             const data = await response.json();
             if (data.success) {
                 setHistory(data.videos || []);
@@ -76,7 +76,7 @@ const EpicVideo: React.FC = () => {
 
     const pollVideoStatus = async (uuid: string) => {
         try {
-            const response = await fetch(`/api/video-status?uuid=${uuid}`);
+            const response = await fetch(`/api/media-api?action=video-status&uuid=${uuid}`);
             const data = await response.json();
 
             if (data.done && data.status === 'completed' && data.url) {

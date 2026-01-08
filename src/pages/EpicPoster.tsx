@@ -53,7 +53,7 @@ const EpicPoster: React.FC = () => {
     const fetchImageHistory = async (page: number) => {
         setHistoryLoading(true);
         try {
-            const response = await fetch(`/api/image-history?page=${page}`);
+            const response = await fetch(`/api/media-api?action=image-history&page=${page}`);
             const data = await response.json();
             if (data.success) {
                 setHistory(data.images || []);
@@ -129,7 +129,7 @@ const EpicPoster: React.FC = () => {
             } else {
                 // Start polling
                 pollingRef.current = setInterval(async () => {
-                    const statusRes = await fetch(`/api/video-status?uuid=${data.uuid}`);
+                    const statusRes = await fetch(`/api/media-api?action=video-status&uuid=${data.uuid}`);
                     const statusData = await statusRes.json();
 
                     if (statusData.done && statusData.status === 'completed' && statusData.url) {
