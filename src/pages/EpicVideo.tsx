@@ -1,20 +1,29 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useSettings } from '../App';
-import { Video, Download, Image as ImageIcon, Loader2, AlertTriangle, Sparkles, Upload, Play, X, Clock } from 'lucide-react';
+import { Video, Download, Loader2, AlertTriangle, Sparkles, Upload, Play, X, ChevronLeft, ChevronRight, Clock } from 'lucide-react';
+
+interface VideoHistoryItem {
+    id: number;
+    uuid: string;
+    prompt: string;
+    model: string;
+    status: number; // 1=processing, 2=completed, 3=failed
+    thumbnailUrl: string | null;
+    videoUrl: string | null;
+    createdAt: string;
+    expiresAt: string;
+}
 
 const EpicVideo: React.FC = () => {
     const { settings } = useSettings();
     const [prompt, setPrompt] = useState('');
-    const [model, setModel] = useState<'sora-2' | 'sora-2-pro' | 'sora-2-pro-hd'>('sora-2');
-    const [seconds, setSeconds] = useState<10 | 15 | 25>(10);
+    const [seconds, setSeconds] = useState<10 | 15>(10);
     const [aspectRatio, setAspectRatio] = useState<'portrait' | 'landscape'>('portrait');
-    const [resolution, setResolution] = useState<'small' | 'large'>('small');
     const [loading, setLoading] = useState(false);
     const [generatedVideoUrl, setGeneratedVideoUrl] = useState<string | null>(null);
     const [error, setError] = useState('');
     const [progress, setProgress] = useState(0);
     const [statusMessage, setStatusMessage] = useState('');
-    const [uuid, setUuid] = useState<string | null>(null);
 
     // Image-to-video
     const [referenceImage, setReferenceImage] = useState<string | null>(null);
@@ -23,11 +32,36 @@ const EpicVideo: React.FC = () => {
     // Polling
     const pollingRef = useRef<NodeJS.Timeout | null>(null);
 
+    // Video History
+    const [history, setHistory] = useState<VideoHistoryItem[]>([]);
+    const [historyPage, setHistoryPage] = useState(1);
+    const [historyTotalPages, setHistoryTotalPages] = useState(1);
+    const [historyLoading, setHistoryLoading] = useState(false);
+    const [playingVideoId, setPlayingVideoId] = useState<number | null>(null);
+
     useEffect(() => {
+        fetchVideoHistory(1);
         return () => {
             if (pollingRef.current) clearInterval(pollingRef.current);
         };
     }, []);
+
+    const fetchVideoHistory = async (page: number) => {
+        setHistoryLoading(true);
+        try {
+            const response = await fetch(`/api/video-history?page=${page}`);
+            const data = await response.json();
+            if (data.success) {
+                setHistory(data.videos || []);
+                setHistoryPage(data.page);
+                setHistoryTotalPages(data.totalPages);
+            }
+        } catch (err) {
+            console.error('Failed to fetch video history:', err);
+        } finally {
+            setHistoryLoading(false);
+        }
+    };
 
     const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -51,6 +85,7 @@ const EpicVideo: React.FC = () => {
                 setStatusMessage('Video ready!');
                 setProgress(100);
                 if (pollingRef.current) clearInterval(pollingRef.current);
+                fetchVideoHistory(1); // Refresh history
             } else if (data.done && data.status === 'failed') {
                 setError(data.error || 'Video generation failed. Please try again.');
                 setLoading(false);
@@ -76,13 +111,12 @@ const EpicVideo: React.FC = () => {
         try {
             const requestBody: any = {
                 prompt,
-                model,
+                model: 'sora-2', // Fixed to sora-2 only
                 duration: seconds,
-                resolution,
+                resolution: 'small',
                 aspectRatio
             };
 
-            // If reference image, add base64
             if (referenceImage) {
                 requestBody.imageBase64 = referenceImage;
             }
@@ -102,8 +136,6 @@ const EpicVideo: React.FC = () => {
             setStatusMessage('Video generation started. Processing...');
             setProgress(10);
 
-            // Start polling for status
-            setUuid(data.uuid);
             pollingRef.current = setInterval(() => {
                 pollVideoStatus(data.uuid);
             }, 5000);
@@ -115,20 +147,21 @@ const EpicVideo: React.FC = () => {
         }
     };
 
-    const handleDownload = async () => {
-        if (!generatedVideoUrl) return;
+    const handleDownload = async (url?: string) => {
+        const videoUrl = url || generatedVideoUrl;
+        if (!videoUrl) return;
 
         try {
-            const response = await fetch(generatedVideoUrl);
+            const response = await fetch(videoUrl);
             const blob = await response.blob();
-            const url = URL.createObjectURL(blob);
+            const blobUrl = URL.createObjectURL(blob);
             const link = document.createElement('a');
-            link.href = url;
+            link.href = blobUrl;
             link.download = `EpicVideo_${Date.now()}.mp4`;
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
-            URL.revokeObjectURL(url);
+            URL.revokeObjectURL(blobUrl);
         } catch (err) {
             console.error('Download error:', err);
         }
@@ -215,85 +248,57 @@ const EpicVideo: React.FC = () => {
                             />
                         </div>
 
-                        {/* Model Selection */}
+                        {/* Model Selection - Only Sora 2 available */}
                         <div className="mb-4">
                             <label className="block text-sm font-bold text-slate-600 mb-2">Model</label>
                             <div className="grid grid-cols-3 gap-2">
-                                <button
-                                    onClick={() => setModel('sora-2')}
-                                    className={`py-2 px-2 rounded-lg border text-xs font-bold transition-all ${model === 'sora-2' ? 'bg-purple-600 text-white border-purple-600 shadow-md' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}
-                                >
+                                <button className="py-2 px-2 rounded-lg border text-xs font-bold bg-purple-600 text-white border-purple-600 shadow-md">
                                     Sora 2
                                 </button>
-                                <button
-                                    onClick={() => setModel('sora-2-pro')}
-                                    className={`py-2 px-2 rounded-lg border text-xs font-bold transition-all ${model === 'sora-2-pro' ? 'bg-purple-600 text-white border-purple-600 shadow-md' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}
-                                >
-                                    Sora 2 Pro
+                                <button disabled className="py-2 px-2 rounded-lg border text-xs font-bold bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed opacity-60">
+                                    Pro (Soon)
                                 </button>
-                                <button
-                                    onClick={() => setModel('sora-2-pro-hd')}
-                                    className={`py-2 px-2 rounded-lg border text-xs font-bold transition-all ${model === 'sora-2-pro-hd' ? 'bg-purple-600 text-white border-purple-600 shadow-md' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}
-                                >
-                                    Sora 2 HD
+                                <button disabled className="py-2 px-2 rounded-lg border text-xs font-bold bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed opacity-60">
+                                    HD (Soon)
                                 </button>
                             </div>
                         </div>
 
-                        {/* Duration & Resolution */}
-                        <div className="grid grid-cols-2 gap-4 mb-4">
+                        {/* Duration & Aspect Ratio */}
+                        <div className="grid grid-cols-2 gap-4 mb-6">
                             <div>
                                 <label className="block text-sm font-bold text-slate-600 mb-2">Duration</label>
-                                <div className="grid grid-cols-3 gap-2">
-                                    {[10, 15, 25].map((s) => (
-                                        <button
-                                            key={s}
-                                            onClick={() => setSeconds(s as 10 | 15 | 25)}
-                                            disabled={(model === 'sora-2' && s === 25) || (model.includes('pro') && s === 10)}
-                                            className={`py-2 px-1 rounded-lg border text-xs font-bold transition-all flex items-center justify-center gap-1 ${seconds === s ? 'bg-purple-600 text-white border-purple-600 shadow-md' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed'}`}
-                                        >
-                                            {s}s
-                                        </button>
-                                    ))}
+                                <div className="grid grid-cols-2 gap-2">
+                                    <button
+                                        onClick={() => setSeconds(10)}
+                                        className={`py-2 px-2 rounded-lg border text-xs font-bold transition-all flex items-center justify-center gap-1 ${seconds === 10 ? 'bg-purple-600 text-white border-purple-600 shadow-md' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}
+                                    >
+                                        <Clock size={12} /> 10s
+                                    </button>
+                                    <button
+                                        onClick={() => setSeconds(15)}
+                                        className={`py-2 px-2 rounded-lg border text-xs font-bold transition-all flex items-center justify-center gap-1 ${seconds === 15 ? 'bg-purple-600 text-white border-purple-600 shadow-md' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}
+                                    >
+                                        <Clock size={12} /> 15s
+                                    </button>
                                 </div>
                             </div>
                             <div>
-                                <label className="block text-sm font-bold text-slate-600 mb-2">Resolution</label>
+                                <label className="block text-sm font-bold text-slate-600 mb-2">Aspect Ratio</label>
                                 <div className="grid grid-cols-2 gap-2">
                                     <button
-                                        onClick={() => setResolution('small')}
-                                        disabled={model === 'sora-2-pro-hd'}
-                                        className={`py-2 px-2 rounded-lg border text-xs font-bold transition-all ${resolution === 'small' ? 'bg-purple-600 text-white border-purple-600 shadow-md' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50 disabled:opacity-50'}`}
+                                        onClick={() => setAspectRatio("portrait")}
+                                        className={`py-2 px-2 rounded-lg border text-xs font-bold transition-all ${aspectRatio === "portrait" ? 'bg-purple-600 text-white border-purple-600 shadow-md' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}
                                     >
-                                        720p
+                                        9:16
                                     </button>
                                     <button
-                                        onClick={() => setResolution('large')}
-                                        disabled={model !== 'sora-2-pro-hd'}
-                                        className={`py-2 px-2 rounded-lg border text-xs font-bold transition-all ${resolution === 'large' ? 'bg-purple-600 text-white border-purple-600 shadow-md' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50 disabled:opacity-50'}`}
+                                        onClick={() => setAspectRatio("landscape")}
+                                        className={`py-2 px-2 rounded-lg border text-xs font-bold transition-all ${aspectRatio === "landscape" ? 'bg-purple-600 text-white border-purple-600 shadow-md' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}
                                     >
-                                        1080p
+                                        16:9
                                     </button>
                                 </div>
-                            </div>
-                        </div>
-
-                        {/* Aspect Ratio */}
-                        <div className="mb-6">
-                            <label className="block text-sm font-bold text-slate-600 mb-2">Aspect Ratio</label>
-                            <div className="grid grid-cols-2 gap-2">
-                                <button
-                                    onClick={() => setAspectRatio("portrait")}
-                                    className={`py-2 px-3 rounded-lg border text-sm font-bold transition-all ${aspectRatio === "portrait" ? 'bg-purple-600 text-white border-purple-600 shadow-md' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}
-                                >
-                                    9:16 (Portrait)
-                                </button>
-                                <button
-                                    onClick={() => setAspectRatio("landscape")}
-                                    className={`py-2 px-3 rounded-lg border text-sm font-bold transition-all ${aspectRatio === "landscape" ? 'bg-purple-600 text-white border-purple-600 shadow-md' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}
-                                >
-                                    16:9 (Landscape)
-                                </button>
                             </div>
                         </div>
 
@@ -307,6 +312,117 @@ const EpicVideo: React.FC = () => {
                         </button>
                     </div>
 
+                    {/* VIDEO HISTORY */}
+                    <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-sm font-bold text-slate-600">Video History</h3>
+                            <span className="text-[10px] text-amber-600 bg-amber-50 px-2 py-1 rounded-full font-medium">⏰ Videos stored for 7 days</span>
+                        </div>
+
+                        {historyLoading ? (
+                            <div className="flex items-center justify-center py-8">
+                                <Loader2 className="animate-spin text-purple-600" size={24} />
+                            </div>
+                        ) : history.length === 0 ? (
+                            <div className="text-center py-8 text-slate-400 text-sm">
+                                <Video size={32} className="mx-auto mb-2 opacity-30" />
+                                <p>No videos generated yet.</p>
+                            </div>
+                        ) : (
+                            <>
+                                <div className="grid grid-cols-2 gap-3">
+                                    {history.map((video) => (
+                                        <div key={video.id} className="relative group rounded-lg overflow-hidden border border-slate-200 bg-slate-50">
+                                            {/* Thumbnail */}
+                                            <div className="aspect-video bg-slate-200 relative">
+                                                {video.thumbnailUrl ? (
+                                                    <img src={video.thumbnailUrl} alt="" className="w-full h-full object-cover" />
+                                                ) : (
+                                                    <div className="w-full h-full flex items-center justify-center">
+                                                        <Video size={24} className="text-slate-400" />
+                                                    </div>
+                                                )}
+
+                                                {/* Status Badge */}
+                                                {video.status === 1 && (
+                                                    <div className="absolute top-1 left-1 bg-amber-500 text-white text-[8px] px-1.5 py-0.5 rounded font-bold">
+                                                        Processing
+                                                    </div>
+                                                )}
+                                                {video.status === 3 && (
+                                                    <div className="absolute top-1 left-1 bg-red-500 text-white text-[8px] px-1.5 py-0.5 rounded font-bold">
+                                                        Failed
+                                                    </div>
+                                                )}
+
+                                                {/* Play/Download Overlay */}
+                                                {video.status === 2 && video.videoUrl && (
+                                                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                                                        <button
+                                                            onClick={() => setPlayingVideoId(playingVideoId === video.id ? null : video.id)}
+                                                            className="p-2 bg-white rounded-full shadow-lg hover:scale-110 transition-transform"
+                                                            title="Play"
+                                                        >
+                                                            <Play size={16} className="text-purple-600 fill-purple-600" />
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleDownload(video.videoUrl!)}
+                                                            className="p-2 bg-white rounded-full shadow-lg hover:scale-110 transition-transform"
+                                                            title="Download"
+                                                        >
+                                                            <Download size={16} className="text-slate-600" />
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {/* Playing Video */}
+                                            {playingVideoId === video.id && video.videoUrl && (
+                                                <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
+                                                    <div className="relative max-w-3xl w-full">
+                                                        <video src={video.videoUrl} controls autoPlay className="w-full rounded-lg" />
+                                                        <button
+                                                            onClick={() => setPlayingVideoId(null)}
+                                                            className="absolute -top-10 right-0 text-white hover:text-purple-400"
+                                                        >
+                                                            <X size={28} />
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* Prompt Preview */}
+                                            <div className="p-2">
+                                                <p className="text-[10px] text-slate-500 truncate">{video.prompt}</p>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                {/* Pagination */}
+                                {historyTotalPages > 1 && (
+                                    <div className="flex items-center justify-center gap-2 mt-4">
+                                        <button
+                                            onClick={() => fetchVideoHistory(historyPage - 1)}
+                                            disabled={historyPage <= 1}
+                                            className="p-1 rounded border border-slate-200 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-50"
+                                        >
+                                            <ChevronLeft size={16} />
+                                        </button>
+                                        <span className="text-xs text-slate-500">{historyPage} / {historyTotalPages}</span>
+                                        <button
+                                            onClick={() => fetchVideoHistory(historyPage + 1)}
+                                            disabled={historyPage >= historyTotalPages}
+                                            className="p-1 rounded border border-slate-200 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-50"
+                                        >
+                                            <ChevronRight size={16} />
+                                        </button>
+                                    </div>
+                                )}
+                            </>
+                        )}
+                    </div>
+
                     <div className="bg-purple-50 border border-purple-200 p-4 rounded-lg text-xs text-purple-800">
                         <strong>Tip:</strong> Describe camera movements, lighting, atmosphere, and subject actions for cinematic results.
                     </div>
@@ -314,7 +430,7 @@ const EpicVideo: React.FC = () => {
 
                 {/* PREVIEW AREA */}
                 <div className="md:col-span-7">
-                    <div className={`w-full h-full min-h-[400px] bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col items-center justify-center p-4 relative overflow-hidden ${loading ? '' : ''}`}>
+                    <div className={`w-full h-full min-h-[400px] bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col items-center justify-center p-4 relative overflow-hidden`}>
 
                         {generatedVideoUrl ? (
                             <>
@@ -327,7 +443,7 @@ const EpicVideo: React.FC = () => {
                                 />
                                 <div className="absolute top-4 right-4">
                                     <button
-                                        onClick={handleDownload}
+                                        onClick={() => handleDownload()}
                                         className="bg-white/90 backdrop-blur-md text-slate-800 p-3 rounded-lg transition-all border border-slate-200 shadow-lg hover:scale-105"
                                         title="Download Video"
                                     >

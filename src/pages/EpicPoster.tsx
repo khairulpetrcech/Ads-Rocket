@@ -1,89 +1,202 @@
-
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useSettings } from '../App';
-import { generateImageOpenRouter } from '../services/aiService';
-import { Wand2, Download, Image as ImageIcon, Loader2, AlertTriangle, Sparkles, Key } from 'lucide-react';
+import { Sparkles, Download, Loader2, AlertTriangle, Upload, X, ChevronLeft, ChevronRight, Image as ImageIcon, Maximize2 } from 'lucide-react';
+
+interface ImageHistoryItem {
+    id: number;
+    uuid: string;
+    prompt: string;
+    model: string;
+    status: number;
+    imageUrl: string | null;
+    thumbnailUrl: string | null;
+    createdAt: string;
+    expiresAt: string;
+}
 
 const EpicPoster: React.FC = () => {
     const { settings } = useSettings();
     const [prompt, setPrompt] = useState('');
-    const [aspectRatio, setAspectRatio] = useState<"1:1" | "16:9" | "9:16">("1:1");
+    const [model, setModel] = useState<'imagen-pro' | 'imagen-4' | 'imagen-4-ultra'>('imagen-pro');
+    const [aspectRatio, setAspectRatio] = useState<'1:1' | '16:9' | '9:16'>('1:1');
+    const [style, setStyle] = useState<string>('Photorealistic');
     const [loading, setLoading] = useState(false);
     const [generatedImage, setGeneratedImage] = useState<string | null>(null);
     const [error, setError] = useState('');
-    const [openRouterKey, setOpenRouterKey] = useState('');
+
+    // Reference image
+    const [referenceImage, setReferenceImage] = useState<string | null>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
+    // Image History
+    const [history, setHistory] = useState<ImageHistoryItem[]>([]);
+    const [historyPage, setHistoryPage] = useState(1);
+    const [historyTotalPages, setHistoryTotalPages] = useState(1);
+    const [historyLoading, setHistoryLoading] = useState(false);
+    const [viewingImageId, setViewingImageId] = useState<number | null>(null);
+
+    // Polling for status
+    const pollingRef = useRef<NodeJS.Timeout | null>(null);
+
+    const styles = [
+        'Photorealistic', '3D Render', 'Anime General', 'Illustration',
+        'Watercolor', 'Portrait Cinematic', 'Fashion', 'Creative'
+    ];
+
+    useEffect(() => {
+        fetchImageHistory(1);
+        return () => {
+            if (pollingRef.current) clearInterval(pollingRef.current);
+        };
+    }, []);
+
+    const fetchImageHistory = async (page: number) => {
+        setHistoryLoading(true);
+        try {
+            const response = await fetch(`/api/image-history?page=${page}`);
+            const data = await response.json();
+            if (data.success) {
+                setHistory(data.images || []);
+                setHistoryPage(data.page);
+                setHistoryTotalPages(data.totalPages);
+            }
+        } catch (err) {
+            console.error('Failed to fetch image history:', err);
+        } finally {
+            setHistoryLoading(false);
+        }
+    };
+
+    const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = () => {
+            setReferenceImage(reader.result as string);
+        };
+        reader.readAsDataURL(file);
+    };
+
+    const pollImageStatus = async (uuid: string) => {
+        try {
+            const response = await fetch(`https://api.geminigen.ai/uapi/v1/history/${uuid}`, {
+                headers: { 'x-api-key': '' } // API key is server-side only, so we poll via our own endpoint
+            });
+            // For simplicity, we'll just fetch history again
+            fetchImageHistory(1);
+        } catch (err) {
+            console.error('Polling error:', err);
+        }
+    };
 
     const handleGenerate = async () => {
-        if (!openRouterKey.trim()) return setError("Please enter your OpenRouter API Key.");
         if (!prompt.trim()) return setError("Please enter a prompt description.");
-        
+
         setLoading(true);
         setError('');
         setGeneratedImage(null);
 
-        // Append Aspect Ratio to prompt since standard chat completion might not have config param
-        const finalPrompt = `${prompt} (Aspect Ratio: ${aspectRatio})`;
-
         try {
-            const imageUrl = await generateImageOpenRouter(finalPrompt, openRouterKey);
-            setGeneratedImage(imageUrl);
+            const requestBody: any = {
+                prompt,
+                model,
+                aspectRatio,
+                style
+            };
+
+            if (referenceImage) {
+                requestBody.imageBase64 = referenceImage;
+            }
+
+            const response = await fetch('/api/generate-poster', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(requestBody)
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error || 'Failed to generate image');
+            }
+
+            // If image is ready immediately
+            if (data.imageUrl && data.status === 2) {
+                setGeneratedImage(data.imageUrl);
+                setLoading(false);
+                fetchImageHistory(1);
+            } else {
+                // Start polling
+                pollingRef.current = setInterval(async () => {
+                    const statusRes = await fetch(`/api/video-status?uuid=${data.uuid}`);
+                    const statusData = await statusRes.json();
+
+                    if (statusData.done && statusData.status === 'completed' && statusData.url) {
+                        setGeneratedImage(statusData.url);
+                        setLoading(false);
+                        if (pollingRef.current) clearInterval(pollingRef.current);
+                        fetchImageHistory(1);
+                    } else if (statusData.done && statusData.status === 'failed') {
+                        setError('Image generation failed. Please try again.');
+                        setLoading(false);
+                        if (pollingRef.current) clearInterval(pollingRef.current);
+                    }
+                }, 3000);
+
+                // Timeout after 60 seconds
+                setTimeout(() => {
+                    if (loading && pollingRef.current) {
+                        clearInterval(pollingRef.current);
+                        setLoading(false);
+                        setError('Generation timed out. Check history for results.');
+                    }
+                }, 60000);
+            }
+
         } catch (e: any) {
             console.error("Gen Error", e);
-            let msg = e.message || "An unknown error occurred.";
-            if (msg.includes("401") || msg.includes("unauthorized")) {
-                msg = "Invalid API Key. Please check your OpenRouter Key.";
-            }
-            setError(msg);
-        } finally {
+            setError(e.message || "An unknown error occurred.");
             setLoading(false);
         }
     };
 
-    const handleDownload = () => {
-        if (!generatedImage) return;
+    const handleDownload = (url?: string) => {
+        const imageUrl = url || generatedImage;
+        if (!imageUrl) return;
+
         const link = document.createElement('a');
-        link.href = generatedImage;
+        link.href = imageUrl;
         link.download = `EpicPoster_${Date.now()}.png`;
+        link.target = '_blank';
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
     };
 
+    const clearReferenceImage = () => {
+        setReferenceImage(null);
+        if (fileInputRef.current) fileInputRef.current.value = '';
+    };
+
     return (
         <div className="max-w-5xl mx-auto pb-20">
             <div className="flex items-center gap-3 mb-6">
-                <div className="p-2 bg-indigo-600 rounded-lg shadow-md shadow-indigo-200">
+                <div className="p-2 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-lg shadow-md shadow-indigo-200">
                     <Sparkles className="text-white" size={24} />
                 </div>
                 <div>
                     <h1 className="text-2xl font-bold text-slate-800">Epic Poster</h1>
-                    <p className="text-xs text-indigo-600 font-bold uppercase tracking-wide">Powered by Gemini via OpenRouter</p>
+                    <p className="text-xs text-indigo-600 font-bold uppercase tracking-wide">Powered by Imagen via GeminiGen.ai</p>
                 </div>
             </div>
 
             <div className="grid md:grid-cols-12 gap-8">
                 {/* CONTROL PANEL */}
                 <div className="md:col-span-5 space-y-6">
-                    
-                    {/* API KEY INPUT */}
-                    <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-                        <label className="block text-sm font-bold text-slate-600 mb-2 flex items-center gap-2">
-                            <Key size={16} /> OpenRouter API Key
-                        </label>
-                        <input 
-                            type="password"
-                            value={openRouterKey}
-                            onChange={(e) => setOpenRouterKey(e.target.value)}
-                            placeholder="sk-or-..."
-                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-mono text-sm"
-                        />
-                        <p className="text-[10px] text-slate-400 mt-2">
-                            Required: Enter your OpenRouter API key to use the image generation model.
-                        </p>
-                    </div>
 
                     <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-                        
+
                         {error && (
                             <div className="bg-red-50 border border-red-200 p-4 rounded-xl mb-6 shadow-sm animate-fadeIn">
                                 <div className="flex items-center gap-2 text-red-600 font-bold mb-2 text-sm uppercase tracking-wide">
@@ -100,7 +213,7 @@ const EpicPoster: React.FC = () => {
 
                         <div className="mb-4">
                             <label className="block text-sm font-bold text-slate-600 mb-2">Prompt Description</label>
-                            <textarea 
+                            <textarea
                                 value={prompt}
                                 onChange={(e) => setPrompt(e.target.value)}
                                 placeholder="e.g. A futuristic glossy running shoe floating in neon space with gold sparkles..."
@@ -108,38 +221,200 @@ const EpicPoster: React.FC = () => {
                             />
                         </div>
 
-                        <div className="mb-6">
-                            <label className="block text-sm font-bold text-slate-600 mb-2">Aspect Ratio</label>
+                        {/* Reference Image Upload */}
+                        <div className="mb-4">
+                            <label className="block text-sm font-bold text-slate-600 mb-2">Reference Image (Optional)</label>
+                            <p className="text-xs text-slate-400 mb-2">Upload an image for style or content reference.</p>
+
+                            {referenceImage ? (
+                                <div className="relative">
+                                    <img src={referenceImage} alt="Reference" className="w-full h-32 object-cover rounded-lg border border-slate-200" />
+                                    <button
+                                        onClick={clearReferenceImage}
+                                        className="absolute top-2 right-2 bg-red-500 text-white p-1 rounded-full hover:bg-red-600 transition-colors"
+                                    >
+                                        <X size={14} />
+                                    </button>
+                                </div>
+                            ) : (
+                                <button
+                                    onClick={() => fileInputRef.current?.click()}
+                                    className="w-full py-6 border-2 border-dashed border-slate-300 rounded-lg text-slate-400 hover:border-indigo-400 hover:text-indigo-500 transition-all flex flex-col items-center gap-2"
+                                >
+                                    <Upload size={24} />
+                                    <span className="text-sm">Click to upload image</span>
+                                </button>
+                            )}
+                            <input
+                                ref={fileInputRef}
+                                type="file"
+                                accept="image/*"
+                                onChange={handleImageUpload}
+                                className="hidden"
+                            />
+                        </div>
+
+                        {/* Model Selection */}
+                        <div className="mb-4">
+                            <label className="block text-sm font-bold text-slate-600 mb-2">Model</label>
                             <div className="grid grid-cols-3 gap-2">
-                                <button 
-                                    onClick={() => setAspectRatio("1:1")}
-                                    className={`py-2 px-3 rounded-lg border text-sm font-bold transition-all ${aspectRatio === "1:1" ? 'bg-indigo-600 text-white border-indigo-600 shadow-md' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}
+                                <button
+                                    onClick={() => setModel('imagen-pro')}
+                                    className={`py-2 px-2 rounded-lg border text-xs font-bold transition-all ${model === 'imagen-pro' ? 'bg-indigo-600 text-white border-indigo-600 shadow-md' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}
                                 >
-                                    Square
+                                    Gemini 3.0
                                 </button>
-                                <button 
-                                    onClick={() => setAspectRatio("9:16")}
-                                    className={`py-2 px-3 rounded-lg border text-sm font-bold transition-all ${aspectRatio === "9:16" ? 'bg-indigo-600 text-white border-indigo-600 shadow-md' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}
+                                <button
+                                    onClick={() => setModel('imagen-4')}
+                                    className={`py-2 px-2 rounded-lg border text-xs font-bold transition-all ${model === 'imagen-4' ? 'bg-indigo-600 text-white border-indigo-600 shadow-md' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}
                                 >
-                                    Story
+                                    Imagen 4
                                 </button>
-                                <button 
-                                    onClick={() => setAspectRatio("16:9")}
-                                    className={`py-2 px-3 rounded-lg border text-sm font-bold transition-all ${aspectRatio === "16:9" ? 'bg-indigo-600 text-white border-indigo-600 shadow-md' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}
+                                <button
+                                    onClick={() => setModel('imagen-4-ultra')}
+                                    className={`py-2 px-2 rounded-lg border text-xs font-bold transition-all ${model === 'imagen-4-ultra' ? 'bg-indigo-600 text-white border-indigo-600 shadow-md' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}
                                 >
-                                    Landscape
+                                    Imagen Ultra
                                 </button>
                             </div>
                         </div>
 
-                        <button 
+                        {/* Aspect Ratio & Style */}
+                        <div className="grid grid-cols-2 gap-4 mb-6">
+                            <div>
+                                <label className="block text-sm font-bold text-slate-600 mb-2">Aspect Ratio</label>
+                                <div className="grid grid-cols-3 gap-1">
+                                    {['1:1', '16:9', '9:16'].map((ar) => (
+                                        <button
+                                            key={ar}
+                                            onClick={() => setAspectRatio(ar as any)}
+                                            className={`py-2 px-1 rounded-lg border text-xs font-bold transition-all ${aspectRatio === ar ? 'bg-indigo-600 text-white border-indigo-600 shadow-md' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}
+                                        >
+                                            {ar}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold text-slate-600 mb-2">Style</label>
+                                <select
+                                    value={style}
+                                    onChange={(e) => setStyle(e.target.value)}
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                                >
+                                    {styles.map((s) => (
+                                        <option key={s} value={s}>{s}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        </div>
+
+                        <button
                             onClick={handleGenerate}
-                            disabled={loading || !prompt || !openRouterKey}
-                            className="w-full bg-indigo-600 hover:bg-indigo-700 text-white text-lg font-bold py-3.5 rounded-xl shadow-lg shadow-indigo-200 flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                            disabled={loading || !prompt}
+                            className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white text-lg font-bold py-3.5 rounded-xl shadow-lg shadow-indigo-200 flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                         >
-                            {loading ? <Loader2 className="animate-spin" /> : <Wand2 className="w-5 h-5" />}
+                            {loading ? <Loader2 className="animate-spin" /> : <Sparkles className="w-5 h-5" />}
                             <span>Generate Poster</span>
                         </button>
+                    </div>
+
+                    {/* IMAGE HISTORY */}
+                    <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-sm font-bold text-slate-600">Image History</h3>
+                            <span className="text-[10px] text-amber-600 bg-amber-50 px-2 py-1 rounded-full font-medium">⏰ Images stored for 7 days</span>
+                        </div>
+
+                        {historyLoading ? (
+                            <div className="flex items-center justify-center py-8">
+                                <Loader2 className="animate-spin text-indigo-600" size={24} />
+                            </div>
+                        ) : history.length === 0 ? (
+                            <div className="text-center py-8 text-slate-400 text-sm">
+                                <ImageIcon size={32} className="mx-auto mb-2 opacity-30" />
+                                <p>No images generated yet.</p>
+                            </div>
+                        ) : (
+                            <>
+                                <div className="grid grid-cols-3 gap-2">
+                                    {history.map((img) => (
+                                        <div key={img.id} className="relative group rounded-lg overflow-hidden border border-slate-200 bg-slate-50 aspect-square">
+                                            {img.thumbnailUrl ? (
+                                                <img src={img.thumbnailUrl} alt="" className="w-full h-full object-cover" />
+                                            ) : (
+                                                <div className="w-full h-full flex items-center justify-center">
+                                                    <ImageIcon size={20} className="text-slate-400" />
+                                                </div>
+                                            )}
+
+                                            {/* Status Badge */}
+                                            {img.status === 1 && (
+                                                <div className="absolute top-1 left-1 bg-amber-500 text-white text-[8px] px-1.5 py-0.5 rounded font-bold">
+                                                    Processing
+                                                </div>
+                                            )}
+
+                                            {/* Overlay */}
+                                            {img.status === 2 && img.imageUrl && (
+                                                <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                                                    <button
+                                                        onClick={() => setViewingImageId(viewingImageId === img.id ? null : img.id)}
+                                                        className="p-1.5 bg-white rounded-full shadow-lg hover:scale-110 transition-transform"
+                                                        title="View"
+                                                    >
+                                                        <Maximize2 size={12} className="text-indigo-600" />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleDownload(img.imageUrl!)}
+                                                        className="p-1.5 bg-white rounded-full shadow-lg hover:scale-110 transition-transform"
+                                                        title="Download"
+                                                    >
+                                                        <Download size={12} className="text-slate-600" />
+                                                    </button>
+                                                </div>
+                                            )}
+
+                                            {/* Lightbox */}
+                                            {viewingImageId === img.id && img.imageUrl && (
+                                                <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
+                                                    <div className="relative max-w-3xl w-full">
+                                                        <img src={img.imageUrl} alt="" className="w-full rounded-lg" />
+                                                        <button
+                                                            onClick={() => setViewingImageId(null)}
+                                                            className="absolute -top-10 right-0 text-white hover:text-indigo-400"
+                                                        >
+                                                            <X size={28} />
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+
+                                {/* Pagination */}
+                                {historyTotalPages > 1 && (
+                                    <div className="flex items-center justify-center gap-2 mt-4">
+                                        <button
+                                            onClick={() => fetchImageHistory(historyPage - 1)}
+                                            disabled={historyPage <= 1}
+                                            className="p-1 rounded border border-slate-200 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-50"
+                                        >
+                                            <ChevronLeft size={16} />
+                                        </button>
+                                        <span className="text-xs text-slate-500">{historyPage} / {historyTotalPages}</span>
+                                        <button
+                                            onClick={() => fetchImageHistory(historyPage + 1)}
+                                            disabled={historyPage >= historyTotalPages}
+                                            className="p-1 rounded border border-slate-200 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-50"
+                                        >
+                                            <ChevronRight size={16} />
+                                        </button>
+                                    </div>
+                                )}
+                            </>
+                        )}
                     </div>
 
                     <div className="bg-indigo-50 border border-indigo-200 p-4 rounded-lg text-xs text-indigo-800">
@@ -150,13 +425,13 @@ const EpicPoster: React.FC = () => {
                 {/* PREVIEW AREA */}
                 <div className="md:col-span-7">
                     <div className={`w-full h-full min-h-[400px] bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col items-center justify-center p-4 relative overflow-hidden ${loading ? 'animate-pulse' : ''}`}>
-                        
+
                         {generatedImage ? (
                             <>
                                 <img src={generatedImage} alt="Generated Poster" className="w-full h-full object-contain rounded-lg shadow-lg" />
                                 <div className="absolute top-4 right-4">
-                                    <button 
-                                        onClick={handleDownload}
+                                    <button
+                                        onClick={() => handleDownload()}
                                         className="bg-white/90 backdrop-blur-md text-slate-800 p-3 rounded-lg transition-all border border-slate-200 shadow-lg hover:scale-105"
                                         title="Download Image"
                                     >
@@ -170,7 +445,7 @@ const EpicPoster: React.FC = () => {
                                     <div className="flex flex-col items-center">
                                         <Loader2 size={48} className="animate-spin text-indigo-600 mb-4" />
                                         <p className="text-slate-600 font-bold">Creating Masterpiece...</p>
-                                        <p className="text-xs mt-2 text-slate-400">Sending request to OpenRouter...</p>
+                                        <p className="text-xs mt-2 text-slate-400">This may take a few seconds...</p>
                                     </div>
                                 ) : (
                                     <>
