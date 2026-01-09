@@ -210,6 +210,104 @@ export default async function handler(req: any, res: any) {
             });
         }
 
+        // --- STEP 5: Save Top Ads History for Upscale Tracking ---
+        try {
+            const historyPayload = {
+                businessName: accountName,
+                adAccountId: actId,
+                topAds: topAds.map((ad: any) => ({
+                    id: ad.id,
+                    name: ad.name
+                }))
+            };
+
+            // Save to global history (in-memory for now)
+            const history = (globalThis as any).__analysisHistory || [];
+            const today = new Date().toISOString().split('T')[0];
+
+            // Remove existing today's record for this account
+            const filteredHistory = history.filter(
+                (r: any) => !(r.date === today && r.adAccountId === actId)
+            );
+
+            // Add new record
+            filteredHistory.push({
+                date: today,
+                businessName: accountName,
+                adAccountId: actId,
+                topAds: topAds.map((ad: any, i: number) => ({
+                    id: ad.id,
+                    name: ad.name,
+                    rank: i + 1
+                }))
+            });
+
+            // Keep only last 7 days
+            const sevenDaysAgo = new Date();
+            sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+            const cutoff = sevenDaysAgo.toISOString().split('T')[0];
+            (globalThis as any).__analysisHistory = filteredHistory.filter((r: any) => r.date >= cutoff);
+
+            // Check for upscale candidates (top 3 for 3 consecutive days)
+            const last3Days = [];
+            for (let i = 0; i < 3; i++) {
+                const d = new Date();
+                d.setDate(d.getDate() - i);
+                last3Days.push(d.toISOString().split('T')[0]);
+            }
+
+            const relevantRecords = ((globalThis as any).__analysisHistory || []).filter(
+                (r: any) => r.adAccountId === actId && last3Days.includes(r.date)
+            );
+
+            if (relevantRecords.length >= 3) {
+                const adCounts: Record<string, { name: string; days: string[] }> = {};
+
+                for (const record of relevantRecords) {
+                    for (const ad of record.topAds) {
+                        if (!adCounts[ad.id]) {
+                            adCounts[ad.id] = { name: ad.name, days: [] };
+                        }
+                        if (!adCounts[ad.id].days.includes(record.date)) {
+                            adCounts[ad.id].days.push(record.date);
+                        }
+                    }
+                }
+
+                // Find ads present in all 3 days
+                const candidates = Object.entries(adCounts)
+                    .filter(([_, data]) => data.days.length >= 3)
+                    .map(([id, data]) => ({ id, name: data.name }));
+
+                // Send upscale recommendation for each candidate
+                for (const candidate of candidates) {
+                    const upscaleMessage = `🚀 *Upscale Recommendation*\n\nAds *"${candidate.name}"* berada dalam Top 3 selama 3 hari berturut-turut!\n\nNak upscale adset/campaign sebanyak 20%?`;
+
+                    await fetch(telegramUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            chat_id: telegramChatId,
+                            text: upscaleMessage,
+                            parse_mode: 'Markdown',
+                            reply_markup: {
+                                inline_keyboard: [
+                                    [
+                                        { text: '✅ Ya, Upscale 20%', callback_data: `upscale_yes_${candidate.id}` },
+                                        { text: '❌ Tidak', callback_data: `upscale_no_${candidate.id}` }
+                                    ]
+                                ]
+                            }
+                        })
+                    });
+                }
+            }
+
+        } catch (historyErr) {
+            console.error('Failed to save history:', historyErr);
+            // Non-critical, continue
+        }
+
         return res.status(200).json({
             success: true,
             message: 'Analisis multimodal dihantar ke Telegram!',
