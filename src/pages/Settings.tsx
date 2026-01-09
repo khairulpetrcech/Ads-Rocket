@@ -89,7 +89,7 @@ const Settings: React.FC = () => {
     // Also save Telegram settings to Supabase for daily cron
     if (cleanSettings.telegramBotToken && cleanSettings.telegramChatId) {
       try {
-        await fetch('/api/save-telegram-settings', {
+        await fetch('/api/analyze-telegram?action=save-settings', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -122,7 +122,7 @@ const Settings: React.FC = () => {
     setTestingTelegram(true);
 
     try {
-      const response = await fetch('/api/send-telegram', {
+      const response = await fetch('/api/analyze-telegram?action=send-message', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

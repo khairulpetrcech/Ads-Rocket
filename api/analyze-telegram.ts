@@ -1,5 +1,17 @@
 import { GoogleGenAI } from "@google/genai";
+import { createClient } from '@supabase/supabase-js';
 
+const SUPABASE_URL = process.env.SUPABASE_URL || 'https://ztpedgagubjoiluagqzd.supabase.co';
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || '';
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+/**
+ * Consolidated Telegram API
+ * Usage:
+ * POST /api/analyze-telegram (default: AI analysis)
+ * POST /api/analyze-telegram?action=save-settings (save Telegram settings)
+ * POST /api/analyze-telegram?action=send-message (send generic message)
+ */
 export default async function handler(req: any, res: any) {
     // CORS headers
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -14,6 +26,22 @@ export default async function handler(req: any, res: any) {
         return res.status(405).json({ error: 'Method not allowed' });
     }
 
+    const { action } = req.query;
+
+    // Route based on action
+    if (action === 'save-settings') {
+        return handleSaveSettings(req, res);
+    }
+    if (action === 'send-message') {
+        return handleSendMessage(req, res);
+    }
+
+    // Default: AI Analysis
+    return handleAnalysis(req, res);
+}
+
+// Main AI Analysis Handler
+async function handleAnalysis(req: any, res: any) {
     try {
         const { adAccountId, fbAccessToken, telegramChatId, telegramBotToken, dailyUsageCount } = req.body;
 
@@ -509,5 +537,93 @@ PERATURAN KETAT:
     } catch (error) {
         console.error(`[Creative Analysis] ❌ Image analysis failed for ${ad.name}:`, error);
         return null;
+    }
+}
+
+// Save Telegram Settings Handler
+async function handleSaveSettings(req: any, res: any) {
+    try {
+        const {
+            fbId,
+            fbAccessToken,
+            adAccountId,
+            telegramBotToken,
+            telegramChatId,
+            enabled
+        } = req.body;
+
+        if (!fbId) {
+            return res.status(400).json({ error: 'Missing fbId' });
+        }
+
+        const { error } = await supabase
+            .from('telegram_users')
+            .upsert({
+                fb_id: fbId,
+                fb_access_token: fbAccessToken,
+                ad_account_id: adAccountId,
+                telegram_bot_token: telegramBotToken,
+                telegram_chat_id: telegramChatId,
+                enabled: enabled !== false,
+                updated_at: new Date().toISOString()
+            }, {
+                onConflict: 'fb_id'
+            });
+
+        if (error) {
+            console.error('Supabase error:', error);
+            return res.status(500).json({ error: 'Failed to save settings', details: error.message });
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: 'Telegram settings saved for daily reports'
+        });
+
+    } catch (error: any) {
+        console.error('Save Settings Error:', error);
+        return res.status(500).json({ error: error.message });
+    }
+}
+
+// Send Telegram Message Handler
+async function handleSendMessage(req: any, res: any) {
+    try {
+        const { chatId, message, botToken } = req.body;
+
+        if (!chatId || !message || !botToken) {
+            return res.status(400).json({ error: 'Missing required fields: chatId, message, botToken' });
+        }
+
+        const telegramUrl = `https://api.telegram.org/bot${botToken}/sendMessage`;
+
+        const response = await fetch(telegramUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                chat_id: chatId,
+                text: message,
+                parse_mode: 'Markdown'
+            })
+        });
+
+        const data = await response.json();
+
+        if (!data.ok) {
+            console.error('Telegram API error:', data);
+            return res.status(400).json({
+                error: data.description || 'Failed to send Telegram message',
+                details: data
+            });
+        }
+
+        return res.status(200).json({
+            success: true,
+            message_id: data.result?.message_id
+        });
+
+    } catch (error: any) {
+        console.error('Send Message Error:', error);
+        return res.status(500).json({ error: error.message || 'Internal server error' });
     }
 }
