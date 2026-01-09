@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useSettings } from '../App';
+import { useToast } from '../contexts/ToastContext';
 import { Sparkles, Download, Loader2, AlertTriangle, Upload, X, ChevronLeft, ChevronRight, Image as ImageIcon, Maximize2 } from 'lucide-react';
 
 interface ImageHistoryItem {
@@ -40,9 +41,10 @@ const addCreatedUUID = (uuid: string) => {
 };
 
 const EpicPoster: React.FC = () => {
-    const { settings } = useSettings();
+    const { settings, globalProcess, setGlobalProcess } = useSettings();
+    const { showToast } = useToast();
     const [prompt, setPrompt] = useState('');
-    const [model, setModel] = useState<'imagen-pro' | 'imagen-4' | 'imagen-4-ultra'>('imagen-pro');
+    // Fixed to imagen-pro (Nano Banana Pro)
     const [aspectRatio, setAspectRatio] = useState<'1:1' | '16:9' | '9:16'>('1:1');
     const [style, setStyle] = useState<string>('Photorealistic');
     const [loading, setLoading] = useState(false);
@@ -118,7 +120,7 @@ const EpicPoster: React.FC = () => {
         try {
             const requestBody: any = {
                 prompt,
-                model,
+                model: 'imagen-pro', // Fixed to Nano Banana Pro
                 aspectRatio,
                 style
             };
@@ -148,8 +150,27 @@ const EpicPoster: React.FC = () => {
             if (data.imageUrl && data.status === 2) {
                 setGeneratedImage(data.imageUrl);
                 setLoading(false);
+                setGlobalProcess({
+                    active: true,
+                    name: 'Image Ready!',
+                    message: 'Your poster has been generated successfully.',
+                    type: 'IMAGE_GENERATION',
+                    progress: 100,
+                    uuid: data.uuid
+                });
+                showToast('Poster generated successfully! 🎨', 'success');
                 fetchImageHistory(1);
             } else {
+                // Set initial progress
+                setGlobalProcess({
+                    active: true,
+                    name: 'Generating Poster...',
+                    message: 'Processing...',
+                    type: 'IMAGE_GENERATION',
+                    progress: 10,
+                    uuid: data.uuid
+                });
+
                 // Start polling
                 pollingRef.current = setInterval(async () => {
                     const statusRes = await fetch(`/api/media-api?action=video-status&uuid=${data.uuid}`);
@@ -158,12 +179,40 @@ const EpicPoster: React.FC = () => {
                     if (statusData.done && statusData.status === 'completed' && statusData.url) {
                         setGeneratedImage(statusData.url);
                         setLoading(false);
+                        setGlobalProcess({
+                            active: true,
+                            name: 'Image Ready!',
+                            message: 'Your poster has been generated successfully.',
+                            type: 'IMAGE_GENERATION',
+                            progress: 100,
+                            uuid: data.uuid
+                        });
+                        showToast('Poster generated successfully! 🎨', 'success');
                         if (pollingRef.current) clearInterval(pollingRef.current);
                         fetchImageHistory(1);
                     } else if (statusData.done && statusData.status === 'failed') {
                         setError('Image generation failed. Please try again.');
                         setLoading(false);
+                        setGlobalProcess({
+                            active: true,
+                            name: 'Generation Failed',
+                            message: 'Image generation failed.',
+                            type: 'IMAGE_GENERATION',
+                            progress: 0,
+                            uuid: data.uuid
+                        });
+                        showToast('Image generation failed.', 'error');
                         if (pollingRef.current) clearInterval(pollingRef.current);
+                    } else {
+                        const newProgress = statusData.progress || 50;
+                        setGlobalProcess({
+                            active: true,
+                            name: 'Generating Poster...',
+                            message: `Processing... ${newProgress}%`,
+                            type: 'IMAGE_GENERATION',
+                            progress: newProgress,
+                            uuid: data.uuid
+                        });
                     }
                 }, 3000);
 
@@ -277,28 +326,11 @@ const EpicPoster: React.FC = () => {
                             />
                         </div>
 
-                        {/* Model Selection */}
+                        {/* Model - Fixed to Nano Banana Pro */}
                         <div className="mb-4">
                             <label className="block text-sm font-bold text-slate-600 mb-2">Model</label>
-                            <div className="grid grid-cols-3 gap-2">
-                                <button
-                                    onClick={() => setModel('imagen-pro')}
-                                    className={`py-2 px-2 rounded-lg border text-xs font-bold transition-all ${model === 'imagen-pro' ? 'bg-indigo-600 text-white border-indigo-600 shadow-md' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}
-                                >
-                                    Gemini 3.0
-                                </button>
-                                <button
-                                    onClick={() => setModel('imagen-4')}
-                                    className={`py-2 px-2 rounded-lg border text-xs font-bold transition-all ${model === 'imagen-4' ? 'bg-indigo-600 text-white border-indigo-600 shadow-md' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}
-                                >
-                                    Imagen 4
-                                </button>
-                                <button
-                                    onClick={() => setModel('imagen-4-ultra')}
-                                    className={`py-2 px-2 rounded-lg border text-xs font-bold transition-all ${model === 'imagen-4-ultra' ? 'bg-indigo-600 text-white border-indigo-600 shadow-md' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}
-                                >
-                                    Imagen Ultra
-                                </button>
+                            <div className="py-2 px-3 rounded-lg border text-sm font-bold bg-indigo-600 text-white border-indigo-600 shadow-md text-center">
+                                Nano Banana Pro
                             </div>
                         </div>
 

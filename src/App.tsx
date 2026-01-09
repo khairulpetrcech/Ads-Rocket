@@ -17,6 +17,7 @@ import { initFacebookSdk, isSecureContext } from './services/metaService';
 import { Loader2, Key } from 'lucide-react';
 import { encryptKey, decryptKey } from './utils';
 import { ToastProvider } from './contexts/ToastContext';
+import GenerationProgress from './components/GenerationProgress';
 
 // Declare global augmentation for Window to include aistudio
 declare global {
@@ -360,6 +361,7 @@ const App: React.FC = () => {
 
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
+          <GenerationProgress />
         </HashRouter>
       </ToastProvider>
     </AppContext.Provider>

@@ -119,16 +119,38 @@ async function handleVideoHistory(req: any, res: any, apiKey: string, pageNum: n
         item.type === 'video_generation' || item.model_name?.includes('sora')
     );
 
-    const videos = videoHistory.map((item: any) => ({
-        id: item.id,
-        uuid: item.uuid,
-        prompt: item.input_text,
-        model: item.model_name,
-        status: item.status,
-        thumbnailUrl: item.thumbnail_url || item.generate_result || null,
-        videoUrl: item.generate_result || null,
-        createdAt: item.created_at,
-        expiresAt: item.expired_at
+    // Fetch detailed history for each video to get actual video URL
+    const videos = await Promise.all(videoHistory.map(async (item: any) => {
+        let videoUrl = item.generate_result || null;
+
+        // If completed, fetch detailed history to get proper video URL
+        if (item.status === 2 && item.uuid) {
+            try {
+                const detailUrl = `https://api.geminigen.ai/uapi/v1/history/${item.uuid}`;
+                const detailRes = await fetch(detailUrl, {
+                    headers: { "x-api-key": apiKey }
+                });
+                const detailData = await detailRes.json();
+
+                if (detailData.generated_video && detailData.generated_video.length > 0) {
+                    videoUrl = detailData.generated_video[0].video_url;
+                }
+            } catch (e) {
+                console.error('Failed to fetch video detail:', e);
+            }
+        }
+
+        return {
+            id: item.id,
+            uuid: item.uuid,
+            prompt: item.input_text,
+            model: item.model_name,
+            status: item.status,
+            thumbnailUrl: item.thumbnail_url || item.generate_result || null,
+            videoUrl: videoUrl,
+            createdAt: item.created_at,
+            expiresAt: item.expired_at
+        };
     }));
 
     return res.status(200).json({

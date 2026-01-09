@@ -56,7 +56,9 @@ export interface GlobalProcess {
   active: boolean;
   name: string; // e.g., "Creating Campaign"
   message: string; // e.g., "Uploading Video..."
-  type: 'CAMPAIGN_CREATION' | 'NONE';
+  type: 'CAMPAIGN_CREATION' | 'VIDEO_GENERATION' | 'IMAGE_GENERATION' | 'NONE';
+  progress?: number; // 0-100
+  uuid?: string; // For tracking generation status
 }
 
 export interface CommentItem {

@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useSettings } from '../App';
+import { useToast } from '../contexts/ToastContext';
 import { Video, Download, Loader2, AlertTriangle, Sparkles, Upload, Play, X, ChevronLeft, ChevronRight, Clock } from 'lucide-react';
 
 interface VideoHistoryItem {
@@ -40,7 +41,8 @@ const addCreatedUUID = (uuid: string) => {
 };
 
 const EpicVideo: React.FC = () => {
-    const { settings } = useSettings();
+    const { settings, globalProcess, setGlobalProcess } = useSettings();
+    const { showToast } = useToast();
     const [prompt, setPrompt] = useState('');
     const [seconds, setSeconds] = useState<10 | 15>(10);
     const [aspectRatio, setAspectRatio] = useState<'portrait' | 'landscape'>('portrait');
@@ -115,15 +117,45 @@ const EpicVideo: React.FC = () => {
                 setLoading(false);
                 setStatusMessage('Video ready!');
                 setProgress(100);
+                // Update global progress
+                setGlobalProcess({
+                    active: true,
+                    name: 'Video Ready!',
+                    message: 'Your video has been generated successfully.',
+                    type: 'VIDEO_GENERATION',
+                    progress: 100,
+                    uuid
+                });
+                // Show toast notification
+                showToast('Video generated successfully! 🎬', 'success');
                 if (pollingRef.current) clearInterval(pollingRef.current);
                 fetchVideoHistory(1);
             } else if (data.done && data.status === 'failed') {
                 setError(data.error || 'Video generation failed. Please try again.');
                 setLoading(false);
+                setGlobalProcess({
+                    active: true,
+                    name: 'Generation Failed',
+                    message: data.error || 'Video generation failed.',
+                    type: 'VIDEO_GENERATION',
+                    progress: 0,
+                    uuid
+                });
+                showToast('Video generation failed. Please try again.', 'error');
                 if (pollingRef.current) clearInterval(pollingRef.current);
             } else {
-                setProgress(data.progress || Math.min(progress + 10, 90));
-                setStatusMessage(`Processing video... ${data.progress || progress}%`);
+                const newProgress = data.progress || Math.min(progress + 10, 90);
+                setProgress(newProgress);
+                setStatusMessage(`Processing video... ${newProgress}%`);
+                // Update global progress
+                setGlobalProcess({
+                    active: true,
+                    name: 'Generating Video...',
+                    message: `Processing... ${newProgress}%`,
+                    type: 'VIDEO_GENERATION',
+                    progress: newProgress,
+                    uuid
+                });
             }
         } catch (err) {
             console.error('Polling error:', err);
