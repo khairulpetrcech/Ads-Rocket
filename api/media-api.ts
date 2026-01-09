@@ -9,6 +9,12 @@
  * POST /api/media-api?action=telegram-webhook (Telegram callback)
  */
 import { GoogleGenAI } from "@google/genai";
+import { createClient } from '@supabase/supabase-js';
+
+const SUPABASE_URL = process.env.SUPABASE_URL || 'https://ztpedgagubjoiluagqzd.supabase.co';
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || '';
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
 export default async function handler(req: any, res: any) {
     // CORS headers
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -264,17 +270,32 @@ async function handleTelegramWebhook(req: any, res: any) {
                         })
                     });
 
-                    // Get cached ad data
-                    const cacheKey = `ads_cache_${chatId}`;
-                    const cachedData = (globalThis as any)[cacheKey];
+                    // Get cached ad data from Supabase
+                    let cachedData: any = null;
+                    let ads: any[] = [];
+
+                    try {
+                        const { data, error } = await supabase
+                            .from('ads_cache')
+                            .select('*')
+                            .eq('chat_id', chatId)
+                            .single();
+
+                        if (data && !error) {
+                            cachedData = data;
+                            ads = JSON.parse(data.ads_data || '[]');
+                        }
+                    } catch (cacheErr) {
+                        console.error('[Prompt Gen] Cache fetch error:', cacheErr);
+                    }
 
                     let resultMessage = '';
 
-                    if (!cachedData || !cachedData.ads || !cachedData.ads[adIndex]) {
+                    if (!cachedData || !ads[adIndex]) {
                         resultMessage = `❌ *Cache Expired*\n\nSila run AI Analysis semula untuk refresh data.`;
                     } else {
-                        const ad = cachedData.ads[adIndex];
-                        const fbAccessToken = cachedData.fbAccessToken;
+                        const ad = ads[adIndex];
+                        const fbAccessToken = cachedData.fb_access_token;
                         const geminiApiKey = process.env.GEMINI_3_API;
 
                         if (!geminiApiKey) {

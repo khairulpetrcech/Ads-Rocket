@@ -225,22 +225,28 @@ async function handleAnalysis(req: any, res: any) {
         // --- STEP 4: Send to Telegram with Prompt Buttons ---
         const telegramUrl = `https://api.telegram.org/bot${telegramBotToken}/sendMessage`;
 
-        // Store top ads data for later prompt generation
-        const cacheKey = `ads_cache_${telegramChatId}`;
-        (globalThis as any)[cacheKey] = {
-            timestamp: Date.now(),
-            fbAccessToken: fbAccessToken,
-            telegramBotToken: telegramBotToken,
-            telegramChatId: telegramChatId,
-            ads: topAds.slice(0, 3).map((ad: any) => ({
+        // Store top ads data for later prompt generation - USE SUPABASE for persistence
+        const cacheData = {
+            chat_id: telegramChatId,
+            fb_access_token: fbAccessToken,
+            telegram_bot_token: telegramBotToken,
+            ads_data: JSON.stringify(topAds.slice(0, 3).map((ad: any) => ({
                 id: ad.id,
                 name: ad.name,
                 videoId: ad.video_id || null,
                 imageUrl: ad.image_url || null,
                 thumbnailUrl: ad.thumbnail_url || null
-            }))
+            }))),
+            updated_at: new Date().toISOString()
         };
-        console.log(`[Cache] Stored ${topAds.length} ads for chat ${telegramChatId}`);
+
+        // Save to Supabase for persistence across serverless instances
+        try {
+            await supabase.from('ads_cache').upsert(cacheData, { onConflict: 'chat_id' });
+            console.log(`[Cache] Stored ${topAds.length} ads in Supabase for chat ${telegramChatId}`);
+        } catch (cacheErr) {
+            console.error('[Cache] Failed to save to Supabase:', cacheErr);
+        }
 
         // Build inline keyboard buttons for prompt generation
         const promptButtons = topAds.slice(0, 3).map((ad: any, i: number) => ({
