@@ -35,6 +35,12 @@ export default async function handler(req: any, res: any) {
     if (action === 'send-message') {
         return handleSendMessage(req, res);
     }
+    if (action === 'save-schedule') {
+        return handleSaveSchedule(req, res);
+    }
+    if (action === 'get-schedule') {
+        return handleGetSchedule(req, res);
+    }
 
     // Default: AI Analysis
     return handleAnalysis(req, res);
@@ -652,5 +658,82 @@ async function handleSendMessage(req: any, res: any) {
     } catch (error: any) {
         console.error('Send Message Error:', error);
         return res.status(500).json({ error: error.message || 'Internal server error' });
+    }
+}
+
+// Save Schedule Handler - Store analysis schedule in Supabase
+async function handleSaveSchedule(req: any, res: any) {
+    try {
+        const {
+            fbId,
+            adAccountId,
+            scheduleTime,
+            isEnabled,
+            telegramBotToken,
+            telegramChatId
+        } = req.body;
+
+        if (!fbId) {
+            return res.status(400).json({ error: 'Missing fbId' });
+        }
+
+        const { error } = await supabase
+            .from('analysis_schedules')
+            .upsert({
+                fb_id: fbId,
+                ad_account_id: adAccountId,
+                schedule_time: scheduleTime,
+                is_enabled: isEnabled,
+                telegram_bot_token: telegramBotToken,
+                telegram_chat_id: telegramChatId,
+                updated_at: new Date().toISOString()
+            }, {
+                onConflict: 'fb_id'
+            });
+
+        if (error) {
+            console.error('Save Schedule Error:', error);
+            return res.status(500).json({ error: 'Failed to save schedule', details: error.message });
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: 'Schedule saved successfully'
+        });
+
+    } catch (error: any) {
+        console.error('Save Schedule Error:', error);
+        return res.status(500).json({ error: error.message });
+    }
+}
+
+// Get Schedule Handler - Retrieve analysis schedule from Supabase
+async function handleGetSchedule(req: any, res: any) {
+    try {
+        const { fbId } = req.query;
+
+        if (!fbId) {
+            return res.status(400).json({ error: 'Missing fbId' });
+        }
+
+        const { data, error } = await supabase
+            .from('analysis_schedules')
+            .select('*')
+            .eq('fb_id', fbId)
+            .single();
+
+        if (error && error.code !== 'PGRST116') { // PGRST116 = no rows found
+            console.error('Get Schedule Error:', error);
+            return res.status(500).json({ error: 'Failed to get schedule' });
+        }
+
+        return res.status(200).json({
+            success: true,
+            schedule: data || null
+        });
+
+    } catch (error: any) {
+        console.error('Get Schedule Error:', error);
+        return res.status(500).json({ error: error.message });
     }
 }

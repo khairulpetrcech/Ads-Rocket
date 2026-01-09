@@ -46,30 +46,79 @@ const AnalysisSettingsDialog: React.FC<AnalysisSettingsDialogProps> = ({ isOpen,
     const remainingAnalyses = getRemainingAnalyses(settings.businessName);
     const isUnlimited = (settings.businessName || '').toLowerCase().includes('khai');
 
-    // Load saved settings
+    // Load saved settings from Supabase
     useEffect(() => {
-        const saved = localStorage.getItem(STORAGE_KEY);
-        if (saved) {
-            try {
-                const schedule: AnalysisSchedule = JSON.parse(saved);
-                setSelectedAccount(schedule.adAccountId || settings.adAccountId || '');
-                setScheduleTime(schedule.scheduleTime || '09:00');
-                setIsScheduleEnabled(schedule.isEnabled || false);
-            } catch (e) {
-                console.error('Failed to load schedule:', e);
+        const loadSchedule = async () => {
+            // Try localStorage first for immediate display
+            const saved = localStorage.getItem(STORAGE_KEY);
+            if (saved) {
+                try {
+                    const schedule = JSON.parse(saved);
+                    setSelectedAccount(schedule.adAccountId || settings.adAccountId || '');
+                    setScheduleTime(schedule.scheduleTime || '09:00');
+                    setIsScheduleEnabled(schedule.isEnabled || false);
+                } catch (e) {
+                    console.error('Failed to load local schedule:', e);
+                }
             }
-        }
-    }, [isOpen, settings.adAccountId]);
 
-    // Save schedule settings
-    const saveSchedule = () => {
+            // Then fetch from Supabase for persistent data
+            if (settings.fbAppId) {
+                try {
+                    const res = await fetch(`/api/analyze-telegram?action=get-schedule&fbId=${settings.fbAppId}`);
+                    const data = await res.json();
+                    if (data.success && data.schedule) {
+                        setSelectedAccount(data.schedule.ad_account_id || settings.adAccountId || '');
+                        setScheduleTime(data.schedule.schedule_time || '09:00');
+                        setIsScheduleEnabled(data.schedule.is_enabled || false);
+                    }
+                } catch (e) {
+                    console.error('Failed to load schedule from Supabase:', e);
+                }
+            }
+        };
+
+        if (isOpen) {
+            loadSchedule();
+        }
+    }, [isOpen, settings.adAccountId, settings.fbAppId]);
+
+    // Save schedule settings to both localStorage and Supabase
+    const saveSchedule = async () => {
         const schedule: AnalysisSchedule = {
             adAccountId: selectedAccount,
             scheduleTime,
             isEnabled: isScheduleEnabled
         };
+
+        // Save to localStorage for quick access
         localStorage.setItem(STORAGE_KEY, JSON.stringify(schedule));
-        showToast('Tetapan analisis disimpan!', 'success');
+
+        // Save to Supabase for persistence
+        try {
+            const res = await fetch('/api/analyze-telegram?action=save-schedule', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    fbId: settings.fbAppId || 'default',
+                    adAccountId: selectedAccount,
+                    scheduleTime,
+                    isEnabled: isScheduleEnabled,
+                    telegramBotToken: settings.telegramBotToken,
+                    telegramChatId: settings.telegramChatId
+                })
+            });
+
+            const data = await res.json();
+            if (data.success) {
+                showToast('Tetapan jadual disimpan!', 'success');
+            } else {
+                showToast('Disimpan locally (server error)', 'error');
+            }
+        } catch (e) {
+            console.error('Failed to save to Supabase:', e);
+            showToast('Disimpan locally sahaja', 'success');
+        }
     };
 
     // Handle instant analysis
