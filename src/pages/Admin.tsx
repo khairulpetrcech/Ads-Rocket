@@ -53,7 +53,7 @@ const AdminPage: React.FC = () => {
 
         try {
             // Fetch users
-            const usersRes = await fetch('/api/admin/users', {
+            const usersRes = await fetch('/api/admin-api?action=users', {
                 headers: { 'Authorization': `Bearer ${ADMIN_PASSWORD}` }
             });
 
@@ -65,7 +65,7 @@ const AdminPage: React.FC = () => {
             setUsers(usersData.users || []);
 
             // Fetch campaigns
-            const campaignsRes = await fetch('/api/admin/campaigns', {
+            const campaignsRes = await fetch('/api/admin-api?action=campaigns', {
                 headers: { 'Authorization': `Bearer ${ADMIN_PASSWORD}` }
             });
 
@@ -175,8 +175,8 @@ const AdminPage: React.FC = () => {
                     <button
                         onClick={() => setActiveTab('users')}
                         className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${activeTab === 'users'
-                                ? 'bg-indigo-600 text-white'
-                                : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                            ? 'bg-indigo-600 text-white'
+                            : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
                             }`}
                     >
                         <Users size={14} className="inline mr-2" />
@@ -185,8 +185,8 @@ const AdminPage: React.FC = () => {
                     <button
                         onClick={() => setActiveTab('campaigns')}
                         className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${activeTab === 'campaigns'
-                                ? 'bg-indigo-600 text-white'
-                                : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                            ? 'bg-indigo-600 text-white'
+                            : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
                             }`}
                     >
                         <Activity size={14} className="inline mr-2" />
