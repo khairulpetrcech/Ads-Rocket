@@ -249,7 +249,7 @@ async function handleTelegramWebhook(req: any, res: any) {
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                             callback_query_id: callbackQuery.id,
-                            text: '🔄 Analyzing creative with AI... Tunggu sekejap!'
+                            text: '🔄 Fetching video & analyzing scenes... Tunggu!'
                         })
                     });
 
@@ -259,69 +259,131 @@ async function handleTelegramWebhook(req: any, res: any) {
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                             chat_id: chatId,
-                            text: `🎬 *AI Prompt Generation*\n\n_Menganalisis creative Ads #${adIndex + 1} dengan Gemini..._`,
+                            text: `🎬 *Scene Analysis untuk Ads #${adIndex + 1}*\n\n_Fetching video dan analyzing dengan Gemini..._\n_Ini mungkin ambil 30-60 saat._`,
                             parse_mode: 'Markdown'
                         })
                     });
 
-                    // Generate AI prompt based on ad creative analysis
-                    let videoPrompt = '';
-                    try {
+                    // Get cached ad data
+                    const cacheKey = `ads_cache_${chatId}`;
+                    const cachedData = (globalThis as any)[cacheKey];
+
+                    let resultMessage = '';
+
+                    if (!cachedData || !cachedData.ads || !cachedData.ads[adIndex]) {
+                        resultMessage = `❌ *Cache Expired*\n\nSila run AI Analysis semula untuk refresh data.`;
+                    } else {
+                        const ad = cachedData.ads[adIndex];
+                        const fbAccessToken = cachedData.fbAccessToken;
                         const geminiApiKey = process.env.GEMINI_3_API;
-                        if (geminiApiKey) {
-                            const genAI = new GoogleGenAI({ apiKey: geminiApiKey });
 
-                            // Prompt template for video generation
-                            const analysisPrompt = `You are an expert video prompt engineer for AI video generation tools like Sora 2 and Google Veo 3.1.
-
-Based on this Facebook/Meta Ad ID: ${adId}
-
-Generate a detailed, specific video generation prompt in English that would recreate this ad's style and flow. The prompt should:
-1. Describe the visual style, camera movements, and lighting
-2. Include specific scene descriptions and transitions
-3. Mention the product/service presentation style
-4. Include text overlay suggestions
-5. Describe the call-to-action ending
-
-Format the output as a single paragraph prompt, ready to paste into Sora 2 or Veo 3.1.
-Keep it between 100-150 words.
-Do NOT include any markdown, just plain text prompt.`;
-
-                            const result = await genAI.models.generateContent({
-                                model: 'gemini-3-flash-preview',
-                                contents: [{ text: analysisPrompt }]
-                            });
-
-                            const generatedPrompt = result.text || 'Unable to generate prompt';
-
-                            videoPrompt = `🎬 *Video Prompt untuk Sora 2 / Veo 3.1*
-
-*Ads ID:* \`${adId}\`
-
----
-
-\`\`\`
-${generatedPrompt}
-\`\`\`
-
----
-_Copy prompt di atas dan paste ke Sora 2 atau Veo 3.1_
-_AI: Gemini 3 Flash | Est. Cost: ~RM0.01_`;
+                        if (!geminiApiKey) {
+                            resultMessage = `❌ GEMINI_3_API not configured`;
                         } else {
-                            videoPrompt = `❌ GEMINI_3_API not configured`;
+                            try {
+                                const genAI = new GoogleGenAI({ apiKey: geminiApiKey });
+                                let videoUrl = null;
+
+                                // Fetch video URL from Meta API
+                                if (ad.videoId) {
+                                    const videoApiUrl = `https://graph.facebook.com/v21.0/${ad.videoId}?fields=source&access_token=${fbAccessToken}`;
+                                    const videoRes = await fetch(videoApiUrl);
+                                    const videoData = await videoRes.json();
+                                    videoUrl = videoData.source;
+                                    console.log(`[Prompt Gen] Got video URL for ${ad.name}`);
+                                }
+
+                                if (!videoUrl) {
+                                    // Try Instagram media ID fallback
+                                    const igUrl = `https://graph.facebook.com/v21.0/${ad.videoId}?fields=media_url&access_token=${fbAccessToken}`;
+                                    const igRes = await fetch(igUrl);
+                                    const igData = await igRes.json();
+                                    videoUrl = igData.media_url;
+                                }
+
+                                if (!videoUrl) {
+                                    resultMessage = `❌ Video tidak dijumpai untuk ads ini.`;
+                                } else {
+                                    // Download video
+                                    console.log(`[Prompt Gen] Downloading video...`);
+                                    const videoResponse = await fetch(videoUrl);
+                                    const videoBuffer = await videoResponse.arrayBuffer();
+                                    const base64Video = Buffer.from(videoBuffer).toString('base64');
+
+                                    // Upload to Gemini Files API
+                                    console.log(`[Prompt Gen] Uploading to Gemini...`);
+                                    const uploadResult = await genAI.files.upload({
+                                        file: new Blob([videoBuffer], { type: 'video/mp4' }),
+                                        config: { mimeType: 'video/mp4' }
+                                    });
+
+                                    // Wait for processing
+                                    let file = uploadResult;
+                                    while (file.state === 'PROCESSING') {
+                                        await new Promise(r => setTimeout(r, 2000));
+                                        file = await genAI.files.get({ name: file.name! });
+                                    }
+
+                                    if (file.state === 'FAILED') {
+                                        throw new Error('File processing failed');
+                                    }
+
+                                    console.log(`[Prompt Gen] Analyzing with Gemini...`);
+
+                                    // Analyze video for scene breakdown
+                                    const scenePrompt = `Anda adalah pakar analisis video iklan. Analyze video ini dan berikan:
+
+1. **SCENE FLOW** - Pecahkan video ikut second/timestamp:
+Format: [Xs]: [visual description] + [dialog jika ada]
+Contoh:
+0-1s: Wanita muda di depan rumah kampung, memegang telefon
+1-2s: Close-up wajah sedih, dialog: "Rindu mak..."
+2-3s: Cut ke interior rumah, orang tua berbaring di katil
+(senaraikan SEMUA scene dalam video)
+
+2. **VIDEO GENERATION PROMPT** - Prompt dalam English untuk recreate video ini di Sora 2/Veo 3.1:
+- Describe camera movements, lighting, transitions
+- Include all visual elements and style
+- 100-150 words, single paragraph
+
+Output format:
+---SCENE FLOW---
+[scene list here]
+
+---VIDEO PROMPT---
+[prompt here]`;
+
+                                    const result = await genAI.models.generateContent({
+                                        model: 'gemini-3-flash-preview',
+                                        contents: [
+                                            { text: scenePrompt },
+                                            { fileData: { fileUri: file.uri!, mimeType: 'video/mp4' } }
+                                        ]
+                                    });
+
+                                    const analysis = result.text || 'Unable to analyze';
+
+                                    resultMessage = `🎬 *Scene Analysis: ${ad.name}*\n\n${analysis}\n\n---\n_AI: Gemini 3 Flash | Est. Cost: ~RM0.05_`;
+
+                                    // Cleanup file
+                                    try {
+                                        await genAI.files.delete({ name: file.name! });
+                                    } catch (e) { /* ignore cleanup errors */ }
+                                }
+                            } catch (analysisError: any) {
+                                console.error('[Prompt Gen] Error:', analysisError);
+                                resultMessage = `❌ *Error analyzing video*\n\n${analysisError.message || 'Unknown error'}`;
+                            }
                         }
-                    } catch (aiError: any) {
-                        console.error('AI Prompt Generation Error:', aiError);
-                        videoPrompt = `❌ *Error generating prompt*\n\n${aiError.message || 'Unknown error'}`;
                     }
 
-                    // Send the generated prompt
+                    // Send the result
                     await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                             chat_id: chatId,
-                            text: videoPrompt,
+                            text: resultMessage,
                             parse_mode: 'Markdown'
                         })
                     });

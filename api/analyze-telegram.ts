@@ -219,6 +219,23 @@ async function handleAnalysis(req: any, res: any) {
         // --- STEP 4: Send to Telegram with Prompt Buttons ---
         const telegramUrl = `https://api.telegram.org/bot${telegramBotToken}/sendMessage`;
 
+        // Store top ads data for later prompt generation
+        const cacheKey = `ads_cache_${telegramChatId}`;
+        (globalThis as any)[cacheKey] = {
+            timestamp: Date.now(),
+            fbAccessToken: fbAccessToken,
+            telegramBotToken: telegramBotToken,
+            telegramChatId: telegramChatId,
+            ads: topAds.slice(0, 3).map((ad: any) => ({
+                id: ad.id,
+                name: ad.name,
+                videoId: ad.video_id || null,
+                imageUrl: ad.image_url || null,
+                thumbnailUrl: ad.thumbnail_url || null
+            }))
+        };
+        console.log(`[Cache] Stored ${topAds.length} ads for chat ${telegramChatId}`);
+
         // Build inline keyboard buttons for prompt generation
         const promptButtons = topAds.slice(0, 3).map((ad: any, i: number) => ({
             text: `📝 Prompt Ads ${i + 1}`,
