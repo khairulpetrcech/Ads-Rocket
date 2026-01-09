@@ -216,15 +216,25 @@ async function handleAnalysis(req: any, res: any) {
         const estimatedCost = (validAnalyses.length * 0.025).toFixed(2); // Flash = Pro/4 (~RM0.025 per video)
         reportText += `---\n_AI: Gemini 3 Flash | Est. Cost: ~RM${estimatedCost}_`;
 
-        // --- STEP 4: Send to Telegram ---
+        // --- STEP 4: Send to Telegram with Prompt Buttons ---
         const telegramUrl = `https://api.telegram.org/bot${telegramBotToken}/sendMessage`;
+
+        // Build inline keyboard buttons for prompt generation
+        const promptButtons = topAds.slice(0, 3).map((ad: any, i: number) => ({
+            text: `📝 Prompt Ads ${i + 1}`,
+            callback_data: `prompt_${i}_${ad.id}`
+        }));
+
         const telegramResponse = await fetch(telegramUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 chat_id: telegramChatId,
                 text: reportText,
-                parse_mode: 'Markdown'
+                parse_mode: 'Markdown',
+                reply_markup: {
+                    inline_keyboard: [promptButtons]
+                }
             })
         });
 

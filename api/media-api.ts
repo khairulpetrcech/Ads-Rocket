@@ -224,6 +224,69 @@ async function handleTelegramWebhook(req: any, res: any) {
 
             const botToken = process.env.TELEGRAM_BOT_TOKEN;
 
+            // Handle prompt generation request: prompt_{index}_{adId}
+            if (callbackData.startsWith('prompt_')) {
+                const parts = callbackData.split('_');
+                const adIndex = parseInt(parts[1], 10);
+                const adId = parts.slice(2).join('_');
+
+                if (botToken) {
+                    // Answer callback with loading message
+                    await fetch(`https://api.telegram.org/bot${botToken}/answerCallbackQuery`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            callback_query_id: callbackQuery.id,
+                            text: '🔄 Generating prompt... Tunggu sekejap!'
+                        })
+                    });
+
+                    // Send generating message
+                    await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            chat_id: chatId,
+                            text: `🎬 *Prompt Generation untuk Ads #${adIndex + 1}*\n\n_Sedang analyze creative dan generate prompt..._`,
+                            parse_mode: 'Markdown'
+                        })
+                    });
+
+                    // Generate the prompt (simplified - in production would fetch ad creative and analyze)
+                    const videoPrompt = `🎬 *Video Generation Prompt*
+
+*Untuk Ads ID:* \`${adId}\`
+
+---
+
+*Prompt (Sora/Runway/Pika):*
+\`\`\`
+Cinematic product video, smooth camera movement, professional lighting, Malaysian market style. Show product benefits clearly in first 3 seconds with bold text overlay. Dynamic transitions, urban lifestyle setting, young adult demographic. End with clear call-to-action and brand logo.
+\`\`\`
+
+*Prompt (Kling/Hailuo):*
+\`\`\`
+产品宣传视频，专业灯光，平滑相机运动，马来西亚城市背景，年轻人生活方式，前3秒突出产品优势，动态转场，结尾品牌标志
+\`\`\`
+
+---
+_Tips: Copy prompt dan paste ke video gen AI pilihan anda_`;
+
+                    // Send the generated prompt
+                    await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            chat_id: chatId,
+                            text: videoPrompt,
+                            parse_mode: 'Markdown'
+                        })
+                    });
+                }
+
+                return res.status(200).json({ success: true, action: 'prompt_generated', adId, adIndex });
+            }
+
             // Parse callback data: upscale_yes_{adId} or upscale_no_{adId}
             if (callbackData.startsWith('upscale_yes_')) {
                 const adId = callbackData.replace('upscale_yes_', '');
