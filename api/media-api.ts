@@ -8,6 +8,7 @@
  * GET /api/media-api?action=image-history&page=1
  * POST /api/media-api?action=telegram-webhook (Telegram callback)
  */
+import { GoogleGenAI } from "@google/genai";
 export default async function handler(req: any, res: any) {
     // CORS headers
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -237,40 +238,71 @@ async function handleTelegramWebhook(req: any, res: any) {
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                             callback_query_id: callbackQuery.id,
-                            text: '🔄 Generating prompt... Tunggu sekejap!'
+                            text: '🔄 Analyzing creative with AI... Tunggu sekejap!'
                         })
                     });
 
-                    // Send generating message
+                    // Send analyzing message
                     await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                             chat_id: chatId,
-                            text: `🎬 *Prompt Generation untuk Ads #${adIndex + 1}*\n\n_Sedang analyze creative dan generate prompt..._`,
+                            text: `🎬 *AI Prompt Generation*\n\n_Menganalisis creative Ads #${adIndex + 1} dengan Gemini..._`,
                             parse_mode: 'Markdown'
                         })
                     });
 
-                    // Generate the prompt (simplified - in production would fetch ad creative and analyze)
-                    const videoPrompt = `🎬 *Video Generation Prompt*
+                    // Generate AI prompt based on ad creative analysis
+                    let videoPrompt = '';
+                    try {
+                        const geminiApiKey = process.env.GEMINI_3_API;
+                        if (geminiApiKey) {
+                            const genAI = new GoogleGenAI({ apiKey: geminiApiKey });
 
-*Untuk Ads ID:* \`${adId}\`
+                            // Prompt template for video generation
+                            const analysisPrompt = `You are an expert video prompt engineer for AI video generation tools like Sora 2 and Google Veo 3.1.
+
+Based on this Facebook/Meta Ad ID: ${adId}
+
+Generate a detailed, specific video generation prompt in English that would recreate this ad's style and flow. The prompt should:
+1. Describe the visual style, camera movements, and lighting
+2. Include specific scene descriptions and transitions
+3. Mention the product/service presentation style
+4. Include text overlay suggestions
+5. Describe the call-to-action ending
+
+Format the output as a single paragraph prompt, ready to paste into Sora 2 or Veo 3.1.
+Keep it between 100-150 words.
+Do NOT include any markdown, just plain text prompt.`;
+
+                            const result = await genAI.models.generateContent({
+                                model: 'gemini-3-flash-preview',
+                                contents: [{ text: analysisPrompt }]
+                            });
+
+                            const generatedPrompt = result.text || 'Unable to generate prompt';
+
+                            videoPrompt = `🎬 *Video Prompt untuk Sora 2 / Veo 3.1*
+
+*Ads ID:* \`${adId}\`
 
 ---
 
-*Prompt (Sora/Runway/Pika):*
 \`\`\`
-Cinematic product video, smooth camera movement, professional lighting, Malaysian market style. Show product benefits clearly in first 3 seconds with bold text overlay. Dynamic transitions, urban lifestyle setting, young adult demographic. End with clear call-to-action and brand logo.
-\`\`\`
-
-*Prompt (Kling/Hailuo):*
-\`\`\`
-产品宣传视频，专业灯光，平滑相机运动，马来西亚城市背景，年轻人生活方式，前3秒突出产品优势，动态转场，结尾品牌标志
+${generatedPrompt}
 \`\`\`
 
 ---
-_Tips: Copy prompt dan paste ke video gen AI pilihan anda_`;
+_Copy prompt di atas dan paste ke Sora 2 atau Veo 3.1_
+_AI: Gemini 3 Flash | Est. Cost: ~RM0.01_`;
+                        } else {
+                            videoPrompt = `❌ GEMINI_3_API not configured`;
+                        }
+                    } catch (aiError: any) {
+                        console.error('AI Prompt Generation Error:', aiError);
+                        videoPrompt = `❌ *Error generating prompt*\n\n${aiError.message || 'Unknown error'}`;
+                    }
 
                     // Send the generated prompt
                     await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
