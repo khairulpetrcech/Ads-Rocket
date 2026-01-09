@@ -18,6 +18,7 @@ import {
     Filter, Calendar, Briefcase, ChevronDown, ChevronRight, Image as ImageIcon,
     Edit2, ExternalLink, MessageCircle, ShoppingCart, MessageSquarePlus, Send, X, Check, Layers, ArrowRight, ChevronLeft, Sparkles
 } from 'lucide-react';
+import AnalysisSettingsDialog from '../components/AnalysisSettingsDialog';
 
 const formatMYR = (amount: number) => {
     return new Intl.NumberFormat('en-MY', {
@@ -231,6 +232,7 @@ const Dashboard: React.FC = () => {
 
     // Telegram AI Alert State
     const [telegramSending, setTelegramSending] = useState(false);
+    const [showAnalysisSettings, setShowAnalysisSettings] = useState(false);
 
     const handleSendToTelegram = async () => {
         if (!settings.telegramBotToken || !settings.telegramChatId) {
@@ -672,584 +674,591 @@ const Dashboard: React.FC = () => {
     const totalResults = campaigns.reduce((acc, c) => acc + c.metrics.results, 0);
 
     return (
-        <div className="space-y-6 relative">
+        <>
+            <div className="space-y-6 relative">
 
-            {/* Header & Controls */}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-2">
-                <div>
-                    <div className="flex items-center gap-2 mb-1">
-                        {/* Header removed - cleaner UI */}
-                        {/* CLICKABLE LIVE BUTTON */}
-                        <button
-                            onClick={() => fetchData()}
-                            className={`text-xs px-2 py-0.5 rounded-full font-bold flex items-center gap-1 transition-all shadow-sm border ${loadingCampaigns ? 'bg-indigo-100 text-indigo-700 border-indigo-200 cursor-wait' : 'bg-green-100 text-green-700 border-green-200 hover:bg-green-200'}`}
-                        >
-                            {loadingCampaigns ? <RefreshCw size={10} className="animate-spin" /> : null}
-                            {loadingCampaigns ? 'Syncing...' : 'LIVE'}
-                        </button>
-                        {/* TELEGRAM AI ANALYSIS BUTTON (ICON ONLY + TOOLTIP) */}
-                        <div className="relative group">
+                {/* Header & Controls */}
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-2">
+                    <div>
+                        <div className="flex items-center gap-2 mb-1">
+                            {/* Header removed - cleaner UI */}
+                            {/* CLICKABLE LIVE BUTTON */}
                             <button
-                                onClick={handleSendToTelegram}
-                                disabled={telegramSending}
-                                className={`w-8 h-8 rounded-full flex items-center justify-center transition-all shadow-sm border ${telegramSending ? 'bg-indigo-50 text-indigo-400 border-indigo-100 cursor-wait' : 'bg-white text-indigo-600 border-indigo-200 hover:border-indigo-400 hover:bg-indigo-50'}`}
+                                onClick={() => fetchData()}
+                                className={`text-xs px-2 py-0.5 rounded-full font-bold flex items-center gap-1 transition-all shadow-sm border ${loadingCampaigns ? 'bg-indigo-100 text-indigo-700 border-indigo-200 cursor-wait' : 'bg-green-100 text-green-700 border-green-200 hover:bg-green-200'}`}
                             >
-                                {telegramSending ? <RefreshCw size={14} className="animate-spin" /> : <Sparkles size={14} />}
+                                {loadingCampaigns ? <RefreshCw size={10} className="animate-spin" /> : null}
+                                {loadingCampaigns ? 'Syncing...' : 'LIVE'}
                             </button>
-                            {/* Tooltip on hover - iOS Glassmorphism Style */}
-                            <div className="absolute top-full left-0 mt-2 px-4 py-3 backdrop-blur-xl bg-white/80 text-slate-700 text-xs rounded-2xl opacity-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none z-50 shadow-[0_8px_32px_rgba(0,0,0,0.12)] border border-white/60 w-[260px] text-left leading-relaxed">
-                                <div className="absolute bottom-full left-4 border-[6px] border-transparent border-b-white/80" style={{ filter: 'drop-shadow(0 -1px 1px rgba(0,0,0,0.05))' }}></div>
-                                <span className="font-semibold text-slate-800 text-sm">AI Analysis</span>
-                                <p className="mt-1 text-slate-600">AI akan analysis win ads dan hantar performance last 4 days ke Telegram anda.</p>
+                            {/* TELEGRAM AI ANALYSIS BUTTON (ICON ONLY + TOOLTIP) */}
+                            <div className="relative group">
+                                <button
+                                    onClick={() => setShowAnalysisSettings(true)}
+                                    className={`w-8 h-8 rounded-full flex items-center justify-center transition-all shadow-sm border bg-white text-indigo-600 border-indigo-200 hover:border-indigo-400 hover:bg-indigo-50`}
+                                >
+                                    <Sparkles size={14} />
+                                </button>
+                                {/* Tooltip on hover - iOS Glassmorphism Style */}
+                                <div className="absolute top-full left-0 mt-2 px-4 py-3 backdrop-blur-xl bg-white/80 text-slate-700 text-xs rounded-2xl opacity-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none z-50 shadow-[0_8px_32px_rgba(0,0,0,0.12)] border border-white/60 w-[260px] text-left leading-relaxed">
+                                    <div className="absolute bottom-full left-4 border-[6px] border-transparent border-b-white/80" style={{ filter: 'drop-shadow(0 -1px 1px rgba(0,0,0,0.05))' }}></div>
+                                    <span className="font-semibold text-slate-800 text-sm">AI Analysis Settings</span>
+                                    <p className="mt-1 text-slate-600">Tetapan jadual analisis automatik dan hantar ke Telegram.</p>
+                                </div>
                             </div>
                         </div>
+                        <div className="flex items-center gap-2 text-slate-500 text-sm">
+                            {/* PREVIEW BUTTON (STACKING TEST) */}
+
+
+                            <Briefcase size={14} />
+                            {settings.availableAccounts?.length > 0 ? (
+                                <div className="relative">
+                                    <button
+                                        onClick={() => setIsAccountDropdownOpen(!isAccountDropdownOpen)}
+                                        className="flex items-center gap-2 max-w-[280px] truncate font-medium text-slate-700 hover:text-indigo-600 transition-colors cursor-pointer"
+                                    >
+                                        <span className="truncate">{settings.businessName}</span>
+                                        <ChevronDown size={14} className={`transition-transform ${isAccountDropdownOpen ? 'rotate-180' : ''}`} />
+                                    </button>
+
+                                    {/* Glassmorphism Dropdown */}
+                                    {isAccountDropdownOpen && (
+                                        <>
+                                            {/* Backdrop to close dropdown */}
+                                            <div
+                                                className="fixed inset-0 z-40"
+                                                onClick={() => setIsAccountDropdownOpen(false)}
+                                            />
+                                            <div className="absolute top-full left-0 mt-2 z-50 w-[320px] max-h-[400px] overflow-y-auto backdrop-blur-xl bg-white/90 rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.12)] border border-white/60 py-2 animate-in fade-in slide-in-from-top-2 duration-200">
+                                                {settings.availableAccounts.map((acc, index) => (
+                                                    <button
+                                                        key={acc.id}
+                                                        onClick={() => {
+                                                            updateSettings({ adAccountId: acc.id, businessName: acc.name });
+                                                            setIsAccountDropdownOpen(false);
+                                                        }}
+                                                        className={`w-full text-left px-4 py-3 text-sm transition-all ${settings.adAccountId === acc.id
+                                                            ? 'bg-indigo-50 text-indigo-700 font-semibold'
+                                                            : 'text-slate-700 hover:bg-slate-50'
+                                                            } ${index === 0 ? 'rounded-t-lg' : ''} ${index === settings.availableAccounts.length - 1 ? 'rounded-b-lg' : ''}`}
+                                                    >
+                                                        <div className="flex items-center gap-3">
+                                                            {settings.adAccountId === acc.id && (
+                                                                <div className="w-2 h-2 rounded-full bg-indigo-500" />
+                                                            )}
+                                                            <span className={settings.adAccountId !== acc.id ? 'ml-5' : ''}>{acc.name}</span>
+                                                        </div>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+                            ) : <span>{settings.businessName}</span>}
+                        </div>
                     </div>
-                    <div className="flex items-center gap-2 text-slate-500 text-sm">
-                        {/* PREVIEW BUTTON (STACKING TEST) */}
 
+                    <div className="flex flex-col md:flex-row items-end md:items-center gap-2">
 
-                        <Briefcase size={14} />
-                        {settings.availableAccounts?.length > 0 ? (
+                        {dateRange === 'custom' && customStartDate && customEndDate && (
+                            <button
+                                onClick={() => setIsCustomDateModalOpen(true)}
+                                className="flex items-center gap-2 bg-white rounded-lg px-3 py-2 border border-indigo-200 hover:border-indigo-500 text-indigo-600 shadow-sm transition-all group"
+                            >
+                                <Calendar size={14} />
+                                <span className="text-xs font-bold">
+                                    {new Date(customStartDate).toLocaleDateString()} - {new Date(customEndDate).toLocaleDateString()}
+                                </span>
+                                <Edit2 size={12} className="text-indigo-300 group-hover:text-indigo-600" />
+                            </button>
+                        )}
+
+                        <div className="flex items-center gap-2">
+
                             <div className="relative">
-                                <button
-                                    onClick={() => setIsAccountDropdownOpen(!isAccountDropdownOpen)}
-                                    className="flex items-center gap-2 max-w-[280px] truncate font-medium text-slate-700 hover:text-indigo-600 transition-colors cursor-pointer"
+                                <Calendar className="absolute left-3 top-2.5 text-slate-400" size={14} />
+                                <select
+                                    value={dateRange}
+                                    onChange={handleDateRangeChange}
+                                    className="bg-white border border-slate-200 shadow-sm rounded-lg pl-9 pr-8 py-2 text-xs font-medium text-slate-700 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 appearance-none cursor-pointer hover:bg-slate-50 transition-colors"
                                 >
-                                    <span className="truncate">{settings.businessName}</span>
-                                    <ChevronDown size={14} className={`transition-transform ${isAccountDropdownOpen ? 'rotate-180' : ''}`} />
-                                </button>
+                                    <option value="today">Today</option>
+                                    <option value="yesterday">Yesterday</option>
+                                    <option value="last_3d">Last 3 Days</option>
+                                    <option value="last_4d">Last 4 Days</option>
+                                    <option value="last_7d">Last 7 Days</option>
+                                    <option value="maximum">All Time</option>
+                                    <option value="custom">Custom Calendar...</option>
+                                </select>
 
-                                {/* Glassmorphism Dropdown */}
-                                {isAccountDropdownOpen && (
-                                    <>
-                                        {/* Backdrop to close dropdown */}
-                                        <div
-                                            className="fixed inset-0 z-40"
-                                            onClick={() => setIsAccountDropdownOpen(false)}
-                                        />
-                                        <div className="absolute top-full left-0 mt-2 z-50 w-[320px] max-h-[400px] overflow-y-auto backdrop-blur-xl bg-white/90 rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.12)] border border-white/60 py-2 animate-in fade-in slide-in-from-top-2 duration-200">
-                                            {settings.availableAccounts.map((acc, index) => (
-                                                <button
-                                                    key={acc.id}
-                                                    onClick={() => {
-                                                        updateSettings({ adAccountId: acc.id, businessName: acc.name });
-                                                        setIsAccountDropdownOpen(false);
-                                                    }}
-                                                    className={`w-full text-left px-4 py-3 text-sm transition-all ${settings.adAccountId === acc.id
-                                                        ? 'bg-indigo-50 text-indigo-700 font-semibold'
-                                                        : 'text-slate-700 hover:bg-slate-50'
-                                                        } ${index === 0 ? 'rounded-t-lg' : ''} ${index === settings.availableAccounts.length - 1 ? 'rounded-b-lg' : ''}`}
-                                                >
-                                                    <div className="flex items-center gap-3">
-                                                        {settings.adAccountId === acc.id && (
-                                                            <div className="w-2 h-2 rounded-full bg-indigo-500" />
-                                                        )}
-                                                        <span className={settings.adAccountId !== acc.id ? 'ml-5' : ''}>{acc.name}</span>
-                                                    </div>
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </>
+                                {/* VISUAL CALENDAR PICKER POPUP */}
+                                {isCustomDateModalOpen && (
+                                    <CalendarPicker
+                                        startDate={customStartDate}
+                                        endDate={customEndDate}
+                                        onChange={(s, e) => {
+                                            setCustomStartDate(s);
+                                            setCustomEndDate(e);
+                                        }}
+                                        onClose={() => setIsCustomDateModalOpen(false)}
+                                    />
                                 )}
                             </div>
-                        ) : <span>{settings.businessName}</span>}
+                        </div>
                     </div>
                 </div>
 
-                <div className="flex flex-col md:flex-row items-end md:items-center gap-2">
-
-                    {dateRange === 'custom' && customStartDate && customEndDate && (
-                        <button
-                            onClick={() => setIsCustomDateModalOpen(true)}
-                            className="flex items-center gap-2 bg-white rounded-lg px-3 py-2 border border-indigo-200 hover:border-indigo-500 text-indigo-600 shadow-sm transition-all group"
-                        >
-                            <Calendar size={14} />
-                            <span className="text-xs font-bold">
-                                {new Date(customStartDate).toLocaleDateString()} - {new Date(customEndDate).toLocaleDateString()}
-                            </span>
-                            <Edit2 size={12} className="text-indigo-300 group-hover:text-indigo-600" />
-                        </button>
-                    )}
-
-                    <div className="flex items-center gap-2">
-
-                        <div className="relative">
-                            <Calendar className="absolute left-3 top-2.5 text-slate-400" size={14} />
-                            <select
-                                value={dateRange}
-                                onChange={handleDateRangeChange}
-                                className="bg-white border border-slate-200 shadow-sm rounded-lg pl-9 pr-8 py-2 text-xs font-medium text-slate-700 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 appearance-none cursor-pointer hover:bg-slate-50 transition-colors"
+                {/* Session Expired - Reconnect Prompt */}
+                {
+                    authError && (
+                        <div className="bg-red-50 border border-red-200 px-4 py-4 rounded-xl flex flex-col md:flex-row items-center justify-between gap-3 shadow-sm">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
+                                    <RefreshCw size={18} className="text-red-500" />
+                                </div>
+                                <div>
+                                    <p className="text-red-800 font-bold text-sm">Meta Session Expired</p>
+                                    <p className="text-red-600 text-xs">Please reconnect your account to continue viewing real data.</p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => navigate('/connect')}
+                                className="px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-bold transition-colors flex items-center gap-2 shadow-sm"
                             >
-                                <option value="today">Today</option>
-                                <option value="yesterday">Yesterday</option>
-                                <option value="last_3d">Last 3 Days</option>
-                                <option value="last_4d">Last 4 Days</option>
-                                <option value="last_7d">Last 7 Days</option>
-                                <option value="maximum">All Time</option>
-                                <option value="custom">Custom Calendar...</option>
-                            </select>
-
-                            {/* VISUAL CALENDAR PICKER POPUP */}
-                            {isCustomDateModalOpen && (
-                                <CalendarPicker
-                                    startDate={customStartDate}
-                                    endDate={customEndDate}
-                                    onChange={(s, e) => {
-                                        setCustomStartDate(s);
-                                        setCustomEndDate(e);
-                                    }}
-                                    onClose={() => setIsCustomDateModalOpen(false)}
-                                />
-                            )}
+                                <ArrowRight size={14} /> Reconnect Meta Account
+                            </button>
                         </div>
-                    </div>
-                </div>
-            </div>
+                    )
+                }
 
-            {/* Session Expired - Reconnect Prompt */}
-            {
-                authError && (
-                    <div className="bg-red-50 border border-red-200 px-4 py-4 rounded-xl flex flex-col md:flex-row items-center justify-between gap-3 shadow-sm">
-                        <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
-                                <RefreshCw size={18} className="text-red-500" />
+                {/* Other fetch errors (non-session) */}
+                {
+                    fetchError && !authError && (
+                        <div className="text-xs text-amber-700 bg-amber-50 px-4 py-3 rounded-lg border border-amber-200 flex items-center justify-between gap-2 shadow-sm">
+                            <div className="flex items-center gap-2">
+                                <Filter size={14} className="text-amber-500" /> {fetchError}
                             </div>
-                            <div>
-                                <p className="text-red-800 font-bold text-sm">Meta Session Expired</p>
-                                <p className="text-red-600 text-xs">Please reconnect your account to continue viewing real data.</p>
-                            </div>
+                            <button onClick={() => fetchData()} className="px-3 py-1 bg-white hover:bg-amber-100 text-amber-700 rounded text-xs border border-amber-300 transition-colors flex items-center gap-1 font-semibold">
+                                <RefreshCw size={10} /> Retry Sync
+                            </button>
                         </div>
-                        <button
-                            onClick={() => navigate('/connect')}
-                            className="px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-bold transition-colors flex items-center gap-2 shadow-sm"
-                        >
-                            <ArrowRight size={14} /> Reconnect Meta Account
-                        </button>
-                    </div>
-                )
-            }
+                    )
+                }
 
-            {/* Other fetch errors (non-session) */}
-            {
-                fetchError && !authError && (
-                    <div className="text-xs text-amber-700 bg-amber-50 px-4 py-3 rounded-lg border border-amber-200 flex items-center justify-between gap-2 shadow-sm">
-                        <div className="flex items-center gap-2">
-                            <Filter size={14} className="text-amber-500" /> {fetchError}
+                {/* Metric Cards */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {/* Card 1: Spend (Same for both) */}
+                    <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
+                        <div className="flex justify-between items-start mb-2">
+                            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Spent</span>
+                            <DollarSign size={16} className="text-slate-300" />
                         </div>
-                        <button onClick={() => fetchData()} className="px-3 py-1 bg-white hover:bg-amber-100 text-amber-700 rounded text-xs border border-amber-300 transition-colors flex items-center gap-1 font-semibold">
-                            <RefreshCw size={10} /> Retry Sync
-                        </button>
+                        <div className="text-2xl font-extrabold text-slate-900">{formatMYR(totalSpend)}</div>
                     </div>
-                )
-            }
 
-            {/* Metric Cards */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {/* Card 1: Spend (Same for both) */}
-                <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
-                    <div className="flex justify-between items-start mb-2">
-                        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Spent</span>
-                        <DollarSign size={16} className="text-slate-300" />
+                    {/* Card 2: ROAS (Conversion) or Lead (Lead/Traffic) */}
+                    <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
+                        {viewMode === 'SALES' ? (
+                            <>
+                                <div className="flex justify-between items-start mb-2">
+                                    <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">ROAS</span>
+                                    <TrendingUp size={16} className="text-slate-300" />
+                                </div>
+                                <div className={`text-2xl font-extrabold ${totalRoas > 2 ? 'text-green-600' : 'text-slate-900'}`}>{totalRoas.toFixed(2)}x</div>
+                            </>
+                        ) : (
+                            <>
+                                <div className="flex justify-between items-start mb-2">
+                                    <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Lead</span>
+                                    <MessageCircle size={16} className="text-slate-300" />
+                                </div>
+                                <div className="text-2xl font-extrabold text-slate-900">{totalResults}</div>
+                            </>
+                        )}
                     </div>
-                    <div className="text-2xl font-extrabold text-slate-900">{formatMYR(totalSpend)}</div>
-                </div>
 
-                {/* Card 2: ROAS (Conversion) or Lead (Lead/Traffic) */}
-                <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
-                    {viewMode === 'SALES' ? (
-                        <>
-                            <div className="flex justify-between items-start mb-2">
-                                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">ROAS</span>
-                                <TrendingUp size={16} className="text-slate-300" />
-                            </div>
-                            <div className={`text-2xl font-extrabold ${totalRoas > 2 ? 'text-green-600' : 'text-slate-900'}`}>{totalRoas.toFixed(2)}x</div>
-                        </>
-                    ) : (
-                        <>
-                            <div className="flex justify-between items-start mb-2">
-                                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Lead</span>
-                                <MessageCircle size={16} className="text-slate-300" />
-                            </div>
-                            <div className="text-2xl font-extrabold text-slate-900">{totalResults}</div>
-                        </>
-                    )}
-                </div>
-
-                {/* Card 3: CPA (Conversion) or Cost/Lead (Lead/Traffic) */}
-                <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
-                    {viewMode === 'SALES' ? (
-                        <>
-                            <div className="flex justify-between items-start mb-2">
-                                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">CPA</span>
-                                <DollarSign size={16} className="text-slate-300" />
-                            </div>
-                            {(() => {
-                                const totalPurchases = campaigns.reduce((a, c) => a + c.metrics.purchases, 0);
-                                const cpa = totalPurchases > 0 ? totalSpend / totalPurchases : 0;
-                                return (
-                                    <div className={`text-2xl font-extrabold ${cpa > 0 && cpa <= 25 ? 'text-green-600' : cpa > 25 ? 'text-red-600' : 'text-slate-900'}`}>
-                                        {formatMYR(cpa)}
-                                    </div>
-                                );
-                            })()}
-                        </>
-                    ) : (
-                        <>
-                            <div className="flex justify-between items-start mb-2">
-                                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Cost/Lead</span>
-                                <DollarSign size={16} className="text-slate-300" />
-                            </div>
-                            {(() => {
-                                const costPerLead = totalResults > 0 ? totalSpend / totalResults : 0;
-                                return (
-                                    <div className={`text-2xl font-extrabold ${costPerLead > 0 && costPerLead <= 5 ? 'text-green-600' : costPerLead > 5 ? 'text-red-600' : 'text-slate-900'}`}>
-                                        {formatMYR(costPerLead)}
-                                    </div>
-                                );
-                            })()}
-                        </>
-                    )}
-                </div>
-
-                {/* Card 4: LPV/(CPLV) (Conversion) or CTR (All) (Lead/Traffic) */}
-                <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
-                    {viewMode === 'SALES' ? (
-                        <>
-                            <div className="flex justify-between items-start mb-2">
-                                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">LPV/(CPLV)</span>
-                                <MousePointer size={16} className="text-slate-300" />
-                            </div>
-                            <div className="text-2xl font-extrabold text-slate-900">
+                    {/* Card 3: CPA (Conversion) or Cost/Lead (Lead/Traffic) */}
+                    <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
+                        {viewMode === 'SALES' ? (
+                            <>
+                                <div className="flex justify-between items-start mb-2">
+                                    <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">CPA</span>
+                                    <DollarSign size={16} className="text-slate-300" />
+                                </div>
                                 {(() => {
-                                    const totalLpv = campaigns.reduce((a, c) => a + (c.metrics.landingPageViews || 0), 0);
-                                    const cplv = totalLpv > 0 ? totalSpend / totalLpv : 0;
-                                    const cplvColor = cplv > 0 && cplv <= 3 ? 'text-green-600' : cplv > 3 ? 'text-red-600' : 'text-slate-400';
-                                    return <><span>{totalLpv}</span><span className={`text-sm ml-1 ${cplvColor}`}>({formatMYR(cplv)})</span></>;
+                                    const totalPurchases = campaigns.reduce((a, c) => a + c.metrics.purchases, 0);
+                                    const cpa = totalPurchases > 0 ? totalSpend / totalPurchases : 0;
+                                    return (
+                                        <div className={`text-2xl font-extrabold ${cpa > 0 && cpa <= 25 ? 'text-green-600' : cpa > 25 ? 'text-red-600' : 'text-slate-900'}`}>
+                                            {formatMYR(cpa)}
+                                        </div>
+                                    );
                                 })()}
-                            </div>
-                        </>
+                            </>
+                        ) : (
+                            <>
+                                <div className="flex justify-between items-start mb-2">
+                                    <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Cost/Lead</span>
+                                    <DollarSign size={16} className="text-slate-300" />
+                                </div>
+                                {(() => {
+                                    const costPerLead = totalResults > 0 ? totalSpend / totalResults : 0;
+                                    return (
+                                        <div className={`text-2xl font-extrabold ${costPerLead > 0 && costPerLead <= 5 ? 'text-green-600' : costPerLead > 5 ? 'text-red-600' : 'text-slate-900'}`}>
+                                            {formatMYR(costPerLead)}
+                                        </div>
+                                    );
+                                })()}
+                            </>
+                        )}
+                    </div>
+
+                    {/* Card 4: LPV/(CPLV) (Conversion) or CTR (All) (Lead/Traffic) */}
+                    <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
+                        {viewMode === 'SALES' ? (
+                            <>
+                                <div className="flex justify-between items-start mb-2">
+                                    <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">LPV/(CPLV)</span>
+                                    <MousePointer size={16} className="text-slate-300" />
+                                </div>
+                                <div className="text-2xl font-extrabold text-slate-900">
+                                    {(() => {
+                                        const totalLpv = campaigns.reduce((a, c) => a + (c.metrics.landingPageViews || 0), 0);
+                                        const cplv = totalLpv > 0 ? totalSpend / totalLpv : 0;
+                                        const cplvColor = cplv > 0 && cplv <= 3 ? 'text-green-600' : cplv > 3 ? 'text-red-600' : 'text-slate-400';
+                                        return <><span>{totalLpv}</span><span className={`text-sm ml-1 ${cplvColor}`}>({formatMYR(cplv)})</span></>;
+                                    })()}
+                                </div>
+                            </>
+                        ) : (
+                            <>
+                                <div className="flex justify-between items-start mb-2">
+                                    <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">CTR (All)</span>
+                                    <MousePointer size={16} className="text-slate-300" />
+                                </div>
+                                {(() => {
+                                    const totalImpressions = campaigns.reduce((a, c) => a + (c.metrics.impressions || 0), 0);
+                                    const totalClicks = campaigns.reduce((a, c) => a + (c.metrics.clicks || 0), 0);
+                                    const ctrAll = totalImpressions > 0 ? (totalClicks / totalImpressions) * 100 : 0;
+                                    return (
+                                        <div className={`text-2xl font-extrabold ${ctrAll >= 4 ? 'text-green-600' : ctrAll > 0 ? 'text-red-600' : 'text-slate-900'}`}>
+                                            {ctrAll.toFixed(2)}%
+                                        </div>
+                                    );
+                                })()}
+                            </>
+                        )}
+                    </div>
+                </div>
+
+                {
+                    loadingCampaigns && campaigns.length === 0 ? (
+                        <LoadingSkeleton />
                     ) : (
                         <>
-                            <div className="flex justify-between items-start mb-2">
-                                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">CTR (All)</span>
-                                <MousePointer size={16} className="text-slate-300" />
-                            </div>
-                            {(() => {
-                                const totalImpressions = campaigns.reduce((a, c) => a + (c.metrics.impressions || 0), 0);
-                                const totalClicks = campaigns.reduce((a, c) => a + (c.metrics.clicks || 0), 0);
-                                const ctrAll = totalImpressions > 0 ? (totalClicks / totalImpressions) * 100 : 0;
-                                return (
-                                    <div className={`text-2xl font-extrabold ${ctrAll >= 4 ? 'text-green-600' : ctrAll > 0 ? 'text-red-600' : 'text-slate-900'}`}>
-                                        {ctrAll.toFixed(2)}%
-                                    </div>
-                                );
-                            })()}
-                        </>
-                    )}
-                </div>
-            </div>
+                            {/* NESTED LIST VIEW */}
+                            <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+                                <div className="overflow-x-auto">
+                                    <table className="w-full min-w-[1000px] text-left border-collapse table-fixed">
+                                        <thead>
+                                            {renderTableHeader()}
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100">
+                                            {campaignsToShow.map(camp => {
+                                                const allAdSets = adSetsData[camp.id] || [];
+                                                const primaryAdSets = allAdSets.filter(a => a.status === 'ACTIVE' && a.metrics.spend > 0);
+                                                const secondaryAdSets = allAdSets.filter(a => !(a.status === 'ACTIVE' && a.metrics.spend > 0));
+                                                const showHidden = showHiddenAdSets.has(camp.id);
+                                                const adSetsToShow = showHidden ? allAdSets : primaryAdSets;
 
-            {
-                loadingCampaigns && campaigns.length === 0 ? (
-                    <LoadingSkeleton />
-                ) : (
-                    <>
-                        {/* NESTED LIST VIEW */}
-                        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
-                            <div className="overflow-x-auto">
-                                <table className="w-full min-w-[1000px] text-left border-collapse table-fixed">
-                                    <thead>
-                                        {renderTableHeader()}
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-100">
-                                        {campaignsToShow.map(camp => {
-                                            const allAdSets = adSetsData[camp.id] || [];
-                                            const primaryAdSets = allAdSets.filter(a => a.status === 'ACTIVE' && a.metrics.spend > 0);
-                                            const secondaryAdSets = allAdSets.filter(a => !(a.status === 'ACTIVE' && a.metrics.spend > 0));
-                                            const showHidden = showHiddenAdSets.has(camp.id);
-                                            const adSetsToShow = showHidden ? allAdSets : primaryAdSets;
-
-                                            return (
-                                                <React.Fragment key={camp.id}>
-                                                    {/* Level 1: Campaign */}
-                                                    <tr className="bg-white hover:bg-slate-50 text-sm transition-colors group">
-                                                        <td className="p-4 w-[45%]">
-                                                            <div className="flex items-center gap-3">
-                                                                <button
-                                                                    onClick={() => toggleExpandCampaign(camp.id)}
-                                                                    className="text-slate-400 hover:text-indigo-600 transition-colors bg-slate-50 p-1 rounded hover:bg-indigo-50"
-                                                                >
-                                                                    {expandedCampaigns.has(camp.id) ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                                                                </button>
-                                                                <StatusToggle
-                                                                    status={camp.status}
-                                                                    loading={actionLoading === camp.id}
-                                                                    onToggle={() => handleStatusToggle(camp.id, camp.status, 'campaign')}
-                                                                />
-                                                                <div className="min-w-0 flex-1">
-                                                                    <div className="flex items-center gap-2">
-                                                                        <span className="font-bold text-slate-800 truncate max-w-[260px] lg:max-w-[350px] text-sm" title={camp.name}>{camp.name}</span>
-                                                                        {/* Objective Pill Badge */}
-                                                                        <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wide ${camp.objective?.includes('TRAFFIC') ? 'bg-blue-100 text-blue-600' :
-                                                                            camp.objective?.includes('SALES') ? 'bg-green-100 text-green-600' :
-                                                                                camp.objective?.includes('LEADS') ? 'bg-amber-100 text-amber-600' :
-                                                                                    camp.objective?.includes('AWARENESS') ? 'bg-purple-100 text-purple-600' :
-                                                                                        camp.objective?.includes('ENGAGEMENT') ? 'bg-pink-100 text-pink-600' :
-                                                                                            'bg-slate-100 text-slate-500'
-                                                                            }`}>
-                                                                            {camp.objective?.replace('OUTCOME_', '') || 'N/A'}
-                                                                        </span>
-                                                                    </div>
-                                                                    <div className="flex items-center gap-2 text-[10px] text-slate-500 mt-0.5 group-hover:text-slate-700 transition-colors">
-                                                                        <span className="uppercase font-semibold tracking-wider">Budget: {formatMYR(camp.dailyBudget)}</span>
-                                                                        <button onClick={() => handleBudgetEdit(camp.id, camp.dailyBudget, 'campaign')} className="text-indigo-500 hover:text-indigo-700 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                                            <Edit2 size={10} />
-                                                                        </button>
+                                                return (
+                                                    <React.Fragment key={camp.id}>
+                                                        {/* Level 1: Campaign */}
+                                                        <tr className="bg-white hover:bg-slate-50 text-sm transition-colors group">
+                                                            <td className="p-4 w-[45%]">
+                                                                <div className="flex items-center gap-3">
+                                                                    <button
+                                                                        onClick={() => toggleExpandCampaign(camp.id)}
+                                                                        className="text-slate-400 hover:text-indigo-600 transition-colors bg-slate-50 p-1 rounded hover:bg-indigo-50"
+                                                                    >
+                                                                        {expandedCampaigns.has(camp.id) ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                                                                    </button>
+                                                                    <StatusToggle
+                                                                        status={camp.status}
+                                                                        loading={actionLoading === camp.id}
+                                                                        onToggle={() => handleStatusToggle(camp.id, camp.status, 'campaign')}
+                                                                    />
+                                                                    <div className="min-w-0 flex-1">
+                                                                        <div className="flex items-center gap-2">
+                                                                            <span className="font-bold text-slate-800 truncate max-w-[260px] lg:max-w-[350px] text-sm" title={camp.name}>{camp.name}</span>
+                                                                            {/* Objective Pill Badge */}
+                                                                            <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wide ${camp.objective?.includes('TRAFFIC') ? 'bg-blue-100 text-blue-600' :
+                                                                                camp.objective?.includes('SALES') ? 'bg-green-100 text-green-600' :
+                                                                                    camp.objective?.includes('LEADS') ? 'bg-amber-100 text-amber-600' :
+                                                                                        camp.objective?.includes('AWARENESS') ? 'bg-purple-100 text-purple-600' :
+                                                                                            camp.objective?.includes('ENGAGEMENT') ? 'bg-pink-100 text-pink-600' :
+                                                                                                'bg-slate-100 text-slate-500'
+                                                                                }`}>
+                                                                                {camp.objective?.replace('OUTCOME_', '') || 'N/A'}
+                                                                            </span>
+                                                                        </div>
+                                                                        <div className="flex items-center gap-2 text-[10px] text-slate-500 mt-0.5 group-hover:text-slate-700 transition-colors">
+                                                                            <span className="uppercase font-semibold tracking-wider">Budget: {formatMYR(camp.dailyBudget)}</span>
+                                                                            <button onClick={() => handleBudgetEdit(camp.id, camp.dailyBudget, 'campaign')} className="text-indigo-500 hover:text-indigo-700 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                                <Edit2 size={10} />
+                                                                            </button>
+                                                                        </div>
                                                                     </div>
                                                                 </div>
-                                                            </div>
-                                                        </td>
-                                                        {renderMetrics(camp.metrics)}
-                                                    </tr>
+                                                            </td>
+                                                            {renderMetrics(camp.metrics)}
+                                                        </tr>
 
-                                                    {/* Level 2: Ad Sets */}
-                                                    {expandedCampaigns.has(camp.id) && (
-                                                        <>
-                                                            {!adSetsData[camp.id] && (
-                                                                <tr><td colSpan={7} className="text-center py-4 text-xs text-slate-400"><Loader2 className="animate-spin inline mr-2" size={14} /> Loading Ad Sets...</td></tr>
-                                                            )}
+                                                        {/* Level 2: Ad Sets */}
+                                                        {expandedCampaigns.has(camp.id) && (
+                                                            <>
+                                                                {!adSetsData[camp.id] && (
+                                                                    <tr><td colSpan={7} className="text-center py-4 text-xs text-slate-400"><Loader2 className="animate-spin inline mr-2" size={14} /> Loading Ad Sets...</td></tr>
+                                                                )}
 
-                                                            {adSetsToShow.map(adset => (
-                                                                <React.Fragment key={adset.id}>
-                                                                    <tr className="bg-slate-50/50 text-sm hover:bg-slate-50 border-l-4 border-indigo-500/0 hover:border-indigo-500 transition-all">
-                                                                        <td className="p-3 pl-12 w-[35%]">
-                                                                            <div className="flex items-center gap-3">
-                                                                                <button
-                                                                                    onClick={() => toggleExpandAdSet(adset.id)}
-                                                                                    className="text-slate-400 hover:text-indigo-600"
-                                                                                >
-                                                                                    {expandedAdSets.has(adset.id) ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                                                                                </button>
-                                                                                <StatusToggle
-                                                                                    status={adset.status}
-                                                                                    loading={actionLoading === adset.id}
-                                                                                    onToggle={() => handleStatusToggle(adset.id, adset.status, 'adset')}
-                                                                                />
-                                                                                <div className="min-w-0 flex-1">
-                                                                                    <div className="text-slate-700 font-medium truncate max-w-[180px]">{adset.name}</div>
-                                                                                    <div className="flex items-center gap-2 text-[10px] text-slate-500">
-                                                                                        <span>Budget: {formatMYR(adset.dailyBudget)}</span>
-                                                                                        <button onClick={() => handleBudgetEdit(adset.id, adset.dailyBudget, 'adset')} className="text-indigo-500 hover:text-indigo-700">
-                                                                                            <Edit2 size={10} />
-                                                                                        </button>
+                                                                {adSetsToShow.map(adset => (
+                                                                    <React.Fragment key={adset.id}>
+                                                                        <tr className="bg-slate-50/50 text-sm hover:bg-slate-50 border-l-4 border-indigo-500/0 hover:border-indigo-500 transition-all">
+                                                                            <td className="p-3 pl-12 w-[35%]">
+                                                                                <div className="flex items-center gap-3">
+                                                                                    <button
+                                                                                        onClick={() => toggleExpandAdSet(adset.id)}
+                                                                                        className="text-slate-400 hover:text-indigo-600"
+                                                                                    >
+                                                                                        {expandedAdSets.has(adset.id) ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                                                                                    </button>
+                                                                                    <StatusToggle
+                                                                                        status={adset.status}
+                                                                                        loading={actionLoading === adset.id}
+                                                                                        onToggle={() => handleStatusToggle(adset.id, adset.status, 'adset')}
+                                                                                    />
+                                                                                    <div className="min-w-0 flex-1">
+                                                                                        <div className="text-slate-700 font-medium truncate max-w-[180px]">{adset.name}</div>
+                                                                                        <div className="flex items-center gap-2 text-[10px] text-slate-500">
+                                                                                            <span>Budget: {formatMYR(adset.dailyBudget)}</span>
+                                                                                            <button onClick={() => handleBudgetEdit(adset.id, adset.dailyBudget, 'adset')} className="text-indigo-500 hover:text-indigo-700">
+                                                                                                <Edit2 size={10} />
+                                                                                            </button>
+                                                                                        </div>
                                                                                     </div>
                                                                                 </div>
-                                                                            </div>
-                                                                        </td>
-                                                                        {renderMetrics(adset.metrics)}
-                                                                    </tr>
+                                                                            </td>
+                                                                            {renderMetrics(adset.metrics)}
+                                                                        </tr>
 
-                                                                    {/* Level 3: Ads */}
-                                                                    {expandedAdSets.has(adset.id) && (
-                                                                        <tr className="bg-slate-50">
-                                                                            <td colSpan={7} className="p-0 border-b border-slate-100">
-                                                                                <div className="max-h-[350px] overflow-y-auto custom-scrollbar border-y border-slate-200 bg-slate-50/80">
-                                                                                    <table className="w-full table-fixed">
-                                                                                        <colgroup>
-                                                                                            {viewMode === 'TRAFFIC' ? (
-                                                                                                <>
-                                                                                                    <col style={{ width: '35%' }} />
-                                                                                                    <col style={{ width: '11%' }} />
-                                                                                                    <col style={{ width: '11%' }} />
-                                                                                                    <col style={{ width: '11%' }} />
-                                                                                                    <col style={{ width: '11%' }} />
-                                                                                                    <col style={{ width: '11%' }} />
-                                                                                                    <col style={{ width: '10%' }} />
-                                                                                                </>
-                                                                                            ) : (
-                                                                                                <>
-                                                                                                    <col style={{ width: '45%' }} />
-                                                                                                    <col style={{ width: '10%' }} />
-                                                                                                    <col style={{ width: '9%' }} />
-                                                                                                    <col style={{ width: '9%' }} />
-                                                                                                    <col style={{ width: '9%' }} />
-                                                                                                    <col style={{ width: '9%' }} />
-                                                                                                    <col style={{ width: '9%' }} />
-                                                                                                </>
-                                                                                            )}
-                                                                                        </colgroup>
-                                                                                        <tbody>
-                                                                                            {adsData[adset.id] ? (
-                                                                                                adsData[adset.id].filter(ad => ad.status === 'ACTIVE').length > 0 ? (
-                                                                                                    adsData[adset.id].filter(ad => ad.status === 'ACTIVE').map(ad => {
-                                                                                                        const isCommented = publishedComments.has(ad.id);
-                                                                                                        return (
-                                                                                                            <tr key={ad.id} className="text-xs hover:bg-white border-b border-slate-100 last:border-0 group/ad transition-colors">
-                                                                                                                <td className="p-3 pl-16">
-                                                                                                                    <div className="flex items-center gap-3">
-                                                                                                                        <div className="w-10 h-10 bg-white rounded overflow-hidden flex-shrink-0 border border-slate-200 shadow-sm">
-                                                                                                                            {ad.creative.thumbnail_url || ad.creative.image_url ? (
-                                                                                                                                <img src={ad.creative.thumbnail_url || ad.creative.image_url} className="w-full h-full object-cover" alt="" />
-                                                                                                                            ) : (
-                                                                                                                                <div className="w-full h-full flex items-center justify-center text-slate-300"><ImageIcon size={14} /></div>
-                                                                                                                            )}
-                                                                                                                        </div>
-                                                                                                                        <div className="min-w-0 flex-1">
-                                                                                                                            <div className="flex flex-col mb-1">
-                                                                                                                                <div className="flex items-center gap-2">
-                                                                                                                                    <StatusToggle
-                                                                                                                                        status={ad.status}
-                                                                                                                                        loading={actionLoading === ad.id}
-                                                                                                                                        onToggle={() => handleStatusToggle(ad.id, ad.status, 'ad')}
-                                                                                                                                    />
-                                                                                                                                    <span className="text-slate-600 font-medium truncate max-w-[150px]" title={ad.name}>{ad.name}</span>
-                                                                                                                                </div>
+                                                                        {/* Level 3: Ads */}
+                                                                        {expandedAdSets.has(adset.id) && (
+                                                                            <tr className="bg-slate-50">
+                                                                                <td colSpan={7} className="p-0 border-b border-slate-100">
+                                                                                    <div className="max-h-[350px] overflow-y-auto custom-scrollbar border-y border-slate-200 bg-slate-50/80">
+                                                                                        <table className="w-full table-fixed">
+                                                                                            <colgroup>
+                                                                                                {viewMode === 'TRAFFIC' ? (
+                                                                                                    <>
+                                                                                                        <col style={{ width: '35%' }} />
+                                                                                                        <col style={{ width: '11%' }} />
+                                                                                                        <col style={{ width: '11%' }} />
+                                                                                                        <col style={{ width: '11%' }} />
+                                                                                                        <col style={{ width: '11%' }} />
+                                                                                                        <col style={{ width: '11%' }} />
+                                                                                                        <col style={{ width: '10%' }} />
+                                                                                                    </>
+                                                                                                ) : (
+                                                                                                    <>
+                                                                                                        <col style={{ width: '45%' }} />
+                                                                                                        <col style={{ width: '10%' }} />
+                                                                                                        <col style={{ width: '9%' }} />
+                                                                                                        <col style={{ width: '9%' }} />
+                                                                                                        <col style={{ width: '9%' }} />
+                                                                                                        <col style={{ width: '9%' }} />
+                                                                                                        <col style={{ width: '9%' }} />
+                                                                                                    </>
+                                                                                                )}
+                                                                                            </colgroup>
+                                                                                            <tbody>
+                                                                                                {adsData[adset.id] ? (
+                                                                                                    adsData[adset.id].filter(ad => ad.status === 'ACTIVE').length > 0 ? (
+                                                                                                        adsData[adset.id].filter(ad => ad.status === 'ACTIVE').map(ad => {
+                                                                                                            const isCommented = publishedComments.has(ad.id);
+                                                                                                            return (
+                                                                                                                <tr key={ad.id} className="text-xs hover:bg-white border-b border-slate-100 last:border-0 group/ad transition-colors">
+                                                                                                                    <td className="p-3 pl-16">
+                                                                                                                        <div className="flex items-center gap-3">
+                                                                                                                            <div className="w-10 h-10 bg-white rounded overflow-hidden flex-shrink-0 border border-slate-200 shadow-sm">
+                                                                                                                                {ad.creative.thumbnail_url || ad.creative.image_url ? (
+                                                                                                                                    <img src={ad.creative.thumbnail_url || ad.creative.image_url} className="w-full h-full object-cover" alt="" />
+                                                                                                                                ) : (
+                                                                                                                                    <div className="w-full h-full flex items-center justify-center text-slate-300"><ImageIcon size={14} /></div>
+                                                                                                                                )}
+                                                                                                                            </div>
+                                                                                                                            <div className="min-w-0 flex-1">
+                                                                                                                                <div className="flex flex-col mb-1">
+                                                                                                                                    <div className="flex items-center gap-2">
+                                                                                                                                        <StatusToggle
+                                                                                                                                            status={ad.status}
+                                                                                                                                            loading={actionLoading === ad.id}
+                                                                                                                                            onToggle={() => handleStatusToggle(ad.id, ad.status, 'ad')}
+                                                                                                                                        />
+                                                                                                                                        <span className="text-slate-600 font-medium truncate max-w-[150px]" title={ad.name}>{ad.name}</span>
+                                                                                                                                    </div>
 
-                                                                                                                                <div className="flex items-center gap-3 mt-1">
-                                                                                                                                    {ad.creative.effective_object_story_id && (
-                                                                                                                                        <a
-                                                                                                                                            href={getPostLink(ad.creative.effective_object_story_id)}
-                                                                                                                                            target="_blank"
-                                                                                                                                            rel="noopener noreferrer"
-                                                                                                                                            className="text-[10px] text-indigo-500 hover:text-indigo-700 flex items-center gap-1 font-medium"
-                                                                                                                                        >
-                                                                                                                                            View Post <ExternalLink size={8} />
-                                                                                                                                        </a>
-                                                                                                                                    )}
-
-                                                                                                                                    {/* COMPACT 'C' COMMENT BUTTON */}
-                                                                                                                                    {ad.creative.effective_object_story_id && (
-                                                                                                                                        <div className="relative group/tooltip">
-                                                                                                                                            <button
-                                                                                                                                                onClick={() => openCommentModal(ad)}
-                                                                                                                                                disabled={isCommented}
-                                                                                                                                                title="Launch Comment"
-                                                                                                                                                className={`w-5 h-5 flex items-center justify-center rounded-full text-[10px] font-bold border transition-colors ${isCommented
-                                                                                                                                                    ? "bg-green-100 text-green-600 border-green-200 cursor-not-allowed"
-                                                                                                                                                    : "bg-white text-indigo-600 border-indigo-200 hover:bg-indigo-600 hover:text-white hover:border-indigo-600"
-                                                                                                                                                    }`}
+                                                                                                                                    <div className="flex items-center gap-3 mt-1">
+                                                                                                                                        {ad.creative.effective_object_story_id && (
+                                                                                                                                            <a
+                                                                                                                                                href={getPostLink(ad.creative.effective_object_story_id)}
+                                                                                                                                                target="_blank"
+                                                                                                                                                rel="noopener noreferrer"
+                                                                                                                                                className="text-[10px] text-indigo-500 hover:text-indigo-700 flex items-center gap-1 font-medium"
                                                                                                                                             >
-                                                                                                                                                {isCommented ? <Check size={10} /> : "C"}
-                                                                                                                                            </button>
-                                                                                                                                        </div>
-                                                                                                                                    )}
+                                                                                                                                                View Post <ExternalLink size={8} />
+                                                                                                                                            </a>
+                                                                                                                                        )}
+
+                                                                                                                                        {/* COMPACT 'C' COMMENT BUTTON */}
+                                                                                                                                        {ad.creative.effective_object_story_id && (
+                                                                                                                                            <div className="relative group/tooltip">
+                                                                                                                                                <button
+                                                                                                                                                    onClick={() => openCommentModal(ad)}
+                                                                                                                                                    disabled={isCommented}
+                                                                                                                                                    title="Launch Comment"
+                                                                                                                                                    className={`w-5 h-5 flex items-center justify-center rounded-full text-[10px] font-bold border transition-colors ${isCommented
+                                                                                                                                                        ? "bg-green-100 text-green-600 border-green-200 cursor-not-allowed"
+                                                                                                                                                        : "bg-white text-indigo-600 border-indigo-200 hover:bg-indigo-600 hover:text-white hover:border-indigo-600"
+                                                                                                                                                        }`}
+                                                                                                                                                >
+                                                                                                                                                    {isCommented ? <Check size={10} /> : "C"}
+                                                                                                                                                </button>
+                                                                                                                                            </div>
+                                                                                                                                        )}
+                                                                                                                                    </div>
                                                                                                                                 </div>
                                                                                                                             </div>
                                                                                                                         </div>
-                                                                                                                    </div>
-                                                                                                                </td>
-                                                                                                                {renderMetrics(ad.metrics)}
-                                                                                                            </tr>
-                                                                                                        )
-                                                                                                    })
+                                                                                                                    </td>
+                                                                                                                    {renderMetrics(ad.metrics)}
+                                                                                                                </tr>
+                                                                                                            )
+                                                                                                        })
+                                                                                                    ) : (
+                                                                                                        <tr>
+                                                                                                            <td colSpan={7} className="text-center py-6 text-xs text-slate-400 italic">
+                                                                                                                No active ads in this ad set.
+                                                                                                            </td>
+                                                                                                        </tr>
+                                                                                                    )
                                                                                                 ) : (
                                                                                                     <tr>
-                                                                                                        <td colSpan={7} className="text-center py-6 text-xs text-slate-400 italic">
-                                                                                                            No active ads in this ad set.
+                                                                                                        <td colSpan={7} className="text-center py-6 text-xs text-slate-400">
+                                                                                                            <Loader2 className="animate-spin inline mr-2 text-indigo-500" size={14} /> Loading Ads...
                                                                                                         </td>
                                                                                                     </tr>
-                                                                                                )
-                                                                                            ) : (
-                                                                                                <tr>
-                                                                                                    <td colSpan={7} className="text-center py-6 text-xs text-slate-400">
-                                                                                                        <Loader2 className="animate-spin inline mr-2 text-indigo-500" size={14} /> Loading Ads...
-                                                                                                    </td>
-                                                                                                </tr>
-                                                                                            )}
-                                                                                        </tbody>
-                                                                                    </table>
-                                                                                </div>
-                                                                            </td>
-                                                                        </tr>
-                                                                    )}
-                                                                </React.Fragment>
-                                                            ))}
+                                                                                                )}
+                                                                                            </tbody>
+                                                                                        </table>
+                                                                                    </div>
+                                                                                </td>
+                                                                            </tr>
+                                                                        )}
+                                                                    </React.Fragment>
+                                                                ))}
 
-                                                            {secondaryAdSets.length > 0 && (
-                                                                <tr className="bg-slate-50/30">
-                                                                    <td colSpan={7} className="text-center py-2 border-b border-slate-100">
-                                                                        <button
-                                                                            onClick={() => toggleHiddenAdSetsForCampaign(camp.id)}
-                                                                            className="text-[10px] text-slate-400 hover:text-indigo-600 uppercase tracking-wide font-bold"
-                                                                        >
-                                                                            {showHidden ? `Hide ${secondaryAdSets.length} inactive Ad Sets` : `Show ${secondaryAdSets.length} inactive/low-spend Ad Sets`}
-                                                                        </button>
-                                                                    </td>
-                                                                </tr>
-                                                            )}
-                                                        </>
-                                                    )}
-                                                </React.Fragment>
-                                            )
-                                        })}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-
-                        {secondaryCampaigns.length > 0 && (
-                            <div className="text-center pt-6">
-                                <button
-                                    onClick={() => setShowAllCampaigns(!showAllCampaigns)}
-                                    className="text-xs text-slate-500 hover:text-indigo-600 font-medium underline underline-offset-4"
-                                >
-                                    {showAllCampaigns ? 'Show Less' : `Show ${secondaryCampaigns.length} other campaigns (Paused/Inactive)`}
-                                </button>
-                            </div>
-                        )}
-                    </>
-                )
-            }
-
-            {/* COMMENT MODAL */}
-            {
-                commentModalOpen && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
-                        <div className="bg-white w-full max-w-lg rounded-xl border border-slate-200 shadow-2xl p-6 relative">
-                            <button onClick={() => setCommentModalOpen(false)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600"><X size={20} /></button>
-                            <h2 className="text-lg font-bold text-slate-800 mb-2">Launch Comment</h2>
-                            <p className="text-sm text-slate-500 mb-6">Posting to: <span className="text-indigo-600 font-medium">{selectedAdForComment?.name}</span></p>
-
-                            {templates.length === 0 ? (
-                                <div className="text-center py-12 bg-slate-50 rounded-lg border border-slate-100 text-slate-500">
-                                    <p>No templates found.</p>
-                                    <button onClick={() => navigate('/comment-templates')} className="text-indigo-600 text-sm font-bold mt-2 hover:underline">Create a Template</button>
+                                                                {secondaryAdSets.length > 0 && (
+                                                                    <tr className="bg-slate-50/30">
+                                                                        <td colSpan={7} className="text-center py-2 border-b border-slate-100">
+                                                                            <button
+                                                                                onClick={() => toggleHiddenAdSetsForCampaign(camp.id)}
+                                                                                className="text-[10px] text-slate-400 hover:text-indigo-600 uppercase tracking-wide font-bold"
+                                                                            >
+                                                                                {showHidden ? `Hide ${secondaryAdSets.length} inactive Ad Sets` : `Show ${secondaryAdSets.length} inactive/low-spend Ad Sets`}
+                                                                            </button>
+                                                                        </td>
+                                                                    </tr>
+                                                                )}
+                                                            </>
+                                                        )}
+                                                    </React.Fragment>
+                                                )
+                                            })}
+                                        </tbody>
+                                    </table>
                                 </div>
-                            ) : (
-                                <div className="space-y-3 max-h-[60vh] overflow-y-auto custom-scrollbar">
-                                    {templates.map(t => (
-                                        <button
-                                            key={t.id}
-                                            onClick={() => handleTriggerCommentSession(t)}
-                                            className="w-full text-left bg-white hover:bg-indigo-50 p-4 rounded-xl border border-slate-200 hover:border-indigo-200 transition-all group shadow-sm hover:shadow-md"
-                                        >
-                                            <div className="flex justify-between items-start">
-                                                <div className="flex-1">
-                                                    <div className="flex justify-between items-center mb-1">
-                                                        <h3 className="text-slate-800 font-bold flex items-center gap-2 group-hover:text-indigo-700 transition-colors">
-                                                            {t.name}
-                                                        </h3>
-                                                        <span className="text-[10px] bg-slate-100 px-2 py-0.5 rounded-full text-slate-500 font-semibold border border-slate-200 flex items-center gap-1">
-                                                            <Layers size={10} /> {(t.items || []).length}
-                                                        </span>
-                                                    </div>
-                                                    <p className="text-xs text-slate-500 line-clamp-1">{(t.items || [])[0]?.message}</p>
-                                                    {(t.items || []).length > 1 && <p className="text-[10px] text-slate-400 mt-0.5 font-medium">+{(t.items || []).length - 1} more comments</p>}
-                                                </div>
-                                                <div className="text-indigo-300 opacity-0 group-hover:opacity-100 transition-opacity pl-3">
-                                                    <ArrowRight size={18} />
-                                                </div>
-                                            </div>
-                                        </button>
-                                    ))}
+                            </div>
+
+                            {secondaryCampaigns.length > 0 && (
+                                <div className="text-center pt-6">
+                                    <button
+                                        onClick={() => setShowAllCampaigns(!showAllCampaigns)}
+                                        className="text-xs text-slate-500 hover:text-indigo-600 font-medium underline underline-offset-4"
+                                    >
+                                        {showAllCampaigns ? 'Show Less' : `Show ${secondaryCampaigns.length} other campaigns (Paused/Inactive)`}
+                                    </button>
                                 </div>
                             )}
-                        </div>
-                    </div>
-                )
-            }
+                        </>
+                    )
+                }
 
-        </div >
+                {/* COMMENT MODAL */}
+                {
+                    commentModalOpen && (
+                        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4">
+                            <div className="bg-white w-full max-w-lg rounded-xl border border-slate-200 shadow-2xl p-6 relative">
+                                <button onClick={() => setCommentModalOpen(false)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600"><X size={20} /></button>
+                                <h2 className="text-lg font-bold text-slate-800 mb-2">Launch Comment</h2>
+                                <p className="text-sm text-slate-500 mb-6">Posting to: <span className="text-indigo-600 font-medium">{selectedAdForComment?.name}</span></p>
+
+                                {templates.length === 0 ? (
+                                    <div className="text-center py-12 bg-slate-50 rounded-lg border border-slate-100 text-slate-500">
+                                        <p>No templates found.</p>
+                                        <button onClick={() => navigate('/comment-templates')} className="text-indigo-600 text-sm font-bold mt-2 hover:underline">Create a Template</button>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-3 max-h-[60vh] overflow-y-auto custom-scrollbar">
+                                        {templates.map(t => (
+                                            <button
+                                                key={t.id}
+                                                onClick={() => handleTriggerCommentSession(t)}
+                                                className="w-full text-left bg-white hover:bg-indigo-50 p-4 rounded-xl border border-slate-200 hover:border-indigo-200 transition-all group shadow-sm hover:shadow-md"
+                                            >
+                                                <div className="flex justify-between items-start">
+                                                    <div className="flex-1">
+                                                        <div className="flex justify-between items-center mb-1">
+                                                            <h3 className="text-slate-800 font-bold flex items-center gap-2 group-hover:text-indigo-700 transition-colors">
+                                                                {t.name}
+                                                            </h3>
+                                                            <span className="text-[10px] bg-slate-100 px-2 py-0.5 rounded-full text-slate-500 font-semibold border border-slate-200 flex items-center gap-1">
+                                                                <Layers size={10} /> {(t.items || []).length}
+                                                            </span>
+                                                        </div>
+                                                        <p className="text-xs text-slate-500 line-clamp-1">{(t.items || [])[0]?.message}</p>
+                                                        {(t.items || []).length > 1 && <p className="text-[10px] text-slate-400 mt-0.5 font-medium">+{(t.items || []).length - 1} more comments</p>}
+                                                    </div>
+                                                    <div className="text-indigo-300 opacity-0 group-hover:opacity-100 transition-opacity pl-3">
+                                                        <ArrowRight size={18} />
+                                                    </div>
+                                                </div>
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )
+                }
+
+            </div >
+
+            {/* AI Analysis Settings Dialog */}
+            <AnalysisSettingsDialog
+                isOpen={showAnalysisSettings}
+                onClose={() => setShowAnalysisSettings(false)}
+            />
+        </>
     );
 };
 
