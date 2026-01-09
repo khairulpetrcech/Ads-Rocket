@@ -120,7 +120,7 @@ const EpicPoster: React.FC = () => {
         try {
             const requestBody: any = {
                 prompt,
-                model: 'imagen-pro', // Fixed to Nano Banana Pro
+                model: 'nano-banana-pro', // Fixed to Nano Banana Pro
                 aspectRatio,
                 style
             };
@@ -237,13 +237,8 @@ const EpicPoster: React.FC = () => {
         const imageUrl = url || generatedImage;
         if (!imageUrl) return;
 
-        const link = document.createElement('a');
-        link.href = imageUrl;
-        link.download = `EpicPoster_${Date.now()}.png`;
-        link.target = '_blank';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        // Use window.open for external URLs to avoid CORS issues
+        window.open(imageUrl, '_blank');
     };
 
     const clearReferenceImage = () => {

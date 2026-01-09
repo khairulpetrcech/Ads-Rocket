@@ -25,7 +25,7 @@ export default async function handler(req: any, res: any) {
     }
 
     try {
-        const { prompt, model = 'imagen-pro', aspectRatio = '1:1', style = 'Photorealistic', imageBase64 } = req.body;
+        const { prompt, model = 'nano-banana-pro', aspectRatio = '1:1', style = 'Photorealistic', imageBase64 } = req.body;
 
         if (!prompt) {
             return res.status(400).json({ error: 'Prompt is required' });
@@ -41,7 +41,7 @@ export default async function handler(req: any, res: any) {
         // Prepare FormData
         const formData = new FormData();
         formData.append("prompt", prompt);
-        formData.append("model", model); // imagen-pro, imagen-flash, imagen-4, etc.
+        formData.append("model", model); // nano-banana-pro, nano-banana, imagen-4-ultra
         formData.append("aspect_ratio", aspectRatio); // 1:1, 16:9, 9:16
         formData.append("style", style);
 

@@ -219,20 +219,9 @@ const EpicVideo: React.FC = () => {
         const videoUrl = url || generatedVideoUrl;
         if (!videoUrl) return;
 
-        try {
-            const response = await fetch(videoUrl);
-            const blob = await response.blob();
-            const blobUrl = URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            link.href = blobUrl;
-            link.download = `EpicVideo_${Date.now()}.mp4`;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            URL.revokeObjectURL(blobUrl);
-        } catch (err) {
-            console.error('Download error:', err);
-        }
+        // Use window.open for external URLs to avoid CORS issues
+        // The browser will handle the download
+        window.open(videoUrl, '_blank');
     };
 
     const clearReferenceImage = () => {
