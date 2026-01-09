@@ -213,18 +213,23 @@ async function handleImageHistory(req: any, res: any, apiKey: string, pageNum: n
 
 // Telegram Webhook Handler for Upscale Callback
 async function handleTelegramWebhook(req: any, res: any) {
+    console.log('[Telegram Webhook] Received request');
+    console.log('[Telegram Webhook] Body:', JSON.stringify(req.body, null, 2));
+
     try {
         const update = req.body;
 
         // Handle callback query (button press)
         if (update.callback_query) {
+            console.log('[Telegram Webhook] Processing callback_query');
             const callbackQuery = update.callback_query;
             const callbackData = callbackQuery.data;
             const chatId = callbackQuery.message.chat.id;
             const messageId = callbackQuery.message.message_id;
 
             const botToken = process.env.TELEGRAM_BOT_TOKEN;
-
+            console.log('[Telegram Webhook] Bot token exists:', !!botToken);
+            console.log('[Telegram Webhook] Callback data:', callbackData);
             // Handle prompt generation request: prompt_{index}_{adId}
             if (callbackData.startsWith('prompt_')) {
                 const parts = callbackData.split('_');
