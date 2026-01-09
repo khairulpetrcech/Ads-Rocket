@@ -1,27 +1,37 @@
 /**
  * Consolidated Media API for GeminiGen.ai
- * Handles: video-status, video-history, image-history
+ * Handles: video-status, video-history, image-history, telegram-webhook
  * 
  * Usage:
  * GET /api/media-api?action=video-status&uuid=xxx
  * GET /api/media-api?action=video-history&page=1
  * GET /api/media-api?action=image-history&page=1
+ * POST /api/media-api?action=telegram-webhook (Telegram callback)
  */
 export default async function handler(req: any, res: any) {
     // CORS headers
     res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
     if (req.method === 'OPTIONS') {
         return res.status(200).end();
     }
 
+    const { action, uuid, page = '1' } = req.query;
+
+    // Handle POST requests (telegram-webhook)
+    if (req.method === 'POST') {
+        if (action === 'telegram-webhook') {
+            return handleTelegramWebhook(req, res);
+        }
+        return res.status(400).json({ error: 'Invalid POST action. Use: telegram-webhook' });
+    }
+
+    // Handle GET requests
     if (req.method !== 'GET') {
         return res.status(405).json({ error: 'Method not allowed' });
     }
-
-    const { action, uuid, page = '1' } = req.query;
 
     const apiKey = process.env.GEMINIGEN_API_KEY;
     if (!apiKey) {
@@ -37,7 +47,7 @@ export default async function handler(req: any, res: any) {
             case 'image-history':
                 return handleImageHistory(req, res, apiKey, parseInt(page as string, 10) || 1);
             default:
-                return res.status(400).json({ error: 'Invalid action. Use: video-status, video-history, or image-history' });
+                return res.status(400).json({ error: 'Invalid action. Use: video-status, video-history, image-history, or telegram-webhook' });
         }
     } catch (error: any) {
         console.error('[Media API] Error:', error);
@@ -198,4 +208,89 @@ async function handleImageHistory(req: any, res: any, apiKey: string, pageNum: n
         page: pageNum,
         totalPages: Math.ceil((data.total || 0) / 6)
     });
+}
+
+// Telegram Webhook Handler for Upscale Callback
+async function handleTelegramWebhook(req: any, res: any) {
+    try {
+        const update = req.body;
+
+        // Handle callback query (button press)
+        if (update.callback_query) {
+            const callbackQuery = update.callback_query;
+            const callbackData = callbackQuery.data;
+            const chatId = callbackQuery.message.chat.id;
+            const messageId = callbackQuery.message.message_id;
+
+            const botToken = process.env.TELEGRAM_BOT_TOKEN;
+
+            // Parse callback data: upscale_yes_{adId} or upscale_no_{adId}
+            if (callbackData.startsWith('upscale_yes_')) {
+                const adId = callbackData.replace('upscale_yes_', '');
+
+                if (botToken) {
+                    // Answer callback to remove loading state
+                    await fetch(`https://api.telegram.org/bot${botToken}/answerCallbackQuery`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            callback_query_id: callbackQuery.id,
+                            text: '✅ Upscale request received!'
+                        })
+                    });
+
+                    // Edit message to show confirmation
+                    await fetch(`https://api.telegram.org/bot${botToken}/editMessageText`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            chat_id: chatId,
+                            message_id: messageId,
+                            text: `✅ *Upscale Confirmed*\n\nAds ID: ${adId}\n\n⚠️ Upscale 20% budget akan dilaksanakan.\n\n_Nota: Feature ini dalam pembangunan. Sila upscale secara manual buat masa ini._`,
+                            parse_mode: 'Markdown'
+                        })
+                    });
+                }
+
+                return res.status(200).json({ success: true, action: 'upscale_confirmed', adId });
+            }
+
+            if (callbackData.startsWith('upscale_no_')) {
+                const adId = callbackData.replace('upscale_no_', '');
+
+                if (botToken) {
+                    // Answer callback
+                    await fetch(`https://api.telegram.org/bot${botToken}/answerCallbackQuery`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            callback_query_id: callbackQuery.id,
+                            text: 'Okay, tidak upscale.'
+                        })
+                    });
+
+                    // Edit message
+                    await fetch(`https://api.telegram.org/bot${botToken}/editMessageText`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            chat_id: chatId,
+                            message_id: messageId,
+                            text: `❌ *Upscale Dibatalkan*\n\nAds ini tidak akan di-upscale.\n\n_Anda boleh upscale secara manual jika diperlukan._`,
+                            parse_mode: 'Markdown'
+                        })
+                    });
+                }
+
+                return res.status(200).json({ success: true, action: 'upscale_cancelled', adId });
+            }
+        }
+
+        // Default response for other updates
+        return res.status(200).json({ success: true, message: 'Update received' });
+
+    } catch (error: any) {
+        console.error('[Telegram Webhook] Error:', error);
+        return res.status(500).json({ error: error.message || 'Internal server error' });
+    }
 }
