@@ -21,12 +21,18 @@ export default async function handler(req: any, res: any) {
 
     const { action, uuid, page = '1' } = req.query;
 
-    // Handle POST requests (telegram-webhook)
+    // Handle POST requests
     if (req.method === 'POST') {
+        // Auto-detect Telegram webhook from body structure (callback_query or message)
+        if (req.body && (req.body.callback_query || req.body.message || req.body.update_id)) {
+            console.log('[Media API] Auto-detected Telegram webhook from body');
+            return handleTelegramWebhook(req, res);
+        }
+        // Fallback to action query param
         if (action === 'telegram-webhook') {
             return handleTelegramWebhook(req, res);
         }
-        return res.status(400).json({ error: 'Invalid POST action. Use: telegram-webhook' });
+        return res.status(400).json({ error: 'Invalid POST request' });
     }
 
     // Handle GET requests
