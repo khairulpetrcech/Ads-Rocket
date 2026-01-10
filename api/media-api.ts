@@ -260,7 +260,10 @@ async function handleTelegramWebhook(req: any, res: any) {
                     adIndex = parseInt(parts[1], 10);
                     const mediaId = parts[2];
 
-                    if (mediaId.startsWith('i')) {
+                    // IMPORTANT: Check 'img' BEFORE 'i' prefix since 'img' also starts with 'i'
+                    if (mediaId === 'img' || mediaId === 'none') {
+                        isImageAd = true;
+                    } else if (mediaId.startsWith('i')) {
                         // Instagram media ID - use media_url field
                         videoId = mediaId.substring(1);
                         console.log(`[Prompt Gen] Instagram Media ID detected: ${videoId}`);
@@ -268,8 +271,6 @@ async function handleTelegramWebhook(req: any, res: any) {
                         // Video ID - use source field  
                         videoId = mediaId.substring(1);
                         console.log(`[Prompt Gen] Video ID detected: ${videoId}`);
-                    } else if (mediaId === 'img') {
-                        isImageAd = true;
                     }
                     adName = parts.slice(3).join('_') || 'Ad';
                 } else {
