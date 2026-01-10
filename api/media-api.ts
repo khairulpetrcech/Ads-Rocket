@@ -260,11 +260,17 @@ async function handleTelegramWebhook(req: any, res: any) {
                     adIndex = parseInt(parts[1], 10);
                     const mediaId = parts[2];
 
-                    // IMPORTANT: Check 'img' BEFORE 'i' prefix since 'img' also starts with 'i'
+                    // Check prefix to determine media type
+                    // x{adId} = image ad, i{igMediaId} = IG video, v{videoId} = FB video
                     if (mediaId === 'img' || mediaId === 'none') {
                         isImageAd = true;
-                    } else if (mediaId.startsWith('i')) {
-                        // Instagram media ID - use media_url field
+                    } else if (mediaId.startsWith('x')) {
+                        // Image ad with ad_id - need to fetch image URL
+                        isImageAd = true;
+                        videoId = mediaId.substring(1); // Actually ad_id, reusing variable
+                        console.log(`[Prompt Gen] Image Ad detected, ad_id: ${videoId}`);
+                    } else if (mediaId.startsWith('i') && mediaId.length > 3) {
+                        // Instagram media ID - use media_url field (check length to avoid 'img')
                         videoId = mediaId.substring(1);
                         console.log(`[Prompt Gen] Instagram Media ID detected: ${videoId}`);
                     } else if (mediaId.startsWith('v')) {
@@ -279,7 +285,7 @@ async function handleTelegramWebhook(req: any, res: any) {
                 }
 
                 // Track media type for API call
-                const isInstagramMedia = isNewFormat && parts[2].startsWith('i');
+                const isInstagramMedia = isNewFormat && parts[2].startsWith('i') && parts[2].length > 3;
 
                 console.log(`[Prompt Gen] Format: ${isNewFormat ? 'NEW' : 'OLD'}, adIndex: ${adIndex}, videoId: ${videoId}, isImageAd: ${isImageAd}, isIG: ${isInstagramMedia}, adName: ${adName}`);
 
@@ -332,8 +338,77 @@ async function handleTelegramWebhook(req: any, res: any) {
                         resultMessage = `❌ *FB Token Not Found*\n\nSila pergi ke Settings dan save Telegram settings semula.`;
                     } else if (!videoId && !isImageAd) {
                         resultMessage = `❌ *Media tidak dijumpai*\n\nSila run AI Analysis semula.`;
+                    } else if (isImageAd && videoId) {
+                        // Image ad with ad_id - fetch and analyze image
+                        const geminiApiKey = process.env.GEMINI_3_API;
+
+                        if (!geminiApiKey) {
+                            resultMessage = `❌ GEMINI_3_API not configured`;
+                        } else {
+                            try {
+                                console.log(`[Image Analysis] Fetching ad creative for ad_id: ${videoId}`);
+
+                                // Fetch ad creative data from Meta
+                                const adUrl = `https://graph.facebook.com/v19.0/${videoId}?fields=creative{image_url,thumbnail_url}&access_token=${fbAccessToken}`;
+                                const adRes = await fetch(adUrl);
+                                const adData = await adRes.json();
+                                console.log(`[Image Analysis] Ad data:`, JSON.stringify(adData));
+
+                                const imageUrl = adData.creative?.image_url || adData.creative?.thumbnail_url;
+
+                                if (!imageUrl) {
+                                    resultMessage = `❌ *Image URL tidak dijumpai*\n\nAd ID: ${videoId}`;
+                                } else {
+                                    console.log(`[Image Analysis] Downloading image...`);
+                                    const imgRes = await fetch(imageUrl);
+                                    const imgBuffer = await imgRes.arrayBuffer();
+                                    const base64Img = Buffer.from(imgBuffer).toString('base64');
+
+                                    const genAI = new GoogleGenAI({ apiKey: geminiApiKey });
+
+                                    const imagePrompt = `Analyze this Facebook/Instagram ad image for a Malaysian market. Provide analysis in Bahasa Malaysia.
+
+---IMAGE ANALYSIS---
+
+**1. Hook / Stop-Scroll Elements:**
+Apa yang buat gambar ni menarik perhatian dan stop scroll? (warna, teks, visual, kontras, etc)
+
+**2. Elemen Emosi:**
+Apa emosi yang dicetuskan? (takut kehilangan, harapan, rasa bersalah, bangga, etc)
+Kenapa emosi ini boleh mendorong action (purchase/add-to-cart/wakaf)?
+
+**3. Conversion Triggers:**
+Apa elemen yang mendorong tindakan segera? (urgency, scarcity, social proof, etc)
+
+---IMAGE RECREATION PROMPT---
+Provide a single paragraph prompt in ENGLISH (100-120 words) to recreate similar visual for AI image generator (DALL-E/Midjourney). Describe:
+- Visual composition, colors, lighting
+- Text placement and style
+- Emotional tone and mood`;
+
+                                    const result = await genAI.models.generateContent({
+                                        model: 'gemini-2.0-flash',
+                                        contents: [
+                                            { text: imagePrompt },
+                                            {
+                                                inlineData: {
+                                                    mimeType: 'image/jpeg',
+                                                    data: base64Img
+                                                }
+                                            }
+                                        ]
+                                    });
+
+                                    const analysis = result.text || 'Unable to analyze';
+                                    resultMessage = `📷 *Image Analysis: ${adName}*\n\n${analysis}\n\n---\n_AI: Gemini 2.0 Flash | Est. Cost: ~RM0.02_`;
+                                }
+                            } catch (imgErr: any) {
+                                console.error(`[Image Analysis] Error:`, imgErr);
+                                resultMessage = `❌ *Error analyzing image*\n\n${imgErr.message}`;
+                            }
+                        }
                     } else if (isImageAd) {
-                        resultMessage = `📷 *Image Ad: ${adName}*\n\nImage ads tidak mempunyai video untuk scene analysis.\n\nGunakan copywriting dari AI Analysis report untuk generate visual prompt.`;
+                        resultMessage = `📷 *Image Ad: ${adName}*\n\nTiada image URL tersedia untuk analysis.`;
                     } else {
                         const geminiApiKey = process.env.GEMINI_3_API;
 

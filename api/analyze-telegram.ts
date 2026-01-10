@@ -262,8 +262,8 @@ async function handleAnalysis(req: any, res: any) {
             const igMediaId = ad.creative?.effective_instagram_media_id || null;
             const imageUrl = ad.creative?.image_url || ad.creative?.thumbnail_url || null;
 
-            // Only use instagram_media_id if there's ALSO a video_id (confirms it's video, not image)
-            // Image ads can have ig_media_id but no video_id
+            // Determine media type and ID for callback
+            // i{igMediaId} = video via Instagram, v{videoId} = video via FB, x{adId} = image ad
             let mediaId: string;
             if (videoId && igMediaId) {
                 // Video ad with Instagram media - prioritize IG
@@ -271,16 +271,16 @@ async function handleAnalysis(req: any, res: any) {
             } else if (videoId) {
                 // Video ad with FB video only
                 mediaId = `v${videoId}`;
-            } else if (imageUrl) {
-                // Image ad
-                mediaId = 'img';
+            } else if (ad.id) {
+                // Image ad - include ad_id so we can fetch image URL
+                mediaId = `x${ad.id}`;
             } else {
                 mediaId = 'none';
             }
 
             return {
                 text: `📝 Prompt Ads ${i + 1}`,
-                callback_data: `p_${i}_${mediaId}_${(ad.name || '').substring(0, 10)}`
+                callback_data: `p_${i}_${mediaId}_${(ad.name || '').substring(0, 8)}`
             };
         });
 
