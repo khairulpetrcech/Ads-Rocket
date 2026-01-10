@@ -315,25 +315,36 @@ async function handleTelegramWebhook(req: any, res: any) {
                                 const genAI = new GoogleGenAI({ apiKey: geminiApiKey });
                                 let videoUrl = null;
 
+                                console.log(`[Prompt Gen] Ad data:`, JSON.stringify(ad));
+
                                 // Fetch video URL from Meta API
                                 if (ad.videoId) {
-                                    const videoApiUrl = `https://graph.facebook.com/v21.0/${ad.videoId}?fields=source&access_token=${fbAccessToken}`;
+                                    console.log(`[Prompt Gen] Fetching video ${ad.videoId} from Meta...`);
+                                    const videoApiUrl = `https://graph.facebook.com/v21.0/${ad.videoId}?fields=source,permalink_url&access_token=${fbAccessToken}`;
                                     const videoRes = await fetch(videoApiUrl);
                                     const videoData = await videoRes.json();
-                                    videoUrl = videoData.source;
-                                    console.log(`[Prompt Gen] Got video URL for ${ad.name}`);
+                                    console.log(`[Prompt Gen] Meta API response:`, JSON.stringify(videoData));
+
+                                    if (videoData.source) {
+                                        videoUrl = videoData.source;
+                                        console.log(`[Prompt Gen] Got video source URL`);
+                                    } else if (videoData.error) {
+                                        console.error(`[Prompt Gen] Meta API error:`, videoData.error);
+                                    }
                                 }
 
-                                if (!videoUrl) {
+                                if (!videoUrl && ad.videoId) {
                                     // Try Instagram media ID fallback
+                                    console.log(`[Prompt Gen] Trying Instagram fallback...`);
                                     const igUrl = `https://graph.facebook.com/v21.0/${ad.videoId}?fields=media_url&access_token=${fbAccessToken}`;
                                     const igRes = await fetch(igUrl);
                                     const igData = await igRes.json();
+                                    console.log(`[Prompt Gen] IG response:`, JSON.stringify(igData));
                                     videoUrl = igData.media_url;
                                 }
 
                                 if (!videoUrl) {
-                                    resultMessage = `❌ Video tidak dijumpai untuk ads ini.`;
+                                    resultMessage = `❌ *Video tidak dijumpai*\n\nVideo ID: ${ad.videoId || 'N/A'}\nAd Name: ${ad.name}\n\nKemungkinan:\n• Video telah dipadam\n• Token expired\n• Permission issue`;
                                 } else {
                                     // Download video
                                     console.log(`[Prompt Gen] Downloading video...`);
