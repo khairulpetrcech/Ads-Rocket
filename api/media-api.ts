@@ -273,26 +273,36 @@ async function handleTelegramWebhook(req: any, res: any) {
                     // Get cached ad data from Supabase
                     let cachedData: any = null;
                     let ads: any[] = [];
+                    let cacheError: string = '';
+
+                    console.log(`[Prompt Gen] Looking for cache with chat_id: ${chatId}`);
 
                     try {
                         const { data, error } = await supabase
                             .from('ads_cache')
                             .select('*')
-                            .eq('chat_id', chatId)
+                            .eq('chat_id', String(chatId))
                             .single();
 
-                        if (data && !error) {
+                        console.log(`[Prompt Gen] Supabase response - data: ${!!data}, error: ${error?.message || 'none'}`);
+
+                        if (error) {
+                            cacheError = error.message || 'Unknown Supabase error';
+                            console.error('[Prompt Gen] Supabase error:', error);
+                        } else if (data) {
                             cachedData = data;
                             ads = JSON.parse(data.ads_data || '[]');
+                            console.log(`[Prompt Gen] Found ${ads.length} ads in cache`);
                         }
-                    } catch (cacheErr) {
-                        console.error('[Prompt Gen] Cache fetch error:', cacheErr);
+                    } catch (cacheErr: any) {
+                        cacheError = cacheErr.message || 'Exception fetching cache';
+                        console.error('[Prompt Gen] Cache fetch exception:', cacheErr);
                     }
 
                     let resultMessage = '';
 
                     if (!cachedData || !ads[adIndex]) {
-                        resultMessage = `❌ *Cache Expired*\n\nSila run AI Analysis semula untuk refresh data.`;
+                        resultMessage = `❌ *Cache Not Found*\n\nChat ID: ${chatId}\nError: ${cacheError || 'No cache data'}\n\nSila run AI Analysis semula untuk refresh data.`;
                     } else {
                         const ad = ads[adIndex];
                         const fbAccessToken = cachedData.fb_access_token;

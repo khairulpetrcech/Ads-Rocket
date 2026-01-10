@@ -227,7 +227,7 @@ async function handleAnalysis(req: any, res: any) {
 
         // Store top ads data for later prompt generation - USE SUPABASE for persistence
         const cacheData = {
-            chat_id: telegramChatId,
+            chat_id: String(telegramChatId), // Ensure string type for consistency
             fb_access_token: fbAccessToken,
             telegram_bot_token: telegramBotToken,
             ads_data: JSON.stringify(topAds.slice(0, 3).map((ad: any) => ({
@@ -240,10 +240,16 @@ async function handleAnalysis(req: any, res: any) {
             updated_at: new Date().toISOString()
         };
 
+        console.log(`[Cache] Saving to Supabase: chat_id=${telegramChatId}, ads_count=${topAds.slice(0, 3).length}`);
+
         // Save to Supabase for persistence across serverless instances
         try {
-            await supabase.from('ads_cache').upsert(cacheData, { onConflict: 'chat_id' });
-            console.log(`[Cache] Stored ${topAds.length} ads in Supabase for chat ${telegramChatId}`);
+            const { error } = await supabase.from('ads_cache').upsert(cacheData, { onConflict: 'chat_id' });
+            if (error) {
+                console.error('[Cache] Supabase upsert error:', error);
+            } else {
+                console.log(`[Cache] ✅ Successfully stored ${topAds.length} ads in Supabase for chat ${telegramChatId}`);
+            }
         } catch (cacheErr) {
             console.error('[Cache] Failed to save to Supabase:', cacheErr);
         }
