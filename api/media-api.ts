@@ -255,12 +255,19 @@ async function handleTelegramWebhook(req: any, res: any) {
                 let adName: string = 'Unknown';
 
                 if (isNewFormat) {
-                    // p_{index}_{mediaId}_{adName...} where mediaId = v{videoId} or 'img'
+                    // p_{index}_{mediaId}_{adName...} 
+                    // mediaId = i{igMediaId} or v{videoId} or 'img'
                     adIndex = parseInt(parts[1], 10);
                     const mediaId = parts[2];
 
-                    if (mediaId.startsWith('v')) {
-                        videoId = mediaId.substring(1); // Strip 'v' prefix
+                    if (mediaId.startsWith('i')) {
+                        // Instagram media ID - use media_url field
+                        videoId = mediaId.substring(1);
+                        console.log(`[Prompt Gen] Instagram Media ID detected: ${videoId}`);
+                    } else if (mediaId.startsWith('v')) {
+                        // Video ID - use source field  
+                        videoId = mediaId.substring(1);
+                        console.log(`[Prompt Gen] Video ID detected: ${videoId}`);
                     } else if (mediaId === 'img') {
                         isImageAd = true;
                     }
@@ -270,7 +277,10 @@ async function handleTelegramWebhook(req: any, res: any) {
                     adIndex = parseInt(parts[1], 10);
                 }
 
-                console.log(`[Prompt Gen] Format: ${isNewFormat ? 'NEW' : 'OLD'}, adIndex: ${adIndex}, videoId: ${videoId}, isImageAd: ${isImageAd}, adName: ${adName}`);
+                // Track media type for API call
+                const isInstagramMedia = isNewFormat && parts[2].startsWith('i');
+
+                console.log(`[Prompt Gen] Format: ${isNewFormat ? 'NEW' : 'OLD'}, adIndex: ${adIndex}, videoId: ${videoId}, isImageAd: ${isImageAd}, isIG: ${isInstagramMedia}, adName: ${adName}`);
 
                 if (botToken) {
                     // Answer callback with loading message
@@ -333,30 +343,37 @@ async function handleTelegramWebhook(req: any, res: any) {
                                 const genAI = new GoogleGenAI({ apiKey: geminiApiKey });
                                 let videoUrl = null;
 
-                                console.log(`[Prompt Gen] VideoId: ${videoId}, AdName: ${adName}`);
+                                console.log(`[Prompt Gen] VideoId: ${videoId}, AdName: ${adName}, isInstagramMedia: ${isInstagramMedia}`);
 
-                                // Fetch video URL from Meta API
-                                console.log(`[Prompt Gen] Fetching video ${videoId} from Meta...`);
-                                const videoApiUrl = `https://graph.facebook.com/v21.0/${videoId}?fields=source,permalink_url&access_token=${fbAccessToken}`;
-                                const videoRes = await fetch(videoApiUrl);
-                                const videoData = await videoRes.json();
-                                console.log(`[Prompt Gen] Meta API response:`, JSON.stringify(videoData));
-
-                                if (videoData.source) {
-                                    videoUrl = videoData.source;
-                                    console.log(`[Prompt Gen] Got video source URL`);
-                                } else if (videoData.error) {
-                                    console.error(`[Prompt Gen] Meta API error:`, videoData.error);
-                                }
-
-                                if (!videoUrl) {
-                                    // Try Instagram media ID fallback
-                                    console.log(`[Prompt Gen] Trying Instagram fallback...`);
-                                    const igUrl = `https://graph.facebook.com/v21.0/${videoId}?fields=media_url&access_token=${fbAccessToken}`;
+                                // Fetch video URL - different endpoints for Instagram vs Facebook
+                                if (isInstagramMedia) {
+                                    // Instagram media - use media_url field
+                                    console.log(`[Prompt Gen] Fetching Instagram media ${videoId}...`);
+                                    const igUrl = `https://graph.facebook.com/v19.0/${videoId}?fields=media_url&access_token=${fbAccessToken}`;
                                     const igRes = await fetch(igUrl);
                                     const igData = await igRes.json();
-                                    console.log(`[Prompt Gen] IG response:`, JSON.stringify(igData));
-                                    videoUrl = igData.media_url;
+                                    console.log(`[Prompt Gen] IG API response:`, JSON.stringify(igData));
+
+                                    if (igData.media_url) {
+                                        videoUrl = igData.media_url;
+                                        console.log(`[Prompt Gen] Got video from Instagram media_url`);
+                                    } else if (igData.error) {
+                                        console.error(`[Prompt Gen] IG API error:`, igData.error);
+                                    }
+                                } else {
+                                    // Facebook video - use source field
+                                    console.log(`[Prompt Gen] Fetching FB video ${videoId}...`);
+                                    const videoApiUrl = `https://graph.facebook.com/v19.0/${videoId}?fields=source,permalink_url&access_token=${fbAccessToken}`;
+                                    const videoRes = await fetch(videoApiUrl);
+                                    const videoData = await videoRes.json();
+                                    console.log(`[Prompt Gen] FB API response:`, JSON.stringify(videoData));
+
+                                    if (videoData.source) {
+                                        videoUrl = videoData.source;
+                                        console.log(`[Prompt Gen] Got video from FB source`);
+                                    } else if (videoData.error) {
+                                        console.error(`[Prompt Gen] FB API error:`, videoData.error);
+                                    }
                                 }
 
                                 if (!videoUrl) {
