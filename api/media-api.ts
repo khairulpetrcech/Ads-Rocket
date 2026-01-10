@@ -242,11 +242,28 @@ async function handleTelegramWebhook(req: any, res: any) {
             const botToken = process.env.TELEGRAM_BOT_TOKEN;
             console.log('[Telegram Webhook] Bot token exists:', !!botToken);
             console.log('[Telegram Webhook] Callback data:', callbackData);
-            // Handle prompt generation request: prompt_{index}_{adId}
-            if (callbackData.startsWith('prompt_')) {
+            // Handle prompt generation request
+            // NEW format: p_{index}_{videoId}_{adName}
+            // OLD format: prompt_{index}_{adId} (for backwards compatibility)
+            if (callbackData.startsWith('p_') || callbackData.startsWith('prompt_')) {
+                const isNewFormat = callbackData.startsWith('p_');
                 const parts = callbackData.split('_');
-                const adIndex = parseInt(parts[1], 10);
-                const adId = parts.slice(2).join('_');
+
+                let adIndex: number;
+                let videoId: string | null = null;
+                let adName: string = 'Unknown';
+
+                if (isNewFormat) {
+                    // p_{index}_{videoId}_{adName...}
+                    adIndex = parseInt(parts[1], 10);
+                    videoId = parts[2] === 'img' ? null : parts[2];
+                    adName = parts.slice(3).join('_') || 'Ad';
+                } else {
+                    // prompt_{index}_{adId}
+                    adIndex = parseInt(parts[1], 10);
+                }
+
+                console.log(`[Prompt Gen] Format: ${isNewFormat ? 'NEW' : 'OLD'}, adIndex: ${adIndex}, videoId: ${videoId}, adName: ${adName}`);
 
                 if (botToken) {
                     // Answer callback with loading message
@@ -270,42 +287,34 @@ async function handleTelegramWebhook(req: any, res: any) {
                         })
                     });
 
-                    // Get cached ad data from Supabase
-                    let cachedData: any = null;
-                    let ads: any[] = [];
-                    let cacheError: string = '';
-
-                    console.log(`[Prompt Gen] Looking for cache with chat_id: ${chatId}`);
-
-                    try {
-                        const { data, error } = await supabase
-                            .from('ads_cache')
-                            .select('*')
-                            .eq('chat_id', String(chatId))
-                            .single();
-
-                        console.log(`[Prompt Gen] Supabase response - data: ${!!data}, error: ${error?.message || 'none'}`);
-
-                        if (error) {
-                            cacheError = error.message || 'Unknown Supabase error';
-                            console.error('[Prompt Gen] Supabase error:', error);
-                        } else if (data) {
-                            cachedData = data;
-                            ads = JSON.parse(data.ads_data || '[]');
-                            console.log(`[Prompt Gen] Found ${ads.length} ads in cache`);
-                        }
-                    } catch (cacheErr: any) {
-                        cacheError = cacheErr.message || 'Exception fetching cache';
-                        console.error('[Prompt Gen] Cache fetch exception:', cacheErr);
-                    }
-
                     let resultMessage = '';
 
-                    if (!cachedData || !ads[adIndex]) {
-                        resultMessage = `❌ *Cache Not Found*\n\nChat ID: ${chatId}\nError: ${cacheError || 'No cache data'}\n\nSila run AI Analysis semula untuk refresh data.`;
+                    // Get FB access token from telegram_users table
+                    let fbAccessToken: string | null = null;
+
+                    try {
+                        console.log(`[Prompt Gen] Looking up FB token for chat_id: ${chatId}`);
+                        const { data, error } = await supabase
+                            .from('telegram_users')
+                            .select('fb_access_token')
+                            .eq('telegram_chat_id', String(chatId))
+                            .single();
+
+                        if (data && data.fb_access_token) {
+                            fbAccessToken = data.fb_access_token;
+                            console.log(`[Prompt Gen] Got FB token from telegram_users`);
+                        } else if (error) {
+                            console.error(`[Prompt Gen] telegram_users error:`, error);
+                        }
+                    } catch (tokenErr: any) {
+                        console.error(`[Prompt Gen] Token lookup error:`, tokenErr);
+                    }
+
+                    if (!fbAccessToken) {
+                        resultMessage = `❌ *FB Token Not Found*\n\nSila pergi ke Settings dan save Telegram settings semula.`;
+                    } else if (!videoId) {
+                        resultMessage = `❌ *Ini adalah Image Ad*\n\nScene analysis hanya untuk video ads.\n\nSila run AI Analysis semula.`;
                     } else {
-                        const ad = ads[adIndex];
-                        const fbAccessToken = cachedData.fb_access_token;
                         const geminiApiKey = process.env.GEMINI_3_API;
 
                         if (!geminiApiKey) {
@@ -315,28 +324,26 @@ async function handleTelegramWebhook(req: any, res: any) {
                                 const genAI = new GoogleGenAI({ apiKey: geminiApiKey });
                                 let videoUrl = null;
 
-                                console.log(`[Prompt Gen] Ad data:`, JSON.stringify(ad));
+                                console.log(`[Prompt Gen] VideoId: ${videoId}, AdName: ${adName}`);
 
                                 // Fetch video URL from Meta API
-                                if (ad.videoId) {
-                                    console.log(`[Prompt Gen] Fetching video ${ad.videoId} from Meta...`);
-                                    const videoApiUrl = `https://graph.facebook.com/v21.0/${ad.videoId}?fields=source,permalink_url&access_token=${fbAccessToken}`;
-                                    const videoRes = await fetch(videoApiUrl);
-                                    const videoData = await videoRes.json();
-                                    console.log(`[Prompt Gen] Meta API response:`, JSON.stringify(videoData));
+                                console.log(`[Prompt Gen] Fetching video ${videoId} from Meta...`);
+                                const videoApiUrl = `https://graph.facebook.com/v21.0/${videoId}?fields=source,permalink_url&access_token=${fbAccessToken}`;
+                                const videoRes = await fetch(videoApiUrl);
+                                const videoData = await videoRes.json();
+                                console.log(`[Prompt Gen] Meta API response:`, JSON.stringify(videoData));
 
-                                    if (videoData.source) {
-                                        videoUrl = videoData.source;
-                                        console.log(`[Prompt Gen] Got video source URL`);
-                                    } else if (videoData.error) {
-                                        console.error(`[Prompt Gen] Meta API error:`, videoData.error);
-                                    }
+                                if (videoData.source) {
+                                    videoUrl = videoData.source;
+                                    console.log(`[Prompt Gen] Got video source URL`);
+                                } else if (videoData.error) {
+                                    console.error(`[Prompt Gen] Meta API error:`, videoData.error);
                                 }
 
-                                if (!videoUrl && ad.videoId) {
+                                if (!videoUrl) {
                                     // Try Instagram media ID fallback
                                     console.log(`[Prompt Gen] Trying Instagram fallback...`);
-                                    const igUrl = `https://graph.facebook.com/v21.0/${ad.videoId}?fields=media_url&access_token=${fbAccessToken}`;
+                                    const igUrl = `https://graph.facebook.com/v21.0/${videoId}?fields=media_url&access_token=${fbAccessToken}`;
                                     const igRes = await fetch(igUrl);
                                     const igData = await igRes.json();
                                     console.log(`[Prompt Gen] IG response:`, JSON.stringify(igData));
@@ -344,7 +351,7 @@ async function handleTelegramWebhook(req: any, res: any) {
                                 }
 
                                 if (!videoUrl) {
-                                    resultMessage = `❌ *Video tidak dijumpai*\n\nVideo ID: ${ad.videoId || 'N/A'}\nAd Name: ${ad.name}\n\nKemungkinan:\n• Video telah dipadam\n• Token expired\n• Permission issue`;
+                                    resultMessage = `❌ *Video tidak dijumpai*\n\nVideo ID: ${videoId}\nAd Name: ${adName}\n\nKemungkinan:\n• Video telah dipadam\n• Token expired\n• Permission issue`;
                                 } else {
                                     // Download video
                                     console.log(`[Prompt Gen] Downloading video...`);
@@ -405,7 +412,7 @@ Output format:
 
                                     const analysis = result.text || 'Unable to analyze';
 
-                                    resultMessage = `🎬 *Scene Analysis: ${ad.name}*\n\n${analysis}\n\n---\n_AI: Gemini 3 Flash | Est. Cost: ~RM0.05_`;
+                                    resultMessage = `🎬 *Scene Analysis: ${adName}*\n\n${analysis}\n\n---\n_AI: Gemini 3 Flash | Est. Cost: ~RM0.05_`;
 
                                     // Cleanup file
                                     try {
@@ -430,8 +437,7 @@ Output format:
                         })
                     });
                 }
-
-                return res.status(200).json({ success: true, action: 'prompt_generated', adId, adIndex });
+                return res.status(200).json({ success: true, action: 'prompt_generated', videoId, adIndex });
             }
 
             // Parse callback data: upscale_yes_{adId} or upscale_no_{adId}
