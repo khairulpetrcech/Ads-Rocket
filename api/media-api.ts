@@ -291,22 +291,25 @@ async function handleTelegramWebhook(req: any, res: any) {
 
                 if (botToken) {
                     // Answer callback with loading message
+                    const loadingText = isImageAd ? '🔄 Analyzing image creative... Tunggu!' : '🔄 Fetching video & analyzing scenes... Tunggu!';
                     await fetch(`https://api.telegram.org/bot${botToken}/answerCallbackQuery`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                             callback_query_id: callbackQuery.id,
-                            text: '🔄 Fetching video & analyzing scenes... Tunggu!'
+                            text: loadingText
                         })
                     });
 
                     // Send analyzing message
+                    const analysisTitle = isImageAd ? '📷 *Image Analysis' : '🎬 *Scene Analysis';
+                    const analysisDesc = isImageAd ? 'Analyzing image creative' : 'Fetching video dan analyzing';
                     await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                             chat_id: chatId,
-                            text: `🎬 *Scene Analysis untuk Ads #${adIndex + 1}*\n\n_Fetching video dan analyzing dengan Gemini..._\n_Ini mungkin ambil 30-60 saat._`,
+                            text: `${analysisTitle} untuk Ads #${adIndex + 1}*\n\n_${analysisDesc} dengan Gemini..._\n_Ini mungkin ambil 15-30 saat._`,
                             parse_mode: 'Markdown'
                         })
                     });
