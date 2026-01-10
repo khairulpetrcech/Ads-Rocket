@@ -256,10 +256,17 @@ async function handleAnalysis(req: any, res: any) {
 
         // Build inline keyboard buttons for prompt generation
         // Format: p_{index}_{videoId}_{adName} - include video_id directly to avoid cache lookup
-        const promptButtons = topAds.slice(0, 3).map((ad: any, i: number) => ({
-            text: `📝 Prompt Ads ${i + 1}`,
-            callback_data: `p_${i}_${ad.video_id || 'img'}_${(ad.name || '').substring(0, 15)}`
-        }));
+        // Extract video_id from ad.creative.video_id
+        const promptButtons = topAds.slice(0, 3).map((ad: any, i: number) => {
+            const videoId = ad.creative?.video_id || null;
+            const imageUrl = ad.creative?.image_url || ad.creative?.thumbnail_url || null;
+            // Use 'v' prefix for video, 'i' prefix for image to distinguish type
+            const mediaId = videoId ? `v${videoId}` : (imageUrl ? 'img' : 'none');
+            return {
+                text: `📝 Prompt Ads ${i + 1}`,
+                callback_data: `p_${i}_${mediaId}_${(ad.name || '').substring(0, 12)}`
+            };
+        });
 
         const telegramResponse = await fetch(telegramUrl, {
             method: 'POST',

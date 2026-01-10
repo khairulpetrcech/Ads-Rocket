@@ -251,19 +251,26 @@ async function handleTelegramWebhook(req: any, res: any) {
 
                 let adIndex: number;
                 let videoId: string | null = null;
+                let isImageAd: boolean = false;
                 let adName: string = 'Unknown';
 
                 if (isNewFormat) {
-                    // p_{index}_{videoId}_{adName...}
+                    // p_{index}_{mediaId}_{adName...} where mediaId = v{videoId} or 'img'
                     adIndex = parseInt(parts[1], 10);
-                    videoId = parts[2] === 'img' ? null : parts[2];
+                    const mediaId = parts[2];
+
+                    if (mediaId.startsWith('v')) {
+                        videoId = mediaId.substring(1); // Strip 'v' prefix
+                    } else if (mediaId === 'img') {
+                        isImageAd = true;
+                    }
                     adName = parts.slice(3).join('_') || 'Ad';
                 } else {
                     // prompt_{index}_{adId}
                     adIndex = parseInt(parts[1], 10);
                 }
 
-                console.log(`[Prompt Gen] Format: ${isNewFormat ? 'NEW' : 'OLD'}, adIndex: ${adIndex}, videoId: ${videoId}, adName: ${adName}`);
+                console.log(`[Prompt Gen] Format: ${isNewFormat ? 'NEW' : 'OLD'}, adIndex: ${adIndex}, videoId: ${videoId}, isImageAd: ${isImageAd}, adName: ${adName}`);
 
                 if (botToken) {
                     // Answer callback with loading message
@@ -312,8 +319,10 @@ async function handleTelegramWebhook(req: any, res: any) {
 
                     if (!fbAccessToken) {
                         resultMessage = `❌ *FB Token Not Found*\n\nSila pergi ke Settings dan save Telegram settings semula.`;
-                    } else if (!videoId) {
-                        resultMessage = `❌ *Ini adalah Image Ad*\n\nScene analysis hanya untuk video ads.\n\nSila run AI Analysis semula.`;
+                    } else if (!videoId && !isImageAd) {
+                        resultMessage = `❌ *Media tidak dijumpai*\n\nSila run AI Analysis semula.`;
+                    } else if (isImageAd) {
+                        resultMessage = `📷 *Image Ad: ${adName}*\n\nImage ads tidak mempunyai video untuk scene analysis.\n\nGunakan copywriting dari AI Analysis report untuk generate visual prompt.`;
                     } else {
                         const geminiApiKey = process.env.GEMINI_3_API;
 
