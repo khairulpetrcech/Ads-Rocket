@@ -262,14 +262,17 @@ async function handleAnalysis(req: any, res: any) {
             const igMediaId = ad.creative?.effective_instagram_media_id || null;
             const imageUrl = ad.creative?.image_url || ad.creative?.thumbnail_url || null;
 
-            // Priority: instagram_media_id > video_id > image
-            // Instagram ID works better for getting video source
+            // Only use instagram_media_id if there's ALSO a video_id (confirms it's video, not image)
+            // Image ads can have ig_media_id but no video_id
             let mediaId: string;
-            if (igMediaId) {
-                mediaId = `i${igMediaId}`; // 'i' prefix for instagram media
+            if (videoId && igMediaId) {
+                // Video ad with Instagram media - prioritize IG
+                mediaId = `i${igMediaId}`;
             } else if (videoId) {
-                mediaId = `v${videoId}`; // 'v' prefix for video  
+                // Video ad with FB video only
+                mediaId = `v${videoId}`;
             } else if (imageUrl) {
+                // Image ad
                 mediaId = 'img';
             } else {
                 mediaId = 'none';
