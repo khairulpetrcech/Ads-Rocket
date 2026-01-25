@@ -114,7 +114,7 @@ export default async function handler(req: any, res: any) {
     }
 
     try {
-        const { mediaUrl, mediaType, name, sourceUuid } = req.body;
+        const { mediaUrl, mediaType, name, sourceUuid, source } = req.body;
 
         if (!mediaUrl) {
             return res.status(400).json({ error: 'Media URL is required' });
@@ -178,6 +178,7 @@ export default async function handler(req: any, res: any) {
                 original_url: mediaUrl,
                 name: name || `Imported ${mediaType}`,
                 source_uuid: sourceUuid,
+                source: source || null,
                 created_at: new Date().toISOString(),
                 expires_at: expiresAt.toISOString()
             })

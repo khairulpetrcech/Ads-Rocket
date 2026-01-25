@@ -1,5 +1,5 @@
 import React from 'react';
-import { Edit2, X, Play, FileVideo, FileImage } from 'lucide-react';
+import { Edit2, X, Play, FileVideo, FileImage, Zap } from 'lucide-react';
 
 export interface CreativeData {
     id: string;
@@ -15,6 +15,7 @@ export interface CreativeData {
     callToAction: string;
     file?: File;
     isPlaceholder?: boolean;
+    source?: 'epic_poster' | 'epic_video' | null;
 }
 
 interface CreativeCardProps {
@@ -58,6 +59,14 @@ export const CreativeCard: React.FC<CreativeCardProps> = ({ creative, onEdit, on
                         <X size={14} />
                     </button>
                 </div>
+
+                {/* Epic Badge */}
+                {creative.source && creative.source.startsWith('epic_') && (
+                    <div className="absolute top-2 left-2 px-1.5 py-0.5 rounded-md bg-gradient-to-r from-violet-600 to-purple-600 text-[8px] font-bold text-white uppercase tracking-wider flex items-center gap-0.5 shadow-lg z-10">
+                        <Zap size={8} fill="currentColor" />
+                        Epic
+                    </div>
+                )}
 
                 {/* Subtle Video Badge if Video */}
                 {creative.type === 'video' && (
@@ -119,6 +128,14 @@ export const CardMacFinder: React.FC<CreativeCardProps> = ({ creative, onEdit, o
                         </button>
                     </div>
                 </div>
+                {/* Epic Badge for Mac Finder Style */}
+                {creative.source && creative.source.startsWith('epic_') && (
+                    <div className="absolute top-0 left-0 px-1 py-0.5 rounded-br-md bg-gradient-to-r from-violet-600 to-purple-600 text-[7px] font-bold text-white uppercase tracking-wider flex items-center gap-0.5 shadow-sm z-10">
+                        <Zap size={7} fill="currentColor" />
+                        Epic
+                    </div>
+                )}
+
                 {/* Tiny Badge */}
                 <div className="absolute -bottom-1 -right-1 bg-white border border-slate-200 rounded-md p-0.5 shadow-sm z-10">
                     {creative.type === 'video' ? <FileVideo size={10} className="text-purple-500" /> : <FileImage size={10} className="text-blue-500" />}

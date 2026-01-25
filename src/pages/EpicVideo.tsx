@@ -86,7 +86,8 @@ const EpicVideo: React.FC = () => {
                     mediaUrl,
                     mediaType: 'video',
                     name: `Epic Video - ${video.prompt?.slice(0, 30) || video.uuid}`,
-                    sourceUuid: video.uuid
+                    sourceUuid: video.uuid,
+                    source: 'epic_video'
                 })
             });
 

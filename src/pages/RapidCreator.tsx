@@ -62,6 +62,7 @@ interface Creative {
     isImported?: boolean;
     supabaseId?: string;
     expiresAt?: string;
+    source?: 'epic_poster' | 'epic_video' | null;
 }
 
 interface RapidAdSet {
@@ -1438,7 +1439,8 @@ const RapidCreator: React.FC = () => {
                     callToAction: 'SHOP_NOW',
                     adsetId: null,
                     isImported: true,
-                    expiresAt: c.expires_at
+                    expiresAt: c.expires_at,
+                    source: c.source || null
                 }));
                 setImportedCreatives(imported);
             }

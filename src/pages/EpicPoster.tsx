@@ -85,7 +85,8 @@ const EpicPoster: React.FC = () => {
                     mediaUrl,
                     mediaType: 'image',
                     name: `Epic Poster - ${img.prompt?.slice(0, 30) || img.uuid}`,
-                    sourceUuid: img.uuid
+                    sourceUuid: img.uuid,
+                    source: 'epic_poster'
                 })
             });
 
