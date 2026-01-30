@@ -51,9 +51,9 @@ export default async function handler(req: any, res: any) {
         // (time matching removed since we can only run once daily at 8AM)
         console.log(`[Cron] Processing ${schedules.length} enabled schedules`);
 
-        const geminiApiKey = process.env.GEMINI_3_API;
+        const geminiApiKey = process.env.VITE_GEMINI_3_API;
         if (!geminiApiKey) {
-            return res.status(500).json({ error: 'GEMINI_3_API not configured' });
+            return res.status(500).json({ error: 'VITE_GEMINI_3_API not configured' });
         }
 
         let successCount = 0;

@@ -343,10 +343,10 @@ async function handleTelegramWebhook(req: any, res: any) {
                         resultMessage = `❌ *Media tidak dijumpai*\n\nSila run AI Analysis semula.`;
                     } else if (isImageAd && videoId) {
                         // Image ad with ad_id - fetch and analyze image
-                        const geminiApiKey = process.env.GEMINI_3_API;
+                        const geminiApiKey = process.env.VITE_GEMINI_3_API;
 
                         if (!geminiApiKey) {
-                            resultMessage = `❌ GEMINI_3_API not configured`;
+                            resultMessage = `❌ VITE_GEMINI_3_API not configured`;
                         } else {
                             try {
                                 console.log(`[Image Analysis] Fetching ad creative for ad_id: ${videoId}`);
@@ -404,10 +404,10 @@ async function handleTelegramWebhook(req: any, res: any) {
                     } else if (isImageAd) {
                         resultMessage = `📷 *Image Ad: ${adName}*\n\nTiada image URL tersedia untuk analysis.`;
                     } else {
-                        const geminiApiKey = process.env.GEMINI_3_API;
+                        const geminiApiKey = process.env.VITE_GEMINI_3_API;
 
                         if (!geminiApiKey) {
-                            resultMessage = `❌ GEMINI_3_API not configured`;
+                            resultMessage = `❌ VITE_GEMINI_3_API not configured`;
                         } else {
                             try {
                                 const genAI = new GoogleGenAI({ apiKey: geminiApiKey });

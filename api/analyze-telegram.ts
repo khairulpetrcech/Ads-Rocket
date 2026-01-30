@@ -73,9 +73,9 @@ async function handleAnalysis(req: any, res: any) {
             });
         }
 
-        const geminiApiKey = process.env.GEMINI_3_API;
+        const geminiApiKey = process.env.VITE_GEMINI_3_API;
         if (!geminiApiKey) {
-            return res.status(500).json({ error: 'GEMINI_3_API not configured' });
+            return res.status(500).json({ error: 'VITE_GEMINI_3_API not configured' });
         }
 
         // --- STEP 1: Fetch Account Name and Top Ads with Creatives from Meta API (last 4 days) ---
