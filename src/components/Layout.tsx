@@ -203,6 +203,8 @@ const Layout: React.FC = () => {
             }
             pubMap[ad.id] = (pubMap[ad.id] || 0) + 1;
             localStorage.setItem('ar_published_comments_v2', JSON.stringify(pubMap));
+            // Dispatch custom event so Dashboard can update C button color
+            window.dispatchEvent(new CustomEvent('ar_comments_updated'));
 
             // Auto close after 3s
             setTimeout(() => {

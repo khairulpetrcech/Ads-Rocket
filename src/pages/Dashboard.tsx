@@ -333,16 +333,29 @@ const Dashboard: React.FC = () => {
         }
     };
 
+    // Re-load published comments when modal closes or when custom event fires
     useEffect(() => {
-        const saved = localStorage.getItem('ar_published_comments_v2');
-        if (saved) {
-            try {
-                const parsed = JSON.parse(saved);
-                setPublishedComments(new Map(Object.entries(parsed)));
-            } catch {
-                // ignore parse errors
+        const loadComments = () => {
+            const saved = localStorage.getItem('ar_published_comments_v2');
+            if (saved) {
+                try {
+                    const parsed = JSON.parse(saved);
+                    setPublishedComments(new Map(Object.entries(parsed)));
+                } catch {
+                    // ignore parse errors
+                }
             }
-        }
+        };
+
+        loadComments();
+
+        // Listen for custom event from Layout.tsx when comment session completes
+        const handleCommentsUpdated = () => loadComments();
+        window.addEventListener('ar_comments_updated', handleCommentsUpdated);
+
+        return () => {
+            window.removeEventListener('ar_comments_updated', handleCommentsUpdated);
+        };
     }, [commentModalOpen]);
 
     const isTrafficOrLeads = (obj: string) => {
