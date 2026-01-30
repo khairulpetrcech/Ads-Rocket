@@ -500,13 +500,33 @@ const Dashboard: React.FC = () => {
     }, [campaigns]);
 
     useEffect(() => {
-        const saved = localStorage.getItem('ar_comment_templates');
-        if (saved) {
-            try {
-                setTemplates(JSON.parse(saved));
-            } catch (e) { setTemplates([]); }
-        }
-    }, [commentModalOpen]);
+        const fetchCommentTemplates = async () => {
+            const fbId = settings.userId;
+
+            if (fbId) {
+                try {
+                    const res = await fetch(`/api/comment-templates-api?fbId=${fbId}`);
+                    const data = await res.json();
+                    if (data.templates && data.templates.length > 0) {
+                        setTemplates(data.templates);
+                        return;
+                    }
+                } catch (e) {
+                    console.error('Fetch templates error:', e);
+                }
+            }
+
+            // Fallback to localStorage
+            const saved = localStorage.getItem('ar_comment_templates');
+            if (saved) {
+                try {
+                    setTemplates(JSON.parse(saved));
+                } catch (e) { setTemplates([]); }
+            }
+        };
+
+        fetchCommentTemplates();
+    }, [commentModalOpen, settings.userId]);
 
 
 
