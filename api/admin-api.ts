@@ -43,8 +43,10 @@ export default async function handler(req: any, res: any) {
                 return handleGetUsers(req, res);
             case 'campaigns':
                 return handleGetCampaigns(req, res);
+            case 'schedules':
+                return handleGetSchedules(req, res);
             default:
-                return res.status(400).json({ error: 'Invalid action. Use: users or campaigns' });
+                return res.status(400).json({ error: 'Invalid action. Use: users, campaigns, or schedules' });
         }
     } catch (error: any) {
         console.error('[Admin API] Error:', error);
@@ -141,5 +143,40 @@ async function handleGetCampaigns(req: any, res: any) {
         campaigns: formattedCampaigns,
         total: count || 0,
         hasMore: (start + formattedCampaigns.length) < (count || 0)
+    });
+}
+
+// Get all analysis schedules (for debugging 8AM cron)
+async function handleGetSchedules(req: any, res: any) {
+    console.log('Admin API: Fetching analysis_schedules...');
+
+    const { data: schedules, error } = await supabase
+        .from('analysis_schedules')
+        .select('*')
+        .order('updated_at', { ascending: false });
+
+    if (error) {
+        console.error('Supabase error fetching schedules:', error);
+        return res.status(200).json({
+            schedules: [],
+            total: 0,
+            debug: { error: error.message, code: error.code }
+        });
+    }
+
+    const formattedSchedules = (schedules || []).map((s: any) => ({
+        fbId: s.fb_id,
+        adAccountId: s.ad_account_id,
+        scheduleTime: s.schedule_time,
+        isEnabled: s.is_enabled,
+        telegramChatId: s.telegram_chat_id,
+        hasBotToken: !!s.telegram_bot_token,
+        hasFbToken: !!s.fb_access_token,
+        updatedAt: s.updated_at
+    }));
+
+    return res.status(200).json({
+        schedules: formattedSchedules,
+        total: formattedSchedules.length
     });
 }

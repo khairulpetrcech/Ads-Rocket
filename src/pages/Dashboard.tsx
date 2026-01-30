@@ -243,9 +243,17 @@ const Dashboard: React.FC = () => {
     const [selectedAdForComment, setSelectedAdForComment] = useState<Ad | null>(null);
     const [templates, setTemplates] = useState<CommentTemplate[]>([]);
 
-    const [publishedComments, setPublishedComments] = useState<Set<string>>(() => {
-        const saved = localStorage.getItem('ar_published_comments');
-        return saved ? new Set(JSON.parse(saved)) : new Set();
+    const [publishedComments, setPublishedComments] = useState<Map<string, number>>(() => {
+        const saved = localStorage.getItem('ar_published_comments_v2');
+        if (saved) {
+            try {
+                const parsed = JSON.parse(saved);
+                return new Map(Object.entries(parsed));
+            } catch {
+                return new Map();
+            }
+        }
+        return new Map();
     });
 
     // Telegram AI Alert State
@@ -326,8 +334,15 @@ const Dashboard: React.FC = () => {
     };
 
     useEffect(() => {
-        const saved = localStorage.getItem('ar_published_comments');
-        if (saved) setPublishedComments(new Set(JSON.parse(saved)));
+        const saved = localStorage.getItem('ar_published_comments_v2');
+        if (saved) {
+            try {
+                const parsed = JSON.parse(saved);
+                setPublishedComments(new Map(Object.entries(parsed)));
+            } catch {
+                // ignore parse errors
+            }
+        }
     }, [commentModalOpen]);
 
     const isTrafficOrLeads = (obj: string) => {
@@ -1151,7 +1166,14 @@ const Dashboard: React.FC = () => {
                                                                                                 {adsData[adset.id] ? (
                                                                                                     adsData[adset.id].filter(ad => ad.status === 'ACTIVE').length > 0 ? (
                                                                                                         adsData[adset.id].filter(ad => ad.status === 'ACTIVE').map(ad => {
-                                                                                                            const isCommented = publishedComments.has(ad.id);
+                                                                                                            const commentCount = publishedComments.get(ad.id) || 0;
+                                                                                                            // Color states: 0=default, 1=green, 2=blue, 3+=red
+                                                                                                            const getCommentButtonStyle = (count: number) => {
+                                                                                                                if (count >= 3) return "bg-red-100 text-red-600 border-red-200 hover:bg-red-200";
+                                                                                                                if (count === 2) return "bg-blue-100 text-blue-600 border-blue-200 hover:bg-blue-200";
+                                                                                                                if (count === 1) return "bg-green-100 text-green-600 border-green-200 hover:bg-green-200";
+                                                                                                                return "bg-white text-indigo-600 border-indigo-200 hover:bg-indigo-600 hover:text-white hover:border-indigo-600";
+                                                                                                            };
                                                                                                             return (
                                                                                                                 <tr key={ad.id} className="text-xs hover:bg-white border-b border-slate-100 last:border-0 group/ad transition-colors">
                                                                                                                     <td className="p-3 pl-16">
@@ -1186,19 +1208,15 @@ const Dashboard: React.FC = () => {
                                                                                                                                             </a>
                                                                                                                                         )}
 
-                                                                                                                                        {/* COMPACT 'C' COMMENT BUTTON */}
+                                                                                                                                        {/* COMPACT 'C' COMMENT BUTTON - 3 STATE COLORS */}
                                                                                                                                         {ad.creative.effective_object_story_id && (
                                                                                                                                             <div className="relative group/tooltip">
                                                                                                                                                 <button
                                                                                                                                                     onClick={() => openCommentModal(ad)}
-                                                                                                                                                    disabled={isCommented}
-                                                                                                                                                    title="Launch Comment"
-                                                                                                                                                    className={`w-5 h-5 flex items-center justify-center rounded-full text-[10px] font-bold border transition-colors ${isCommented
-                                                                                                                                                        ? "bg-green-100 text-green-600 border-green-200 cursor-not-allowed"
-                                                                                                                                                        : "bg-white text-indigo-600 border-indigo-200 hover:bg-indigo-600 hover:text-white hover:border-indigo-600"
-                                                                                                                                                        }`}
+                                                                                                                                                    title={`Launch Comment (${commentCount}x initiated)`}
+                                                                                                                                                    className={`w-5 h-5 flex items-center justify-center rounded-full text-[10px] font-bold border transition-colors ${getCommentButtonStyle(commentCount)}`}
                                                                                                                                                 >
-                                                                                                                                                    {isCommented ? <Check size={10} /> : "C"}
+                                                                                                                                                    {commentCount > 0 ? commentCount : "C"}
                                                                                                                                                 </button>
                                                                                                                                             </div>
                                                                                                                                         )}

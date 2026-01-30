@@ -191,11 +191,18 @@ const Layout: React.FC = () => {
                 complete: true
             }));
 
-            // Save to published list in local storage (handled here globally)
-            const savedPub = localStorage.getItem('ar_published_comments');
-            const pubSet = savedPub ? new Set(JSON.parse(savedPub)) : new Set();
-            pubSet.add(ad.id);
-            localStorage.setItem('ar_published_comments', JSON.stringify(Array.from(pubSet)));
+            // Save to published list in local storage (handled here globally) - V2: track count
+            const savedPub = localStorage.getItem('ar_published_comments_v2');
+            let pubMap: Record<string, number> = {};
+            if (savedPub) {
+                try {
+                    pubMap = JSON.parse(savedPub);
+                } catch {
+                    pubMap = {};
+                }
+            }
+            pubMap[ad.id] = (pubMap[ad.id] || 0) + 1;
+            localStorage.setItem('ar_published_comments_v2', JSON.stringify(pubMap));
 
             // Auto close after 3s
             setTimeout(() => {
