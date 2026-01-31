@@ -22,7 +22,8 @@ const CommentTemplates: React.FC = () => {
             const saved = localStorage.getItem('ar_settings');
             if (saved) {
                 const settings = JSON.parse(saved);
-                return settings.userId || settings.fbId;
+                // Match App.tsx pattern: userId || adAccountId
+                return settings.userId || settings.adAccountId;
             }
         } catch (e) {
             console.error('Error getting fbId:', e);
