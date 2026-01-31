@@ -80,6 +80,10 @@ const CommentTemplates: React.FC = () => {
     const migrateLocalToCloud = async (localTemplates: CommentTemplate[], fbId: string) => {
         setSyncing(true);
         const migratedTemplates: CommentTemplate[] = [];
+        let failedCount = 0;
+
+        // Show local templates while migrating
+        setTemplates(localTemplates);
 
         for (const template of localTemplates) {
             try {
@@ -97,16 +101,25 @@ const CommentTemplates: React.FC = () => {
                 const data = await res.json();
                 if (data.success && data.template) {
                     migratedTemplates.push(data.template);
+                } else {
+                    failedCount++;
                 }
             } catch (e) {
                 console.error('Migration error for template:', template.name, e);
+                failedCount++;
             }
         }
 
         if (migratedTemplates.length > 0) {
             setTemplates(migratedTemplates);
-            // Clear localStorage after successful migration
-            localStorage.removeItem('ar_comment_templates');
+
+            // Only clear localStorage if ALL templates were migrated successfully
+            if (failedCount === 0) {
+                localStorage.removeItem('ar_comment_templates');
+                console.log('[CommentTemplates] Migration complete, localStorage cleared');
+            } else {
+                console.log(`[CommentTemplates] Partial migration: ${migratedTemplates.length}/${localTemplates.length} migrated`);
+            }
         }
         setSyncing(false);
     };
