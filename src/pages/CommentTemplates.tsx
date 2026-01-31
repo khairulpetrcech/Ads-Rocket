@@ -2,8 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { CommentTemplate, CommentItem } from '../types';
 import { PlusCircle, Trash2, Image as ImageIcon, Save, AlertTriangle, Layers, Loader2, CheckCircle, Cloud, CloudOff } from 'lucide-react';
 
-const API_BASE = import.meta.env.PROD ? '' : '';
-
 const CommentTemplates: React.FC = () => {
     const [templates, setTemplates] = useState<CommentTemplate[]>([]);
     const [loading, setLoading] = useState(false);
@@ -49,7 +47,7 @@ const CommentTemplates: React.FC = () => {
 
         setLoading(true);
         try {
-            const res = await fetch(`${API_BASE}/api/comment-templates-api?fbId=${fbId}`);
+            const res = await fetch(`/api/comment-templates-api?fbId=${fbId}`);
             const data = await res.json();
 
             if (data.templates && data.templates.length > 0) {
@@ -84,7 +82,7 @@ const CommentTemplates: React.FC = () => {
 
         for (const template of localTemplates) {
             try {
-                const res = await fetch(`${API_BASE}/api/comment-templates-api`, {
+                const res = await fetch(`/api/comment-templates-api`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -167,7 +165,7 @@ const CommentTemplates: React.FC = () => {
         if (fbId) {
             // Save to Supabase
             try {
-                const res = await fetch(`${API_BASE}/api/comment-templates-api`, {
+                const res = await fetch(`/api/comment-templates-api`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -214,7 +212,7 @@ const CommentTemplates: React.FC = () => {
 
         if (fbId) {
             try {
-                const res = await fetch(`${API_BASE}/api/comment-templates-api?fbId=${fbId}&templateId=${id}`, {
+                const res = await fetch(`/api/comment-templates-api?fbId=${fbId}&templateId=${id}`, {
                     method: 'DELETE'
                 });
                 const data = await res.json();
