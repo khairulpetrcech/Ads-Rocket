@@ -349,6 +349,17 @@ async function processScheduledAnalysis(schedule: any, geminiApiKey: string) {
         console.log(`[Cron Debug] Campaigns check failed:`, e);
     }
 
+    // DEBUG: Check ALL ads without filtering
+    try {
+        const allAdsUrl = `https://graph.facebook.com/v19.0/${actId}/ads?fields=id,name,effective_status&access_token=${fb_access_token}&limit=20`;
+        const allAdsResponse = await fetch(allAdsUrl);
+        const allAdsData = await allAdsResponse.json();
+        const statuses = (allAdsData.data || []).map((a: any) => a.effective_status).join(', ');
+        console.log(`[Cron Debug] ALL ads (no filter): count=${allAdsData.data?.length || 0}, statuses=[${statuses}]`);
+    } catch (e) {
+        console.log(`[Cron Debug] ALL ads check failed:`, e);
+    }
+
     const metaResponse = await fetch(metaUrl);
     const metaData = await metaResponse.json();
 
