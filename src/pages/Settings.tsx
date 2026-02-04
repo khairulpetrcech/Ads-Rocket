@@ -86,10 +86,10 @@ const Settings: React.FC = () => {
     setLocalSettings(cleanSettings);
     updateSettings(cleanSettings);
 
-    // Also save Telegram settings to Supabase for daily cron
+    // Also save Telegram settings to Supabase for daily cron (analysis_schedules table)
     if (cleanSettings.telegramBotToken && cleanSettings.telegramChatId) {
       try {
-        await fetch('/api/analyze-telegram?action=save-settings', {
+        await fetch('/api/analyze-telegram?action=save-schedule', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -98,10 +98,11 @@ const Settings: React.FC = () => {
             adAccountId: settings.adAccountId,
             telegramBotToken: cleanSettings.telegramBotToken,
             telegramChatId: cleanSettings.telegramChatId,
-            enabled: true
+            scheduleTime: '08:00',
+            isEnabled: true
           })
         });
-        console.log('Telegram settings saved to Supabase for daily reports');
+        console.log('Telegram settings saved to analysis_schedules for daily cron');
       } catch (err) {
         console.warn('Failed to save Telegram settings for daily reports:', err);
       }
