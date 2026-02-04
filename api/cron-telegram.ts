@@ -291,7 +291,7 @@ async function processScheduledAnalysis(schedule: any, geminiApiKey: string) {
     }
 
     // Fetch account name and ads from Meta API
-    const actId = ad_account_id.startsWith('act_') ? ad_account_id : `act_${ad_account_id} `;
+    const actId = ad_account_id.startsWith('act_') ? ad_account_id : `act_${ad_account_id}`;
 
     const today = new Date();
     const sevenDaysAgo = new Date(today);
@@ -302,13 +302,13 @@ async function processScheduledAnalysis(schedule: any, geminiApiKey: string) {
         const day = String(d.getDate()).padStart(2, '0');
         const month = String(d.getMonth() + 1).padStart(2, '0');
         const year = d.getFullYear();
-        return `${day} /${month}/${year} `;
+        return `${day}/${month}/${year}`;
     };
 
     const startDateMY = formatDateMY(sevenDaysAgo);
     const endDateMY = formatDateMY(today);
 
-    const timeRange = `{ "since": "${formatDate(sevenDaysAgo)}", "until": "${formatDate(today)}" } `;
+    const timeRange = `{"since":"${formatDate(sevenDaysAgo)}","until":"${formatDate(today)}"}`;
 
     // Fetch Account Name
     let accountName = ad_account_id;
