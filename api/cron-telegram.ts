@@ -328,10 +328,14 @@ async function processScheduledAnalysis(schedule: any, geminiApiKey: string) {
 
     const metaUrl = `https://graph.facebook.com/v19.0/${actId}/ads?fields=${encodeURIComponent(fields)}&access_token=${fb_access_token}&limit=50&filtering=${filtering}`;
 
+    console.log(`[Cron Debug] Fetching ads for account: ${actId}`);
     const metaResponse = await fetch(metaUrl);
     const metaData = await metaResponse.json();
 
+    console.log(`[Cron Debug] Meta API response: ads count=${metaData.data?.length || 0}, error=${metaData.error?.message || 'none'}`);
+
     if (metaData.error) {
+        console.error(`[Cron Debug] Meta API error:`, metaData.error);
         throw new Error(metaData.error.message);
     }
 
@@ -367,10 +371,14 @@ async function processScheduledAnalysis(schedule: any, geminiApiKey: string) {
     });
 
     // Sort by purchases first, then ROAS (matching analyze-telegram.ts)
-    const topAds = ads.filter((a: any) => a.spend > 0).sort((a: any, b: any) => b.purchases - a.purchases || b.roas - a.roas).slice(0, 3);
+    const adsWithSpend = ads.filter((a: any) => a.spend > 0);
+    console.log(`[Cron Debug] Total ads: ${ads.length}, Ads with spend: ${adsWithSpend.length}`);
+
+    const topAds = adsWithSpend.sort((a: any, b: any) => b.purchases - a.purchases || b.roas - a.roas).slice(0, 3);
 
     if (topAds.length === 0) {
         // Send no ads message
+        console.log(`[Cron Debug] No ads with spend found, sending "tiada iklan" message`);
         await sendTelegram(telegram_bot_token, telegram_chat_id,
             `📊 *Report : ${accountName}*\n\npast 7 Days\n(${startDateMY} - ${endDateMY})\n\nTiada iklan dengan spend dalam 7 hari lepas.`);
         return;
