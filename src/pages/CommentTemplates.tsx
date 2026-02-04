@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { CommentTemplate, CommentItem } from '../types';
-import { PlusCircle, Trash2, Image as ImageIcon, Save, AlertTriangle, Layers, Loader2, CheckCircle, Cloud, CloudOff } from 'lucide-react';
+import { PlusCircle, Trash2, Image as ImageIcon, Save, AlertTriangle, Layers, Loader2, CheckCircle, Cloud, CloudOff, UploadCloud } from 'lucide-react';
 
 const CommentTemplates: React.FC = () => {
     const [templates, setTemplates] = useState<CommentTemplate[]>([]);
@@ -221,6 +221,64 @@ const CommentTemplates: React.FC = () => {
         setLoading(false);
     };
 
+    // Force sync all current templates to cloud (for migration)
+    const handleForceSyncToCloud = async () => {
+        const fbId = getFbId();
+        if (!fbId) {
+            setError('Please connect your Meta account first to enable cloud sync.');
+            return;
+        }
+
+        if (templates.length === 0) {
+            setError('No templates to sync.');
+            return;
+        }
+
+        setSyncing(true);
+        setSuccessMsg('Syncing templates to cloud...');
+        let successCount = 0;
+        let failedCount = 0;
+
+        for (const template of templates) {
+            try {
+                const res = await fetch(`/api/comment-templates-api`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        fbId,
+                        template: {
+                            name: template.name,
+                            items: template.items
+                        }
+                    })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    successCount++;
+                } else {
+                    failedCount++;
+                }
+            } catch (e) {
+                console.error('Sync error for template:', template.name, e);
+                failedCount++;
+            }
+        }
+
+        setSyncing(false);
+
+        if (failedCount === 0) {
+            setSuccessMsg(`✅ All ${successCount} templates synced to cloud!`);
+            // Clear localStorage after successful full sync
+            localStorage.removeItem('ar_comment_templates');
+            // Refresh from cloud
+            fetchTemplates();
+        } else {
+            setSuccessMsg(`Synced ${successCount}/${templates.length} templates. ${failedCount} failed.`);
+        }
+
+        setTimeout(() => setSuccessMsg(''), 3000);
+    };
+
     const handleDeleteTemplate = async (id: string) => {
         const fbId = getFbId();
 
@@ -259,6 +317,15 @@ const CommentTemplates: React.FC = () => {
                         <span className="flex items-center gap-1 text-amber-600 bg-amber-50 px-2 py-1 rounded-full border border-amber-200">
                             <CloudOff size={12} /> Local Only
                         </span>
+                    )}
+                    {fbId && templates.length > 0 && (
+                        <button
+                            onClick={handleForceSyncToCloud}
+                            disabled={syncing}
+                            className="flex items-center gap-1 text-indigo-600 bg-indigo-50 px-2 py-1 rounded-full border border-indigo-200 hover:bg-indigo-100 transition-colors disabled:opacity-50"
+                        >
+                            <UploadCloud size={12} /> Sync to Cloud
+                        </button>
                     )}
                     {syncing && <Loader2 size={14} className="animate-spin text-indigo-600" />}
                 </div>

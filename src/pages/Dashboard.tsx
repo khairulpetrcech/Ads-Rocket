@@ -501,7 +501,7 @@ const Dashboard: React.FC = () => {
 
     useEffect(() => {
         const fetchCommentTemplates = async () => {
-            const fbId = settings.userId;
+            const fbId = settings.userId || settings.adAccountId;
 
             if (fbId) {
                 try {
@@ -526,7 +526,7 @@ const Dashboard: React.FC = () => {
         };
 
         fetchCommentTemplates();
-    }, [commentModalOpen, settings.userId]);
+    }, [commentModalOpen, settings.userId, settings.adAccountId]);
 
 
 
