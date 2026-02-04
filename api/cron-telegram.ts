@@ -338,6 +338,17 @@ async function processScheduledAnalysis(schedule: any, geminiApiKey: string) {
     console.log(`[Cron Debug] Fetching ads for account: ${actId}`);
     console.log(`[Cron Debug] FB Token prefix: ${fb_access_token.substring(0, 20)}...`);
     console.log(`[Cron Debug] Time range: ${timeRangeObj}`);
+
+    // DEBUG: First check if we can access campaigns
+    try {
+        const campaignsUrl = `https://graph.facebook.com/v19.0/${actId}/campaigns?fields=id,name,status&access_token=${fb_access_token}&limit=10`;
+        const campResponse = await fetch(campaignsUrl);
+        const campData = await campResponse.json();
+        console.log(`[Cron Debug] Campaigns check: count=${campData.data?.length || 0}, error=${campData.error?.message || 'none'}`);
+    } catch (e) {
+        console.log(`[Cron Debug] Campaigns check failed:`, e);
+    }
+
     const metaResponse = await fetch(metaUrl);
     const metaData = await metaResponse.json();
 
