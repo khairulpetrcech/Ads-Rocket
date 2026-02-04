@@ -294,8 +294,8 @@ async function processScheduledAnalysis(schedule: any, geminiApiKey: string) {
     const actId = ad_account_id.startsWith('act_') ? ad_account_id : `act_${ad_account_id} `;
 
     const today = new Date();
-    const fourDaysAgo = new Date(today);
-    fourDaysAgo.setDate(today.getDate() - 3);
+    const sevenDaysAgo = new Date(today);
+    sevenDaysAgo.setDate(today.getDate() - 6);
 
     const formatDate = (d: Date) => d.toISOString().split('T')[0];
     const formatDateMY = (d: Date) => {
@@ -305,10 +305,10 @@ async function processScheduledAnalysis(schedule: any, geminiApiKey: string) {
         return `${day} /${month}/${year} `;
     };
 
-    const startDateMY = formatDateMY(fourDaysAgo);
+    const startDateMY = formatDateMY(sevenDaysAgo);
     const endDateMY = formatDateMY(today);
 
-    const timeRange = `{ "since": "${formatDate(fourDaysAgo)}", "until": "${formatDate(today)}" } `;
+    const timeRange = `{ "since": "${formatDate(sevenDaysAgo)}", "until": "${formatDate(today)}" } `;
 
     // Fetch Account Name
     let accountName = ad_account_id;
@@ -372,13 +372,13 @@ async function processScheduledAnalysis(schedule: any, geminiApiKey: string) {
     if (topAds.length === 0) {
         // Send no ads message
         await sendTelegram(telegram_bot_token, telegram_chat_id,
-            `📊 *Report : ${accountName}*\n\npast 4 Days\n(${startDateMY} - ${endDateMY})\n\nTiada iklan dengan spend dalam 4 hari lepas.`);
+            `📊 *Report : ${accountName}*\n\npast 7 Days\n(${startDateMY} - ${endDateMY})\n\nTiada iklan dengan spend dalam 7 hari lepas.`);
         return;
     }
 
     // --- Build Report (matching analyze-telegram.ts template) ---
     const emojis = ['🥇', '🥈', '🥉'];
-    let reportText = `📊 *Report : ${accountName}*\npast 4 Days\n(${startDateMY} - ${endDateMY})\n\n`;
+    let reportText = `📊 *Report : ${accountName}*\npast 7 Days\n(${startDateMY} - ${endDateMY})\n\n`;
 
     // Calculate CPA for each ad
     topAds.forEach((ad: any) => {
