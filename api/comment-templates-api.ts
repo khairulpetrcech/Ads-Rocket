@@ -73,6 +73,9 @@ export default async function handler(req: any, res: any) {
         try {
             const now = new Date().toISOString();
 
+            // Log incoming request for debugging
+            console.log(`[CommentTemplates API] POST request - fbId: ${fbId}, template name: ${template.name}, items count: ${template.items?.length || 0}`);
+
             const { data, error } = await supabase
                 .from('comment_templates')
                 .insert({
@@ -86,8 +89,11 @@ export default async function handler(req: any, res: any) {
 
             if (error) {
                 console.error('Supabase POST error:', error);
-                return res.status(500).json({ error: error.message });
+                console.error('Error details - fbId:', fbId, 'template:', template.name);
+                return res.status(500).json({ error: error.message, details: error.details || error.hint });
             }
+
+            console.log(`[CommentTemplates API] Template saved successfully: ${data.id}`);
 
             return res.status(200).json({
                 success: true,
@@ -101,7 +107,8 @@ export default async function handler(req: any, res: any) {
 
         } catch (error: any) {
             console.error('Save Comment Template Error:', error);
-            return res.status(500).json({ error: error.message || 'Unknown error' });
+            console.error('Stack:', error.stack);
+            return res.status(500).json({ error: error.message || 'Unknown error', stack: error.stack });
         }
     }
 

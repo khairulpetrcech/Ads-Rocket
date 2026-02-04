@@ -241,6 +241,15 @@ const CommentTemplates: React.FC = () => {
 
         for (const template of templates) {
             try {
+                // Skip if template items contain very large base64 images (>1MB)
+                const payloadSize = JSON.stringify(template.items).length;
+                if (payloadSize > 1000000) {
+                    console.warn(`Skipping template "${template.name}" - payload too large (${Math.round(payloadSize / 1024)}KB)`);
+                    setError(`Template "${template.name}" has images too large for cloud sync.`);
+                    failedCount++;
+                    continue;
+                }
+
                 const res = await fetch(`/api/comment-templates-api`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -252,14 +261,25 @@ const CommentTemplates: React.FC = () => {
                         }
                     })
                 });
+
+                if (!res.ok) {
+                    const errorText = await res.text();
+                    console.error(`API error for "${template.name}":`, res.status, errorText);
+                    setError(`Error syncing "${template.name}": ${res.status}`);
+                    failedCount++;
+                    continue;
+                }
+
                 const data = await res.json();
                 if (data.success) {
                     successCount++;
                 } else {
+                    console.error(`Sync failed for "${template.name}":`, data.error);
                     failedCount++;
                 }
-            } catch (e) {
+            } catch (e: any) {
                 console.error('Sync error for template:', template.name, e);
+                setError(`Network error syncing "${template.name}"`);
                 failedCount++;
             }
         }
