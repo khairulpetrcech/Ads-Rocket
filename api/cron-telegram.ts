@@ -450,6 +450,7 @@ async function processScheduledAnalysis(schedule: any, geminiApiKey: string) {
 }
 
 async function sendTelegram(botToken: string, chatId: string, text: string) {
+    console.log(`[Telegram Debug] Bot token prefix: ${botToken?.substring(0, 10)}..., Chat ID: ${chatId}`);
     const url = `https://api.telegram.org/bot${botToken}/sendMessage`;
     const response = await fetch(url, {
         method: 'POST',
@@ -462,6 +463,7 @@ async function sendTelegram(botToken: string, chatId: string, text: string) {
     });
     const data = await response.json();
     if (!data.ok) {
+        console.error(`[Telegram Debug] Error response:`, JSON.stringify(data));
         throw new Error(data.description || 'Telegram send failed');
     }
 }
