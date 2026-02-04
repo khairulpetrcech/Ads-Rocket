@@ -321,14 +321,23 @@ async function processScheduledAnalysis(schedule: any, geminiApiKey: string) {
         console.warn(`Failed to fetch account name for ${actId}`);
     }
 
-    const insightsQuery = `insights.time_range(${timeRange}){spend,impressions,clicks,cpc,ctr,actions,action_values}`;
+    // Use JSON.stringify for timeRange - matching analyze-telegram.ts exactly
+    const timeRangeObj = JSON.stringify({
+        since: formatDate(sevenDaysAgo),
+        until: formatDate(today)
+    });
+
+    const insightsQuery = `insights.time_range(${timeRangeObj}){spend,impressions,clicks,cpc,ctr,actions,action_values}`;
     const creativeFields = 'creative{video_id,image_url,thumbnail_url,effective_instagram_media_id,object_story_spec}';
-    const fields = ['id', 'name', 'status', 'effective_status', insightsQuery, creativeFields].join(',');
-    // Try without filtering first to see all ads
-    const metaUrl = `https://graph.facebook.com/v19.0/${actId}/ads?fields=${encodeURIComponent(fields)}&access_token=${fb_access_token}&limit=50`;
+    // Match field order from analyze-telegram.ts: creativeFields BEFORE insightsQuery
+    const fields = ['id', 'name', 'status', 'effective_status', creativeFields, insightsQuery].join(',');
+    const filtering = encodeURIComponent(`[{"field":"effective_status","operator":"IN","value":["ACTIVE","PAUSED"]}]`);
+
+    const metaUrl = `https://graph.facebook.com/v19.0/${actId}/ads?fields=${encodeURIComponent(fields)}&access_token=${fb_access_token}&limit=50&filtering=${filtering}`;
 
     console.log(`[Cron Debug] Fetching ads for account: ${actId}`);
     console.log(`[Cron Debug] FB Token prefix: ${fb_access_token.substring(0, 20)}...`);
+    console.log(`[Cron Debug] Time range: ${timeRangeObj}`);
     const metaResponse = await fetch(metaUrl);
     const metaData = await metaResponse.json();
 
