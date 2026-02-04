@@ -148,6 +148,30 @@ const ConnectPage: React.FC = () => {
         adAccountId: account.id,
         userId: fbUser.id
       });
+
+      // AUTO-SAVE to database for cron job (preserve existing Telegram settings)
+      // This ensures the new FB token is saved while keeping existing Telegram credentials
+      if (settings.telegramBotToken && settings.telegramChatId) {
+        try {
+          await fetch('/api/analyze-telegram?action=save-schedule', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              fbId: fbUser.id,
+              fbAccessToken: settings.fbAccessToken,
+              adAccountId: account.id,
+              telegramBotToken: settings.telegramBotToken,
+              telegramChatId: settings.telegramChatId,
+              scheduleTime: '08:00',
+              isEnabled: true
+            })
+          });
+          console.log('✅ Auto-saved schedule with new FB token and existing Telegram settings');
+        } catch (scheduleErr) {
+          console.warn('Failed to auto-save schedule:', scheduleErr);
+        }
+      }
+
       navigate('/');
 
     } catch (logErr) {
