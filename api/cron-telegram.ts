@@ -331,7 +331,8 @@ async function processScheduledAnalysis(schedule: any, geminiApiKey: string) {
     const creativeFields = 'creative{video_id,image_url,thumbnail_url,effective_instagram_media_id,object_story_spec}';
     // Match field order from analyze-telegram.ts: creativeFields BEFORE insightsQuery
     const fields = ['id', 'name', 'status', 'effective_status', creativeFields, insightsQuery].join(',');
-    const filtering = encodeURIComponent(`[{"field":"effective_status","operator":"IN","value":["ACTIVE","PAUSED"]}]`);
+    // Include CAMPAIGN_PAUSED and ADSET_PAUSED to get ads from paused parent campaigns/adsets
+    const filtering = encodeURIComponent(`[{"field":"effective_status","operator":"IN","value":["ACTIVE","PAUSED","CAMPAIGN_PAUSED","ADSET_PAUSED"]}]`);
 
     const metaUrl = `https://graph.facebook.com/v19.0/${actId}/ads?fields=${encodeURIComponent(fields)}&access_token=${fb_access_token}&limit=50&filtering=${filtering}`;
 
