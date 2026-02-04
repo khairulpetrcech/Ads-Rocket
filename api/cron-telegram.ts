@@ -1,6 +1,11 @@
 import { createClient } from '@supabase/supabase-js';
 import { GoogleGenAI } from "@google/genai";
 
+// Vercel Hobby plan: max 60 seconds for cron jobs
+export const config = {
+    maxDuration: 60
+};
+
 const SUPABASE_URL = process.env.SUPABASE_URL || 'https://ztpedgagubjoiluagqzd.supabase.co';
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || '';
 
