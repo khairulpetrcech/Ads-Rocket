@@ -22,13 +22,18 @@ export default async function handler(req: any, res: any) {
         return res.status(200).end();
     }
 
+    const { action } = req.query;
+
+    // Allow GET for get-schedule action
+    if (req.method === 'GET' && action === 'get-schedule') {
+        return handleGetSchedule(req, res);
+    }
+
     if (req.method !== 'POST') {
         return res.status(405).json({ error: 'Method not allowed' });
     }
 
-    const { action } = req.query;
-
-    // Route based on action
+    // Route based on action (action already extracted above for GET)
     if (action === 'save-settings') {
         return handleSaveSettings(req, res);
     }

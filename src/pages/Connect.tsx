@@ -149,27 +149,52 @@ const ConnectPage: React.FC = () => {
         userId: fbUser.id
       });
 
-      // AUTO-SAVE to database for cron job (preserve existing Telegram settings)
-      // This ensures the new FB token is saved while keeping existing Telegram credentials
-      if (settings.telegramBotToken && settings.telegramChatId) {
-        try {
-          await fetch('/api/analyze-telegram?action=save-schedule', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              fbId: fbUser.id,
-              fbAccessToken: settings.fbAccessToken,
-              adAccountId: account.id,
-              telegramBotToken: settings.telegramBotToken,
-              telegramChatId: settings.telegramChatId,
-              scheduleTime: '08:00',
-              isEnabled: true
-            })
-          });
-          console.log('✅ Auto-saved schedule with new FB token and existing Telegram settings');
-        } catch (scheduleErr) {
-          console.warn('Failed to auto-save schedule:', scheduleErr);
+      // AUTO-SAVE to database for cron job (preserve existing Telegram settings from DATABASE, not just localStorage)
+      // Fetch existing schedule from database first, then update with new FB token
+      try {
+        // First, try to get existing Telegram settings from database
+        const existingScheduleRes = await fetch(`/api/analyze-telegram?action=get-schedule&fbId=${fbUser.id}`);
+        let existingTelegramToken = settings.telegramBotToken || '';
+        let existingTelegramChatId = settings.telegramChatId || '';
+
+        if (existingScheduleRes.ok) {
+          const responseData = await existingScheduleRes.json();
+          const existingSchedule = responseData.schedule || responseData; // Handle both formats
+          if (existingSchedule && existingSchedule.telegram_bot_token) {
+            existingTelegramToken = existingSchedule.telegram_bot_token;
+          }
+          if (existingSchedule && existingSchedule.telegram_chat_id) {
+            existingTelegramChatId = existingSchedule.telegram_chat_id;
+          }
+          console.log('📦 Found existing schedule in database, telegram token:', existingTelegramToken ? 'exists' : 'none');
         }
+
+        // Always save/update the schedule with new FB token
+        // Use existing Telegram settings from DB or localStorage
+        await fetch('/api/analyze-telegram?action=save-schedule', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            fbId: fbUser.id,
+            fbAccessToken: settings.fbAccessToken,
+            adAccountId: account.id,
+            telegramBotToken: existingTelegramToken,
+            telegramChatId: existingTelegramChatId,
+            scheduleTime: '08:00',
+            isEnabled: existingTelegramToken && existingTelegramChatId ? true : false
+          })
+        });
+        console.log('✅ Auto-saved schedule with new FB token and preserved Telegram settings');
+
+        // Also update localStorage with the existing Telegram settings from DB
+        if (existingTelegramToken && existingTelegramChatId) {
+          updateSettings({
+            telegramBotToken: existingTelegramToken,
+            telegramChatId: existingTelegramChatId
+          });
+        }
+      } catch (scheduleErr) {
+        console.warn('Failed to auto-save schedule:', scheduleErr);
       }
 
       navigate('/');
