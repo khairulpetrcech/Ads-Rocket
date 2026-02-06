@@ -434,13 +434,33 @@ async function processScheduledAnalysis(schedule: any, geminiApiKey: string) {
     // Video analysis takes 15-40 seconds per ad, exceeding Vercel's 60s limit
     // Users can still do manual analysis from the app which has no timeout
     const creativeAnalyses: { name: string; analysis: string }[] = [];
+    const topAdForAnalysis = topAds.slice(0, 1); // Only analyze #1 winner
 
-    // Quick summary without AI analysis
-    reportText += `\n*🎯 Top Performers Summary*\n`;
-    reportText += `_Use the app for detailed AI creative analysis_\n\n`;
+    console.log(`[Cron] Analyzing creative for top 1 ad only (timeout optimization)`);
+
+    for (const ad of topAdForAnalysis) {
+        try {
+            const creativeInsight = await analyzeAdCreative(ad, geminiApiKey, fb_access_token);
+            if (creativeInsight) {
+                creativeAnalyses.push({ name: ad.name, analysis: creativeInsight });
+            }
+        } catch (err: any) {
+            console.error(`Failed to analyze creative for ${ad.name}:`, err);
+            creativeAnalyses.push({
+                name: ad.name,
+                analysis: `❌ Analisis gagal`
+            });
+        }
+    }
+
+    reportText += `\n*🎯 Kenapa #1 Iklan Win?*\n\n`;
+    creativeAnalyses.forEach((item) => {
+        reportText += `*${item.name}*\n${item.analysis}\n\n`;
+    });
 
     // Footer
-    reportText += `---\n_Daily Report | Data: Past 7 Days_`;
+    const estimatedCost = (creativeAnalyses.length * 0.025).toFixed(2);
+    reportText += `---\n_AI: Gemini 3 Pro | Est. Cost: ~RM${estimatedCost}_`;
 
     // Build inline keyboard buttons for prompt generation - same as analyze-telegram.ts
     const promptButtons = topAds.map((ad: any, i: number) => {
