@@ -78,6 +78,34 @@ const Settings: React.FC = () => {
     fetchPixels();
   }, [settings.fbAccessToken, settings.adAccountId]);
 
+  // Fetch existing Telegram settings from database (source of truth)
+  useEffect(() => {
+    const fetchTelegramSettings = async () => {
+      if (!settings.userId) return;
+      try {
+        const res = await fetch(`/api/analyze-telegram?action=get-schedule&fbId=${settings.userId}`);
+        if (res.ok) {
+          const data = await res.json();
+          const schedule = data.schedule;
+          if (schedule && schedule.telegram_bot_token && schedule.telegram_chat_id) {
+            // Only update if localStorage doesn't have values OR they're different
+            if (!localSettings.telegramBotToken || !localSettings.telegramChatId) {
+              setLocalSettings(prev => ({
+                ...prev,
+                telegramBotToken: schedule.telegram_bot_token,
+                telegramChatId: schedule.telegram_chat_id
+              }));
+              console.log('📦 Loaded Telegram settings from database');
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to fetch Telegram settings from DB:', err);
+      }
+    };
+    fetchTelegramSettings();
+  }, [settings.userId]);
+
   const handleSave = async () => {
     const cleanSettings = { ...localSettings };
     if (cleanSettings.apiKey) {
@@ -87,13 +115,14 @@ const Settings: React.FC = () => {
     updateSettings(cleanSettings);
 
     // Also save Telegram settings to Supabase for daily cron (analysis_schedules table)
-    if (cleanSettings.telegramBotToken && cleanSettings.telegramChatId) {
+    // IMPORTANT: Use userId (FB user ID) to match what Connect.tsx saves
+    if (cleanSettings.telegramBotToken && cleanSettings.telegramChatId && settings.userId) {
       try {
         await fetch('/api/analyze-telegram?action=save-schedule', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            fbId: settings.fbAppId || 'default',
+            fbId: settings.userId, // Use userId, not fbAppId!
             fbAccessToken: settings.fbAccessToken,
             adAccountId: settings.adAccountId,
             telegramBotToken: cleanSettings.telegramBotToken,
@@ -102,7 +131,7 @@ const Settings: React.FC = () => {
             isEnabled: true
           })
         });
-        console.log('Telegram settings saved to analysis_schedules for daily cron');
+        console.log('Telegram settings saved to analysis_schedules for daily cron (userId:', settings.userId, ')');
       } catch (err) {
         console.warn('Failed to save Telegram settings for daily reports:', err);
       }
