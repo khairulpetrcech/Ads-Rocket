@@ -430,37 +430,17 @@ async function processScheduledAnalysis(schedule: any, geminiApiKey: string) {
         reportText += `${emojis[i]} ${ad.name}\n   ${ad.purchases} purch | ${ad.roas.toFixed(2)}x ROAS | RM${ad.cpa.toFixed(2)} CPA\n`;
     });
 
-    // Multimodal Creative Analysis for each winning ad
+    // SKIP Creative Analysis for Cron Job - takes too long and causes timeout
+    // Video analysis takes 15-40 seconds per ad, exceeding Vercel's 60s limit
+    // Users can still do manual analysis from the app which has no timeout
     const creativeAnalyses: { name: string; analysis: string }[] = [];
-    for (const ad of topAds) {
-        try {
-            const creativeInsight = await analyzeAdCreative(ad, geminiApiKey, fb_access_token);
-            if (creativeInsight) {
-                creativeAnalyses.push({ name: ad.name, analysis: creativeInsight });
-            }
-        } catch (err: any) {
-            console.error(`Failed to analyze creative for ${ad.name}:`, err);
-            creativeAnalyses.push({
-                name: ad.name,
-                analysis: `❌ Error: ${err.message || 'Unknown error'}`
-            });
-        }
-    }
 
-    reportText += `\n*🎯 Kenapa Iklan Win?*\n\n`;
-    creativeAnalyses.forEach((item) => {
-        reportText += `*${item.name}*\n${item.analysis}\n\n`;
-    });
+    // Quick summary without AI analysis
+    reportText += `\n*🎯 Top Performers Summary*\n`;
+    reportText += `_Use the app for detailed AI creative analysis_\n\n`;
 
-    // If no creative analyses, add placeholder
-    if (creativeAnalyses.length === 0) {
-        reportText += `(Creative analysis tidak tersedia)\n\n`;
-    }
-
-    // Footer with cost estimate and AI model
-    const validAnalyses = creativeAnalyses.filter(a => !a.analysis.includes('❌ Error'));
-    const estimatedCost = (validAnalyses.length * 0.025).toFixed(2); // Flash = Pro/4 (~RM0.025 per video)
-    reportText += `---\n_AI: Gemini 3 Flash | Est. Cost: ~RM${estimatedCost}_`;
+    // Footer
+    reportText += `---\n_Daily Report | Data: Past 7 Days_`;
 
     // Build inline keyboard buttons for prompt generation - same as analyze-telegram.ts
     const promptButtons = topAds.map((ad: any, i: number) => {
