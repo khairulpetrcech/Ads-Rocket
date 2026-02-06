@@ -439,7 +439,7 @@ export const getRealCampaigns = async (adAccountId: string, accessToken: string,
 
     const fields = ['id', 'name', 'status', 'objective', 'daily_budget', 'effective_status', insightsQuery].join(',');
     // Include all relevant statuses so campaigns with spend data show up regardless of current status
-    const filtering = `[{field:"effective_status",operator:"IN",value:["ACTIVE","PAUSED","IN_PROCESS","WITH_ISSUES","ARCHIVED","CAMPAIGN_PAUSED"]}]`;
+    const filtering = `[{field:"effective_status",operator:"IN",value:["ACTIVE","PAUSED","IN_PROCESS","WITH_ISSUES","CAMPAIGN_PAUSED"]}]`;
 
     try {
         const url = `https://graph.facebook.com/v19.0/${accountId}/campaigns?fields=${fields}&access_token=${accessToken}&limit=200&filtering=${filtering}`;
