@@ -16,11 +16,14 @@ interface PresetItem {
     text: string;
 }
 
+const MAX_PRESETS = 30;
+const MIN_PRESETS = 5;
+
 const TextPresetsDialog: React.FC<TextPresetsDialogProps> = ({ isOpen, onClose, currentSettings, onLoadTemplate }) => {
     const { settings, updateSettings } = useSettings();
     const { showToast } = useToast();
-    const [primaryPresets, setPrimaryPresets] = useState<PresetItem[]>(Array(5).fill(null).map(() => ({ name: '', text: '' })));
-    const [headlinePresets, setHeadlinePresets] = useState<PresetItem[]>(Array(5).fill(null).map(() => ({ name: '', text: '' })));
+    const [primaryPresets, setPrimaryPresets] = useState<PresetItem[]>(Array(MIN_PRESETS).fill(null).map(() => ({ name: '', text: '' })));
+    const [headlinePresets, setHeadlinePresets] = useState<PresetItem[]>(Array(MIN_PRESETS).fill(null).map(() => ({ name: '', text: '' })));
     const [adTemplates, setAdTemplates] = useState<AdTemplate[]>(settings.adTemplates || []);
     const [activeTab, setActiveTab] = useState<'TEXT' | 'TEMPLATE'>('TEXT');
     const [isVisible, setIsVisible] = useState(false);
@@ -51,36 +54,55 @@ const TextPresetsDialog: React.FC<TextPresetsDialogProps> = ({ isOpen, onClose, 
                     .then(res => res.json())
                     .then(data => {
                         console.log('[TextPresets] API response:', data);
+                        console.log('[TextPresets] primaryTexts:', data.primaryTexts);
+                        console.log('[TextPresets] headlines:', data.headlines);
+
                         if (!data.error) {
+                            // Load from cloud data with dynamic length
+                            const cloudPrimaryCount = Math.max(MIN_PRESETS, data.primaryTexts?.length || 0);
                             const loadedPrimary: PresetItem[] = [];
-                            if (data.primaryTexts && data.primaryTexts.length > 0) {
-                                for (let i = 0; i < 5; i++) {
-                                    loadedPrimary.push({
-                                        name: data.primaryTextNames?.[i] || '',
-                                        text: data.primaryTexts?.[i] || ''
-                                    });
-                                }
+                            for (let i = 0; i < cloudPrimaryCount; i++) {
+                                loadedPrimary.push({
+                                    name: data.primaryTextNames?.[i] || '',
+                                    text: data.primaryTexts?.[i] || ''
+                                });
+                            }
+                            // Only update if cloud has actual data
+                            const hasCloudPrimaryData = data.primaryTexts?.some((t: string) => t && t.trim() !== '');
+                            if (hasCloudPrimaryData) {
+                                console.log('[TextPresets] Setting primary presets from cloud:', loadedPrimary.length);
                                 setPrimaryPresets(loadedPrimary);
+                            } else {
+                                console.log('[TextPresets] Cloud primary texts empty, using local');
                             }
 
+                            const cloudHeadlineCount = Math.max(MIN_PRESETS, data.headlines?.length || 0);
                             const loadedHeadlines: PresetItem[] = [];
-                            if (data.headlines && data.headlines.length > 0) {
-                                for (let i = 0; i < 5; i++) {
-                                    loadedHeadlines.push({
-                                        name: data.headlineNames?.[i] || '',
-                                        text: data.headlines?.[i] || ''
-                                    });
-                                }
+                            for (let i = 0; i < cloudHeadlineCount; i++) {
+                                loadedHeadlines.push({
+                                    name: data.headlineNames?.[i] || '',
+                                    text: data.headlines?.[i] || ''
+                                });
+                            }
+                            // Only update if cloud has actual data
+                            const hasCloudHeadlineData = data.headlines?.some((t: string) => t && t.trim() !== '');
+                            if (hasCloudHeadlineData) {
+                                console.log('[TextPresets] Setting headline presets from cloud:', loadedHeadlines.length);
                                 setHeadlinePresets(loadedHeadlines);
+                            } else {
+                                console.log('[TextPresets] Cloud headlines empty, using local');
                             }
 
                             if (data.adTemplates && data.adTemplates.length > 0) {
+                                console.log('[TextPresets] Setting ad templates from cloud:', data.adTemplates.length);
                                 setAdTemplates(data.adTemplates);
                             } else {
                                 // Fallback to local if cloud is empty
+                                console.log('[TextPresets] Cloud ad templates empty, using local');
                                 if (settings.adTemplates) setAdTemplates(settings.adTemplates);
                             }
                         } else {
+                            console.log('[TextPresets] API returned error:', data.error);
                             // Error in data, fallback
                             loadFromLocalSettings();
                         }
@@ -94,7 +116,9 @@ const TextPresetsDialog: React.FC<TextPresetsDialogProps> = ({ isOpen, onClose, 
 
             // Try to get identifier: userId first, then adAccountId as fallback
             let fbId = settings.userId || settings.adAccountId;
-            console.log('[TextPresets] Using identifier:', fbId, '(userId:', settings.userId, ', adAccountId:', settings.adAccountId, ')');
+            console.log('[TextPresets] Using identifier:', fbId);
+            console.log('[TextPresets] settings.userId:', settings.userId);
+            console.log('[TextPresets] settings.adAccountId:', settings.adAccountId);
 
             if (fbId) {
                 loadPresetsWithId(fbId);
@@ -112,7 +136,8 @@ const TextPresetsDialog: React.FC<TextPresetsDialogProps> = ({ isOpen, onClose, 
 
     const loadFromLocalSettings = () => {
         const loadedPrimary: PresetItem[] = [];
-        for (let i = 0; i < 5; i++) {
+        const primaryCount = Math.max(MIN_PRESETS, settings.presetPrimaryTexts?.length || 0);
+        for (let i = 0; i < primaryCount; i++) {
             loadedPrimary.push({
                 name: settings.presetPrimaryTextNames?.[i] || '',
                 text: settings.presetPrimaryTexts?.[i] || ''
@@ -121,7 +146,8 @@ const TextPresetsDialog: React.FC<TextPresetsDialogProps> = ({ isOpen, onClose, 
         setPrimaryPresets(loadedPrimary);
 
         const loadedHeadlines: PresetItem[] = [];
-        for (let i = 0; i < 5; i++) {
+        const headlineCount = Math.max(MIN_PRESETS, settings.presetHeadlines?.length || 0);
+        for (let i = 0; i < headlineCount; i++) {
             loadedHeadlines.push({
                 name: settings.presetHeadlineNames?.[i] || '',
                 text: settings.presetHeadlines?.[i] || ''
@@ -132,6 +158,46 @@ const TextPresetsDialog: React.FC<TextPresetsDialogProps> = ({ isOpen, onClose, 
         if (settings.adTemplates) {
             setAdTemplates(settings.adTemplates);
         }
+    };
+
+    // Add new preset slot
+    const addPrimaryPreset = () => {
+        if (primaryPresets.length >= MAX_PRESETS) {
+            showToast(`Maksimum ${MAX_PRESETS} presets sahaja.`, 'error');
+            return;
+        }
+        setPrimaryPresets(prev => [...prev, { name: '', text: '' }]);
+    };
+
+    const addHeadlinePreset = () => {
+        if (headlinePresets.length >= MAX_PRESETS) {
+            showToast(`Maksimum ${MAX_PRESETS} presets sahaja.`, 'error');
+            return;
+        }
+        setHeadlinePresets(prev => [...prev, { name: '', text: '' }]);
+    };
+
+    // Delete preset slot
+    const deletePrimaryPreset = (idx: number) => {
+        if (primaryPresets.length <= MIN_PRESETS) {
+            // Just clear the content instead of deleting
+            const newArr = [...primaryPresets];
+            newArr[idx] = { name: '', text: '' };
+            setPrimaryPresets(newArr);
+            return;
+        }
+        setPrimaryPresets(prev => prev.filter((_, i) => i !== idx));
+    };
+
+    const deleteHeadlinePreset = (idx: number) => {
+        if (headlinePresets.length <= MIN_PRESETS) {
+            // Just clear the content instead of deleting
+            const newArr = [...headlinePresets];
+            newArr[idx] = { name: '', text: '' };
+            setHeadlinePresets(newArr);
+            return;
+        }
+        setHeadlinePresets(prev => prev.filter((_, i) => i !== idx));
     };
 
     const handleSave = async () => {
@@ -348,7 +414,15 @@ const TextPresetsDialog: React.FC<TextPresetsDialogProps> = ({ isOpen, onClose, 
                                         <h3 className="font-bold text-slate-700">Primary Text Presets</h3>
                                     </div>
                                     {primaryPresets.map((preset, idx) => (
-                                        <div key={`pt-${idx}`} className="group space-y-1.5 p-3 bg-slate-50 rounded-xl border border-slate-100 hover:border-blue-200 transition-colors">
+                                        <div key={`pt-${idx}`} className="group space-y-1.5 p-3 bg-slate-50 rounded-xl border border-slate-100 hover:border-blue-200 transition-colors relative">
+                                            {/* Delete button */}
+                                            <button
+                                                onClick={() => deletePrimaryPreset(idx)}
+                                                className="absolute top-2 right-2 p-1 text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"
+                                                title="Padam preset"
+                                            >
+                                                <Trash2 size={14} />
+                                            </button>
                                             <input
                                                 type="text"
                                                 value={preset.name}
@@ -358,7 +432,7 @@ const TextPresetsDialog: React.FC<TextPresetsDialogProps> = ({ isOpen, onClose, 
                                                     setPrimaryPresets(newArr);
                                                 }}
                                                 placeholder={`Preset #${idx + 1} Name...`}
-                                                className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold focus:border-blue-400 focus:ring-2 focus:ring-blue-500/10 outline-none transition-all"
+                                                className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold focus:border-blue-400 focus:ring-2 focus:ring-blue-500/10 outline-none transition-all pr-8"
                                             />
                                             <textarea
                                                 value={preset.text}
@@ -373,6 +447,15 @@ const TextPresetsDialog: React.FC<TextPresetsDialogProps> = ({ isOpen, onClose, 
                                             />
                                         </div>
                                     ))}
+                                    {/* Add Primary Preset Button */}
+                                    {primaryPresets.length < MAX_PRESETS && (
+                                        <button
+                                            onClick={addPrimaryPreset}
+                                            className="w-full py-3 border-2 border-dashed border-slate-200 hover:border-blue-400 rounded-xl text-slate-400 hover:text-blue-600 text-sm font-medium flex items-center justify-center gap-2 transition-all hover:bg-blue-50"
+                                        >
+                                            <Plus size={16} /> Tambah Preset ({primaryPresets.length}/{MAX_PRESETS})
+                                        </button>
+                                    )}
                                 </div>
 
                                 {/* Resizable Divider */}
@@ -394,7 +477,15 @@ const TextPresetsDialog: React.FC<TextPresetsDialogProps> = ({ isOpen, onClose, 
                                         <h3 className="font-bold text-slate-700">Headline Presets</h3>
                                     </div>
                                     {headlinePresets.map((preset, idx) => (
-                                        <div key={`hl-${idx}`} className="group space-y-1.5 p-3 bg-slate-50 rounded-xl border border-slate-100 hover:border-purple-200 transition-colors">
+                                        <div key={`hl-${idx}`} className="group space-y-1.5 p-3 bg-slate-50 rounded-xl border border-slate-100 hover:border-purple-200 transition-colors relative">
+                                            {/* Delete button */}
+                                            <button
+                                                onClick={() => deleteHeadlinePreset(idx)}
+                                                className="absolute top-2 right-2 p-1 text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"
+                                                title="Padam preset"
+                                            >
+                                                <Trash2 size={14} />
+                                            </button>
                                             <input
                                                 type="text"
                                                 value={preset.name}
@@ -404,7 +495,7 @@ const TextPresetsDialog: React.FC<TextPresetsDialogProps> = ({ isOpen, onClose, 
                                                     setHeadlinePresets(newArr);
                                                 }}
                                                 placeholder={`Preset #${idx + 1} Name...`}
-                                                className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold focus:border-purple-400 focus:ring-2 focus:ring-purple-500/10 outline-none transition-all"
+                                                className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold focus:border-purple-400 focus:ring-2 focus:ring-purple-500/10 outline-none transition-all pr-8"
                                             />
                                             <input
                                                 type="text"
@@ -419,6 +510,15 @@ const TextPresetsDialog: React.FC<TextPresetsDialogProps> = ({ isOpen, onClose, 
                                             />
                                         </div>
                                     ))}
+                                    {/* Add Headline Preset Button */}
+                                    {headlinePresets.length < MAX_PRESETS && (
+                                        <button
+                                            onClick={addHeadlinePreset}
+                                            className="w-full py-3 border-2 border-dashed border-slate-200 hover:border-purple-400 rounded-xl text-slate-400 hover:text-purple-600 text-sm font-medium flex items-center justify-center gap-2 transition-all hover:bg-purple-50"
+                                        >
+                                            <Plus size={16} /> Tambah Preset ({headlinePresets.length}/{MAX_PRESETS})
+                                        </button>
+                                    )}
                                 </div>
                             </div>
                         ) : (
