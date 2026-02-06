@@ -8,7 +8,7 @@
 import { createClient } from '@supabase/supabase-js';
 
 const SUPABASE_URL = process.env.SUPABASE_URL || 'https://ztpedgagubjoiluagqzd.supabase.co';
-const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp0cGVkZ2FndWJqb2lsdWFncXpkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUwODgxNDgsImV4cCI6MjA4MDY2NDE0OH0.02A3J4zzTetBmLFUtEXngdkTV1NARHFczvHAg6IVFjQ';
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp0cGVkZ2FndWJqb2lsdWFncXpkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUwODgxNDgsImV4cCI6MjA4MDY2NDE0OH0.02A3J4zzTetBmLFUtEXngdkTV1NARHFcvUHAg6IVFjQ';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
@@ -76,24 +76,51 @@ export default async function handler(req: any, res: any) {
             // Log incoming request for debugging
             console.log(`[CommentTemplates API] POST request - fbId: ${fbId}, template name: ${template.name}, items count: ${template.items?.length || 0}`);
 
-            const { data, error } = await supabase
+            // Check if template with same name already exists for this user
+            const { data: existing } = await supabase
                 .from('comment_templates')
-                .insert({
-                    fb_id: fbId,
-                    name: template.name,
-                    items: template.items,
-                    created_at: now
-                })
-                .select()
+                .select('id')
+                .eq('fb_id', fbId)
+                .eq('name', template.name)
                 .single();
+
+            let data, error;
+
+            if (existing) {
+                // Update existing template
+                const result = await supabase
+                    .from('comment_templates')
+                    .update({
+                        items: template.items,
+                        created_at: now
+                    })
+                    .eq('id', existing.id)
+                    .select()
+                    .single();
+                data = result.data;
+                error = result.error;
+                console.log(`[CommentTemplates API] Updated existing template: ${existing.id}`);
+            } else {
+                // Insert new template
+                const result = await supabase
+                    .from('comment_templates')
+                    .insert({
+                        fb_id: fbId,
+                        name: template.name,
+                        items: template.items,
+                        created_at: now
+                    })
+                    .select()
+                    .single();
+                data = result.data;
+                error = result.error;
+                console.log(`[CommentTemplates API] Created new template`);
+            }
 
             if (error) {
                 console.error('Supabase POST error:', error);
-                console.error('Error details - fbId:', fbId, 'template:', template.name);
-                return res.status(500).json({ error: error.message, details: error.details || error.hint });
+                return res.status(500).json({ error: error.message });
             }
-
-            console.log(`[CommentTemplates API] Template saved successfully: ${data.id}`);
 
             return res.status(200).json({
                 success: true,
@@ -107,8 +134,7 @@ export default async function handler(req: any, res: any) {
 
         } catch (error: any) {
             console.error('Save Comment Template Error:', error);
-            console.error('Stack:', error.stack);
-            return res.status(500).json({ error: error.message || 'Unknown error', stack: error.stack });
+            return res.status(500).json({ error: error.message || 'Unknown error' });
         }
     }
 
