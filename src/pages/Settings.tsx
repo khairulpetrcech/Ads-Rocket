@@ -85,18 +85,24 @@ const Settings: React.FC = () => {
       try {
         const res = await fetch(`/api/analyze-telegram?action=get-schedule&fbId=${settings.userId}`);
         if (res.ok) {
-          const data = await res.json();
-          const schedule = data.schedule;
-          if (schedule && schedule.telegram_bot_token && schedule.telegram_chat_id) {
-            // Only update if localStorage doesn't have values OR they're different
-            if (!localSettings.telegramBotToken || !localSettings.telegramChatId) {
-              setLocalSettings(prev => ({
-                ...prev,
-                telegramBotToken: schedule.telegram_bot_token,
-                telegramChatId: schedule.telegram_chat_id
-              }));
-              console.log('📦 Loaded Telegram settings from database');
+          // Check if response is JSON before parsing
+          const contentType = res.headers.get('content-type');
+          if (contentType && contentType.includes('application/json')) {
+            const data = await res.json();
+            const schedule = data.schedule;
+            if (schedule && schedule.telegram_bot_token && schedule.telegram_chat_id) {
+              // Only update if localStorage doesn't have values OR they're different
+              if (!localSettings.telegramBotToken || !localSettings.telegramChatId) {
+                setLocalSettings(prev => ({
+                  ...prev,
+                  telegramBotToken: schedule.telegram_bot_token,
+                  telegramChatId: schedule.telegram_chat_id
+                }));
+                console.log('📦 Loaded Telegram settings from database');
+              }
             }
+          } else {
+            console.warn('get-schedule returned non-JSON response');
           }
         }
       } catch (err) {

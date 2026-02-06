@@ -158,15 +158,25 @@ const ConnectPage: React.FC = () => {
         let existingTelegramChatId = settings.telegramChatId || '';
 
         if (existingScheduleRes.ok) {
-          const responseData = await existingScheduleRes.json();
-          const existingSchedule = responseData.schedule || responseData; // Handle both formats
-          if (existingSchedule && existingSchedule.telegram_bot_token) {
-            existingTelegramToken = existingSchedule.telegram_bot_token;
+          // Check if response is JSON before parsing
+          const contentType = existingScheduleRes.headers.get('content-type');
+          if (contentType && contentType.includes('application/json')) {
+            try {
+              const responseData = await existingScheduleRes.json();
+              const existingSchedule = responseData.schedule || responseData; // Handle both formats
+              if (existingSchedule && existingSchedule.telegram_bot_token) {
+                existingTelegramToken = existingSchedule.telegram_bot_token;
+              }
+              if (existingSchedule && existingSchedule.telegram_chat_id) {
+                existingTelegramChatId = existingSchedule.telegram_chat_id;
+              }
+              console.log('📦 Found existing schedule in database, telegram token:', existingTelegramToken ? 'exists' : 'none');
+            } catch (jsonErr) {
+              console.warn('Failed to parse schedule response as JSON:', jsonErr);
+            }
+          } else {
+            console.warn('get-schedule returned non-JSON response');
           }
-          if (existingSchedule && existingSchedule.telegram_chat_id) {
-            existingTelegramChatId = existingSchedule.telegram_chat_id;
-          }
-          console.log('📦 Found existing schedule in database, telegram token:', existingTelegramToken ? 'exists' : 'none');
         }
 
         // Always save/update the schedule with new FB token
