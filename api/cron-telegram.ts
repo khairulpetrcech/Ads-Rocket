@@ -430,30 +430,24 @@ async function processScheduledAnalysis(schedule: any, geminiApiKey: string) {
         reportText += `${emojis[i]} ${ad.name}\n   ${ad.purchases} purch | ${ad.roas.toFixed(2)}x ROAS | RM${ad.cpa.toFixed(2)} CPA\n`;
     });
 
-    // SKIP Creative Analysis for Cron Job - takes too long and causes timeout
-    // Video analysis takes 15-40 seconds per ad, exceeding Vercel's 60s limit
-    // Users can still do manual analysis from the app which has no timeout
-    const creativeAnalyses: { name: string; analysis: string }[] = [];
-    const topAdForAnalysis = topAds.slice(0, 1); // Only analyze #1 winner
+    // PARALLEL Creative Analysis for all top ads (to fit within 60s limit)
+    // Running in parallel: 3 videos × ~20s each = ~25-40s total (instead of 60-120s sequential)
+    console.log(`[Cron] Analyzing creatives for ${topAds.length} ads IN PARALLEL`);
 
-    console.log(`[Cron] Analyzing creative for top 1 ad only (timeout optimization)`);
-
-    for (const ad of topAdForAnalysis) {
+    const analysisPromises = topAds.map(async (ad: any) => {
         try {
             const creativeInsight = await analyzeAdCreative(ad, geminiApiKey, fb_access_token);
-            if (creativeInsight) {
-                creativeAnalyses.push({ name: ad.name, analysis: creativeInsight });
-            }
+            return { name: ad.name, analysis: creativeInsight || '(Tiada analisis)' };
         } catch (err: any) {
             console.error(`Failed to analyze creative for ${ad.name}:`, err);
-            creativeAnalyses.push({
-                name: ad.name,
-                analysis: `❌ Analisis gagal`
-            });
+            return { name: ad.name, analysis: `❌ Analisis gagal` };
         }
-    }
+    });
 
-    reportText += `\n*🎯 Kenapa #1 Iklan Win?*\n\n`;
+    const creativeAnalyses = await Promise.all(analysisPromises);
+    console.log(`[Cron] All ${creativeAnalyses.length} creative analyses complete`);
+
+    reportText += `\n*🎯 Kenapa Iklan Win?*\n\n`;
     creativeAnalyses.forEach((item) => {
         reportText += `*${item.name}*\n${item.analysis}\n\n`;
     });
