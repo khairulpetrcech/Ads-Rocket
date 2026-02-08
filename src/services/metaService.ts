@@ -268,7 +268,44 @@ export interface WhatsAppPhoneNumber {
     quality_rating?: string;
 }
 
-export const getWhatsAppPhoneNumbersForPage = async (pageId: string, accessToken: string): Promise<WhatsAppPhoneNumber[]> => {
+const normalizePhoneNumber = (raw: string): string => {
+    return (raw || '').replace(/[^\d+]/g, '').trim();
+};
+
+const pushUniquePhone = (list: WhatsAppPhoneNumber[], phone: WhatsAppPhoneNumber) => {
+    if (!phone.display_phone_number) return;
+    const normalized = normalizePhoneNumber(phone.display_phone_number);
+    if (!normalized) return;
+    if (list.some((p) => normalizePhoneNumber(p.display_phone_number) === normalized)) return;
+    list.push({ ...phone, display_phone_number: normalized });
+};
+
+const extractWhatsAppFromText = (text: string): string[] => {
+    if (!text) return [];
+    const matches: string[] = [];
+
+    // wa.me/60123456789
+    const waMe = text.match(/wa\.me\/(\d{8,15})/gi) || [];
+    for (const m of waMe) {
+        const found = m.match(/wa\.me\/(\d{8,15})/i);
+        if (found?.[1]) matches.push(found[1]);
+    }
+
+    // api.whatsapp.com/send?phone=60123456789
+    const apiWa = text.match(/phone=(\d{8,15})/gi) || [];
+    for (const m of apiWa) {
+        const found = m.match(/phone=(\d{8,15})/i);
+        if (found?.[1]) matches.push(found[1]);
+    }
+
+    return matches;
+};
+
+export const getWhatsAppPhoneNumbersForPage = async (
+    pageId: string,
+    accessToken: string,
+    pageAccessToken?: string
+): Promise<WhatsAppPhoneNumber[]> => {
     if (!pageId || !accessToken) return [];
 
     const cacheKey = `whatsapp-phones-page-${pageId}-${accessToken.substring(0, 10)}`;
@@ -277,19 +314,39 @@ export const getWhatsAppPhoneNumbersForPage = async (pageId: string, accessToken
 
     try {
         const numbers: WhatsAppPhoneNumber[] = [];
+        const tokenForPageRead = pageAccessToken || accessToken;
 
-        // Step 1: Try direct page WhatsApp number fields (works for many page setups)
-        const pageNumberRes = await fetch(`https://graph.facebook.com/v19.0/${pageId}?fields=id,name,whatsapp_number,has_whatsapp_number,has_whatsapp_business_number&access_token=${accessToken}`);
+        // Step 1: Read direct Page-level fields first (page-linked source of truth)
+        const pageNumberRes = await fetch(`https://graph.facebook.com/v19.0/${pageId}?fields=id,name,whatsapp_number,phone,call_to_action&access_token=${tokenForPageRead}`);
         const pageNumberData = await pageNumberRes.json();
 
         if (!pageNumberData.error && pageNumberData.whatsapp_number) {
-            numbers.push({
+            pushUniquePhone(numbers, {
                 id: `page-${pageId}`,
                 display_phone_number: pageNumberData.whatsapp_number,
                 verified_name: pageNumberData.name || 'WhatsApp Number'
             });
         } else if (pageNumberData.error) {
             console.warn('[WhatsApp][Page Number] Graph API error:', pageNumberData.error);
+        }
+
+        // Parse WhatsApp number from page CTA payload (wa.me / api.whatsapp.com links)
+        if (!pageNumberData.error && pageNumberData.call_to_action) {
+            const ctaRaw = JSON.stringify(pageNumberData.call_to_action);
+            const ctaNumbers = extractWhatsAppFromText(ctaRaw);
+            for (const ctaNumber of ctaNumbers) {
+                pushUniquePhone(numbers, {
+                    id: `page-cta-${pageId}-${ctaNumber}`,
+                    display_phone_number: ctaNumber,
+                    verified_name: pageNumberData.name || 'WhatsApp Number'
+                });
+            }
+        }
+
+        // If we already got numbers from Page-level fields, stop here (avoid extra Graph errors)
+        if (numbers.length > 0) {
+            setCachedData(cacheKey, numbers);
+            return numbers;
         }
 
         // Step 2: Try connected WABA flow for pages with multiple linked numbers
@@ -304,7 +361,7 @@ export const getWhatsAppPhoneNumbersForPage = async (pageId: string, accessToken
             if (!phonesData.error && phonesData.data) {
                 for (const phone of phonesData.data) {
                     if (!phone.display_phone_number) continue;
-                    numbers.push({
+                    pushUniquePhone(numbers, {
                         id: phone.id,
                         display_phone_number: phone.display_phone_number,
                         verified_name: phone.verified_name || connectedWaba.name || 'WhatsApp Number',
@@ -318,25 +375,11 @@ export const getWhatsAppPhoneNumbersForPage = async (pageId: string, accessToken
             console.warn('[WhatsApp][Connected WABA] Graph API error:', pageWabaData.error);
         }
 
-        // Step 3: Fallback to business-level discovery if page-level fields are restricted
-        if (numbers.length === 0) {
-            const fallbackNumbers = await getWhatsAppPhoneNumbers(accessToken);
-            if (fallbackNumbers.length > 0) {
-                console.warn(`[WhatsApp] Page-level lookup empty for page ${pageId}. Using business-level fallback (${fallbackNumbers.length} numbers).`);
-            }
-            setCachedData(cacheKey, fallbackNumbers);
-            return fallbackNumbers;
-        }
-
-        // Deduplicate by display number
-        const uniqueByDisplay = Array.from(
-            new Map(numbers.map((num) => [num.display_phone_number, num])).values()
-        );
-
-        setCachedData(cacheKey, uniqueByDisplay);
-        return uniqueByDisplay;
+        setCachedData(cacheKey, numbers);
+        return numbers;
     } catch (error) {
         console.error('Error fetching WhatsApp phone numbers for page:', pageId, error);
+        setCachedData(cacheKey, []);
         return [];
     }
 };

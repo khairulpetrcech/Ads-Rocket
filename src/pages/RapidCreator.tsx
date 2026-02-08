@@ -1415,7 +1415,9 @@ const RapidCreator: React.FC = () => {
 
             setLoadingWhatsappPhones(true);
             try {
-                const phones = await getWhatsAppPhoneNumbersForPage(selectedPageId, settings.fbAccessToken);
+                const selectedPage = pages.find((p: any) => p.id === selectedPageId);
+                const pageAccessToken = selectedPage?.access_token;
+                const phones = await getWhatsAppPhoneNumbersForPage(selectedPageId, settings.fbAccessToken, pageAccessToken);
                 setWhatsappPhones(phones);
 
                 // Clear stale selection if current number is not connected to the selected page
@@ -1433,7 +1435,7 @@ const RapidCreator: React.FC = () => {
         };
 
         loadWhatsAppPhonesForPage();
-    }, [selectedPageId, settings.fbAccessToken]);
+    }, [selectedPageId, settings.fbAccessToken, pages]);
 
     // Load adsets when campaign changes
     useEffect(() => {
