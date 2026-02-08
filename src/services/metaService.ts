@@ -234,7 +234,7 @@ export const loginWithFacebook = (): Promise<string> => {
                 }
             }, {
                 // Explicitly set valid permissions for v19.0+
-                scope: 'public_profile,ads_read,ads_management,pages_show_list,pages_read_engagement,pages_manage_engagement,pages_manage_posts,pages_manage_metadata,business_management,whatsapp_business_management'
+                scope: 'public_profile,ads_read,ads_management,pages_show_list,pages_read_engagement,pages_manage_engagement,pages_manage_posts,pages_manage_metadata,business_management'
             });
         } catch (e) {
             reject("Failed to open Facebook Login dialog.");
