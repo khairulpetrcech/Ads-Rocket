@@ -308,7 +308,7 @@ export const getWhatsAppPhoneNumbersForPage = async (
 ): Promise<WhatsAppPhoneNumber[]> => {
     if (!pageId || !accessToken) return [];
 
-    const cacheKey = `whatsapp-phones-page-${pageId}-${accessToken.substring(0, 10)}`;
+    const cacheKey = `whatsapp-phones-page-v2-${pageId}-${accessToken.substring(0, 10)}`;
     const cached = getCachedData(cacheKey);
     if (cached) return cached;
 
