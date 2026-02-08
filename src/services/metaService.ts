@@ -234,7 +234,7 @@ export const loginWithFacebook = (): Promise<string> => {
                 }
             }, {
                 // Explicitly set valid permissions for v19.0+
-                scope: 'public_profile,ads_read,ads_management,pages_show_list,pages_read_engagement,pages_manage_engagement,pages_manage_posts'
+                scope: 'public_profile,ads_read,ads_management,pages_show_list,pages_read_engagement,pages_manage_engagement,pages_manage_posts,pages_manage_metadata,business_management,whatsapp_business_management'
             });
         } catch (e) {
             reject("Failed to open Facebook Login dialog.");
@@ -276,41 +276,65 @@ export const getWhatsAppPhoneNumbersForPage = async (pageId: string, accessToken
     if (cached) return cached;
 
     try {
-        // Step 1: Find the WhatsApp Business Account linked to this Facebook Page
-        const pageRes = await fetch(`https://graph.facebook.com/v19.0/${pageId}?fields=connected_whatsapp_business_account{id,name}&access_token=${accessToken}`);
-        const pageData = await pageRes.json();
+        const numbers: WhatsAppPhoneNumber[] = [];
 
-        if (pageData.error) {
-            console.log('No connected WhatsApp Business Account found for page:', pageId, pageData.error);
-            setCachedData(cacheKey, []);
-            return [];
+        // Step 1: Try direct page WhatsApp number fields (works for many page setups)
+        const pageNumberRes = await fetch(`https://graph.facebook.com/v19.0/${pageId}?fields=id,name,whatsapp_number,has_whatsapp_number,has_whatsapp_business_number&access_token=${accessToken}`);
+        const pageNumberData = await pageNumberRes.json();
+
+        if (!pageNumberData.error && pageNumberData.whatsapp_number) {
+            numbers.push({
+                id: `page-${pageId}`,
+                display_phone_number: pageNumberData.whatsapp_number,
+                verified_name: pageNumberData.name || 'WhatsApp Number'
+            });
+        } else if (pageNumberData.error) {
+            console.warn('[WhatsApp][Page Number] Graph API error:', pageNumberData.error);
         }
 
-        const connectedWaba = pageData.connected_whatsapp_business_account;
-        if (!connectedWaba?.id) {
-            setCachedData(cacheKey, []);
-            return [];
+        // Step 2: Try connected WABA flow for pages with multiple linked numbers
+        const pageWabaRes = await fetch(`https://graph.facebook.com/v19.0/${pageId}?fields=connected_whatsapp_business_account{id,name}&access_token=${accessToken}`);
+        const pageWabaData = await pageWabaRes.json();
+
+        if (!pageWabaData.error && pageWabaData.connected_whatsapp_business_account?.id) {
+            const connectedWaba = pageWabaData.connected_whatsapp_business_account;
+            const phonesRes = await fetch(`https://graph.facebook.com/v19.0/${connectedWaba.id}/phone_numbers?fields=id,display_phone_number,verified_name,quality_rating&access_token=${accessToken}`);
+            const phonesData = await phonesRes.json();
+
+            if (!phonesData.error && phonesData.data) {
+                for (const phone of phonesData.data) {
+                    if (!phone.display_phone_number) continue;
+                    numbers.push({
+                        id: phone.id,
+                        display_phone_number: phone.display_phone_number,
+                        verified_name: phone.verified_name || connectedWaba.name || 'WhatsApp Number',
+                        quality_rating: phone.quality_rating
+                    });
+                }
+            } else {
+                console.warn('[WhatsApp][WABA Phones] Graph API error:', phonesData.error);
+            }
+        } else if (pageWabaData.error) {
+            console.warn('[WhatsApp][Connected WABA] Graph API error:', pageWabaData.error);
         }
 
-        // Step 2: Get phone numbers under the linked WABA
-        const phonesRes = await fetch(`https://graph.facebook.com/v19.0/${connectedWaba.id}/phone_numbers?fields=id,display_phone_number,verified_name,quality_rating&access_token=${accessToken}`);
-        const phonesData = await phonesRes.json();
-
-        if (phonesData.error || !phonesData.data) {
-            console.log('Failed to fetch phone numbers for connected WABA:', connectedWaba.id, phonesData.error);
-            setCachedData(cacheKey, []);
-            return [];
+        // Step 3: Fallback to business-level discovery if page-level fields are restricted
+        if (numbers.length === 0) {
+            const fallbackNumbers = await getWhatsAppPhoneNumbers(accessToken);
+            if (fallbackNumbers.length > 0) {
+                console.warn(`[WhatsApp] Page-level lookup empty for page ${pageId}. Using business-level fallback (${fallbackNumbers.length} numbers).`);
+            }
+            setCachedData(cacheKey, fallbackNumbers);
+            return fallbackNumbers;
         }
 
-        const pagePhoneNumbers: WhatsAppPhoneNumber[] = phonesData.data.map((phone: any) => ({
-            id: phone.id,
-            display_phone_number: phone.display_phone_number,
-            verified_name: phone.verified_name || connectedWaba.name || 'WhatsApp Number',
-            quality_rating: phone.quality_rating
-        }));
+        // Deduplicate by display number
+        const uniqueByDisplay = Array.from(
+            new Map(numbers.map((num) => [num.display_phone_number, num])).values()
+        );
 
-        setCachedData(cacheKey, pagePhoneNumbers);
-        return pagePhoneNumbers;
+        setCachedData(cacheKey, uniqueByDisplay);
+        return uniqueByDisplay;
     } catch (error) {
         console.error('Error fetching WhatsApp phone numbers for page:', pageId, error);
         return [];
