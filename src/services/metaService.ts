@@ -268,6 +268,55 @@ export interface WhatsAppPhoneNumber {
     quality_rating?: string;
 }
 
+export const getWhatsAppPhoneNumbersForPage = async (pageId: string, accessToken: string): Promise<WhatsAppPhoneNumber[]> => {
+    if (!pageId || !accessToken) return [];
+
+    const cacheKey = `whatsapp-phones-page-${pageId}-${accessToken.substring(0, 10)}`;
+    const cached = getCachedData(cacheKey);
+    if (cached) return cached;
+
+    try {
+        // Step 1: Find the WhatsApp Business Account linked to this Facebook Page
+        const pageRes = await fetch(`https://graph.facebook.com/v19.0/${pageId}?fields=connected_whatsapp_business_account{id,name}&access_token=${accessToken}`);
+        const pageData = await pageRes.json();
+
+        if (pageData.error) {
+            console.log('No connected WhatsApp Business Account found for page:', pageId, pageData.error);
+            setCachedData(cacheKey, []);
+            return [];
+        }
+
+        const connectedWaba = pageData.connected_whatsapp_business_account;
+        if (!connectedWaba?.id) {
+            setCachedData(cacheKey, []);
+            return [];
+        }
+
+        // Step 2: Get phone numbers under the linked WABA
+        const phonesRes = await fetch(`https://graph.facebook.com/v19.0/${connectedWaba.id}/phone_numbers?fields=id,display_phone_number,verified_name,quality_rating&access_token=${accessToken}`);
+        const phonesData = await phonesRes.json();
+
+        if (phonesData.error || !phonesData.data) {
+            console.log('Failed to fetch phone numbers for connected WABA:', connectedWaba.id, phonesData.error);
+            setCachedData(cacheKey, []);
+            return [];
+        }
+
+        const pagePhoneNumbers: WhatsAppPhoneNumber[] = phonesData.data.map((phone: any) => ({
+            id: phone.id,
+            display_phone_number: phone.display_phone_number,
+            verified_name: phone.verified_name || connectedWaba.name || 'WhatsApp Number',
+            quality_rating: phone.quality_rating
+        }));
+
+        setCachedData(cacheKey, pagePhoneNumbers);
+        return pagePhoneNumbers;
+    } catch (error) {
+        console.error('Error fetching WhatsApp phone numbers for page:', pageId, error);
+        return [];
+    }
+};
+
 export const getWhatsAppPhoneNumbers = async (accessToken: string): Promise<WhatsAppPhoneNumber[]> => {
     const cacheKey = `whatsapp-phones-${accessToken.substring(0, 10)}`;
     const cached = getCachedData(cacheKey);

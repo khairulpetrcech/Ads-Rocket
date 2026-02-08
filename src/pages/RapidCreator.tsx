@@ -26,10 +26,11 @@ import {
     createMetaCreative,
     getPages,
     getPixels,
+    getWhatsAppPhoneNumbersForPage,
     extractVideoThumbnail,
     uploadAdImageBlob
 } from '../services/metaService';
-import { getWhatsAppPhoneNumbers, WhatsAppPhoneNumber } from '../services/metaService';
+import { WhatsAppPhoneNumber } from '../services/metaService';
 import { AdCampaign, AdSet, AdvantagePlusConfig, AdTemplate } from '../types';
 import {
     Upload, Image as ImageIcon, Video, Trash2, X, Plus,
@@ -1339,6 +1340,7 @@ const RapidCreator: React.FC = () => {
     const [pages, setPages] = useState<any[]>([]);
     const [pixels, setPixels] = useState<any[]>([]);
     const [whatsappPhones, setWhatsappPhones] = useState<WhatsAppPhoneNumber[]>([]);
+    const [loadingWhatsappPhones, setLoadingWhatsappPhones] = useState(false);
     const [selectedPageId, setSelectedPageId] = useState(settings.defaultPageId || '');
     const [selectedPixelId, setSelectedPixelId] = useState(settings.defaultPixelId || '');
     const [destinationUrl, setDestinationUrl] = useState(settings.defaultWebsiteUrl || '');
@@ -1360,6 +1362,10 @@ const RapidCreator: React.FC = () => {
     const [showTextPresets, setShowTextPresets] = useState(false); // Global Text Presets Dialog
     const [showAiChat, setShowAiChat] = useState(false); // AI Assistant Chat Drawer
 
+    const selectedPageName = useMemo(() => {
+        return pages.find((p: any) => p.id === selectedPageId)?.name || 'selected page';
+    }, [pages, selectedPageId]);
+
 
 
     const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
@@ -1375,16 +1381,14 @@ const RapidCreator: React.FC = () => {
                 return;
             }
             try {
-                const [campaignsData, pagesData, pixelsData, waPhones] = await Promise.all([
+                const [campaignsData, pagesData, pixelsData] = await Promise.all([
                     getRealCampaigns(settings.adAccountId, settings.fbAccessToken, 'last_7d'),
                     getPages(settings.fbAccessToken),
-                    getPixels(settings.adAccountId, settings.fbAccessToken),
-                    getWhatsAppPhoneNumbers(settings.fbAccessToken)
+                    getPixels(settings.adAccountId, settings.fbAccessToken)
                 ]);
                 setCampaigns(campaignsData);
                 setPages(pagesData);
                 setPixels(pixelsData);
-                setWhatsappPhones(waPhones);
                 // Use default page if available, otherwise first page
                 if (settings.defaultPageId && pagesData.some((p: any) => p.id === settings.defaultPageId)) {
                     setSelectedPageId(settings.defaultPageId);
@@ -1399,6 +1403,37 @@ const RapidCreator: React.FC = () => {
         };
         loadData();
     }, [settings.fbAccessToken, settings.adAccountId]);
+
+    // Load WhatsApp numbers connected to selected Facebook Page
+    useEffect(() => {
+        const loadWhatsAppPhonesForPage = async () => {
+            if (!settings.fbAccessToken || settings.fbAccessToken === 'dummy_token' || !selectedPageId) {
+                setWhatsappPhones([]);
+                setWhatsappNumber('');
+                return;
+            }
+
+            setLoadingWhatsappPhones(true);
+            try {
+                const phones = await getWhatsAppPhoneNumbersForPage(selectedPageId, settings.fbAccessToken);
+                setWhatsappPhones(phones);
+
+                // Clear stale selection if current number is not connected to the selected page
+                setWhatsappNumber((prev) => {
+                    if (!prev) return '';
+                    return phones.some((phone) => phone.display_phone_number === prev) ? prev : '';
+                });
+            } catch (err) {
+                console.error('Failed to load WhatsApp numbers for selected page:', err);
+                setWhatsappPhones([]);
+                setWhatsappNumber('');
+            } finally {
+                setLoadingWhatsappPhones(false);
+            }
+        };
+
+        loadWhatsAppPhonesForPage();
+    }, [selectedPageId, settings.fbAccessToken]);
 
     // Load adsets when campaign changes
     useEffect(() => {
@@ -2273,7 +2308,9 @@ const RapidCreator: React.FC = () => {
                             <label className="text-xs font-semibold text-slate-600 mb-1 block uppercase tracking-wide">
                                 WhatsApp Number <span className="text-[10px] text-slate-400 normal-case">(Optional)</span>
                             </label>
-                            {whatsappPhones.length > 0 ? (
+                            {loadingWhatsappPhones ? (
+                                <p className="text-[11px] text-slate-500">Loading WhatsApp numbers for selected page...</p>
+                            ) : whatsappPhones.length > 0 ? (
                                 <>
                                     <select
                                         value={whatsappNumber}
@@ -2288,7 +2325,7 @@ const RapidCreator: React.FC = () => {
                                         ))}
                                     </select>
                                     <p className="text-[10px] text-slate-400 mt-1">
-                                        {whatsappNumber ? '✅ Will use WhatsApp CTA button' : 'Select a number for Click-to-WhatsApp'}
+                                        {whatsappNumber ? '✅ Will use WhatsApp CTA button' : `Select a number linked to ${selectedPageName}`}
                                     </p>
                                 </>
                             ) : (
@@ -2296,7 +2333,7 @@ const RapidCreator: React.FC = () => {
                                     <input type="tel" value={whatsappNumber} onChange={(e) => setWhatsappNumber(e.target.value)} placeholder="60123456789"
                                         className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs outline-none focus:border-blue-400 transition-colors" />
                                     <p className="text-[10px] text-slate-400 mt-1">
-                                        No WhatsApp Business Account found. Enter number manually or leave empty.
+                                        No WhatsApp number linked to {selectedPageName}. Enter manually.
                                     </p>
                                 </>
                             )}
@@ -2320,6 +2357,7 @@ const RapidCreator: React.FC = () => {
                         <label className="text-xs font-semibold text-slate-600 mb-1 block uppercase tracking-wide">Facebook Page</label>
                         <select value={selectedPageId} onChange={(e) => setSelectedPageId(e.target.value)}
                             className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs outline-none focus:border-blue-400 transition-colors appearance-none cursor-pointer">
+                            <option value="">Select page...</option>
                             {pages.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                         </select>
                     </div>
