@@ -75,9 +75,9 @@ const AnalysisSettingsDialog: React.FC<AnalysisSettingsDialogProps> = ({ isOpen,
             }
 
             // Then fetch from Supabase for persistent data
-            if (settings.fbAppId) {
+            if (settings.userId) {
                 try {
-                    const res = await fetch(`/api/analyze-telegram?action=get-schedule&fbId=${settings.fbAppId}`);
+                    const res = await fetch(`/api/analyze-telegram?action=get-schedule&fbId=${settings.userId}`);
                     const data = await res.json();
                     if (data.success && data.schedule) {
                         setSelectedAccount(data.schedule.ad_account_id || settings.adAccountId || '');
@@ -92,7 +92,7 @@ const AnalysisSettingsDialog: React.FC<AnalysisSettingsDialogProps> = ({ isOpen,
         if (isOpen) {
             loadSchedule();
         }
-    }, [isOpen, settings.adAccountId, settings.fbAppId]);
+    }, [isOpen, settings.adAccountId, settings.userId]);
 
     // Save schedule settings to both localStorage and Supabase
     const saveSchedule = async () => {
@@ -111,7 +111,7 @@ const AnalysisSettingsDialog: React.FC<AnalysisSettingsDialogProps> = ({ isOpen,
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    fbId: settings.fbAppId || 'default',
+                    fbId: settings.userId || settings.fbAppId || 'default',
                     adAccountId: selectedAccount,
                     scheduleTime: FIXED_SCHEDULE_TIME,
                     isEnabled: isScheduleEnabled,

@@ -721,16 +721,47 @@ async function handleSaveSchedule(req: any, res: any) {
             return res.status(400).json({ error: 'Missing fbId' });
         }
 
+        // Preserve existing values when partial payload arrives (e.g., reconnect flow without Telegram fields)
+        const { data: existingSchedule, error: existingError } = await supabase
+            .from('analysis_schedules')
+            .select('schedule_time, is_enabled, telegram_bot_token, telegram_chat_id, fb_access_token')
+            .eq('fb_id', fbId)
+            .maybeSingle();
+
+        if (existingError && existingError.code !== 'PGRST116') {
+            console.error('Save Schedule Read Existing Error:', existingError);
+            return res.status(500).json({ error: 'Failed to read existing schedule', details: existingError.message });
+        }
+
+        const finalTelegramBotToken = telegramBotToken || existingSchedule?.telegram_bot_token || null;
+        const finalTelegramChatId = telegramChatId || existingSchedule?.telegram_chat_id || null;
+        const finalFbAccessToken = fbAccessToken || existingSchedule?.fb_access_token || null;
+        const finalScheduleTime = scheduleTime || existingSchedule?.schedule_time || '08:00';
+
+        let finalIsEnabled: boolean;
+        if (typeof isEnabled === 'boolean') {
+            finalIsEnabled = isEnabled;
+        } else if (typeof existingSchedule?.is_enabled === 'boolean') {
+            finalIsEnabled = existingSchedule.is_enabled;
+        } else {
+            finalIsEnabled = false;
+        }
+
+        // Safety: do not keep schedule enabled if Telegram credentials are incomplete
+        if (!finalTelegramBotToken || !finalTelegramChatId) {
+            finalIsEnabled = false;
+        }
+
         const { error } = await supabase
             .from('analysis_schedules')
             .upsert({
                 fb_id: fbId,
                 ad_account_id: adAccountId,
-                schedule_time: scheduleTime,
-                is_enabled: isEnabled,
-                telegram_bot_token: telegramBotToken,
-                telegram_chat_id: telegramChatId,
-                fb_access_token: fbAccessToken,  // Save FB token
+                schedule_time: finalScheduleTime,
+                is_enabled: finalIsEnabled,
+                telegram_bot_token: finalTelegramBotToken,
+                telegram_chat_id: finalTelegramChatId,
+                fb_access_token: finalFbAccessToken,  // Save FB token
                 updated_at: new Date().toISOString()
             }, {
                 onConflict: 'fb_id'

@@ -156,6 +156,7 @@ const ConnectPage: React.FC = () => {
         const existingScheduleRes = await fetch(`/api/analyze-telegram?action=get-schedule&fbId=${fbUser.id}`);
         let existingTelegramToken = settings.telegramBotToken || '';
         let existingTelegramChatId = settings.telegramChatId || '';
+        let existingSchedule: any = null;
 
         if (existingScheduleRes.ok) {
           // Check if response is JSON before parsing
@@ -163,7 +164,7 @@ const ConnectPage: React.FC = () => {
           if (contentType && contentType.includes('application/json')) {
             try {
               const responseData = await existingScheduleRes.json();
-              const existingSchedule = responseData.schedule || responseData; // Handle both formats
+              existingSchedule = responseData.schedule || responseData; // Handle both formats
               if (existingSchedule && existingSchedule.telegram_bot_token) {
                 existingTelegramToken = existingSchedule.telegram_bot_token;
               }
@@ -179,20 +180,43 @@ const ConnectPage: React.FC = () => {
           }
         }
 
-        // Always save/update the schedule with new FB token
-        // Use existing Telegram settings from DB or localStorage
+        // Get the freshest FB token from localStorage (avoid stale closure state during reconnect flow)
+        let latestFbAccessToken = settings.fbAccessToken;
+        try {
+          const rawSavedSettings = localStorage.getItem('ar_settings');
+          if (rawSavedSettings) {
+            const parsedSettings = JSON.parse(rawSavedSettings);
+            if (parsedSettings?.fbAccessToken) {
+              latestFbAccessToken = parsedSettings.fbAccessToken;
+            }
+          }
+        } catch (storageErr) {
+          console.warn('Failed to read latest token from localStorage:', storageErr);
+        }
+
+        // Save/update schedule without overwriting Telegram fields to empty values
+        const schedulePayload: any = {
+          fbId: fbUser.id,
+          adAccountId: account.id,
+          scheduleTime: existingSchedule?.schedule_time || '08:00'
+        };
+
+        if (latestFbAccessToken) {
+          schedulePayload.fbAccessToken = latestFbAccessToken;
+        }
+
+        if (existingTelegramToken && existingTelegramChatId) {
+          schedulePayload.telegramBotToken = existingTelegramToken;
+          schedulePayload.telegramChatId = existingTelegramChatId;
+          schedulePayload.isEnabled = existingSchedule?.is_enabled ?? true;
+        } else if (typeof existingSchedule?.is_enabled === 'boolean') {
+          schedulePayload.isEnabled = existingSchedule.is_enabled;
+        }
+
         await fetch('/api/analyze-telegram?action=save-schedule', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            fbId: fbUser.id,
-            fbAccessToken: settings.fbAccessToken,
-            adAccountId: account.id,
-            telegramBotToken: existingTelegramToken,
-            telegramChatId: existingTelegramChatId,
-            scheduleTime: '08:00',
-            isEnabled: existingTelegramToken && existingTelegramChatId ? true : false
-          })
+          body: JSON.stringify(schedulePayload)
         });
         console.log('✅ Auto-saved schedule with new FB token and preserved Telegram settings');
 

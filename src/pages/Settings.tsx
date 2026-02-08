@@ -100,6 +100,12 @@ const Settings: React.FC = () => {
                 }));
                 console.log('📦 Loaded Telegram settings from database');
               }
+              if (!settings.telegramBotToken || !settings.telegramChatId) {
+                updateSettings({
+                  telegramBotToken: schedule.telegram_bot_token,
+                  telegramChatId: schedule.telegram_chat_id
+                });
+              }
             }
           } else {
             console.warn('get-schedule returned non-JSON response');
