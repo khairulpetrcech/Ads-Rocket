@@ -301,6 +301,12 @@ const extractWhatsAppFromText = (text: string): string[] => {
     return matches;
 };
 
+const extractPhoneFromText = (text: string): string[] => {
+    if (!text) return [];
+    const matches = text.match(/(?:\+?\d[\d\s-]{7,}\d)/g) || [];
+    return matches.map((m) => normalizePhoneNumber(m)).filter(Boolean);
+};
+
 export const getWhatsAppPhoneNumbersForPage = async (
     pageId: string,
     accessToken: string,
@@ -316,63 +322,64 @@ export const getWhatsAppPhoneNumbersForPage = async (
         const numbers: WhatsAppPhoneNumber[] = [];
         const tokenForPageRead = pageAccessToken || accessToken;
 
-        // Step 1: Read direct Page-level fields first (page-linked source of truth)
-        const pageNumberRes = await fetch(`https://graph.facebook.com/v19.0/${pageId}?fields=id,name,whatsapp_number,phone,call_to_action&access_token=${tokenForPageRead}`);
-        const pageNumberData = await pageNumberRes.json();
+        // Step 1: Read page fields without requesting unsupported fields
+        const pageInfoRes = await fetch(`https://graph.facebook.com/v19.0/${pageId}?fields=id,name,whatsapp_number,phone,about,website&access_token=${tokenForPageRead}`);
+        const pageInfoData = await pageInfoRes.json();
 
-        if (!pageNumberData.error && pageNumberData.whatsapp_number) {
-            pushUniquePhone(numbers, {
-                id: `page-${pageId}`,
-                display_phone_number: pageNumberData.whatsapp_number,
-                verified_name: pageNumberData.name || 'WhatsApp Number'
-            });
-        } else if (pageNumberData.error) {
-            console.warn('[WhatsApp][Page Number] Graph API error:', pageNumberData.error);
-        }
-
-        // Parse WhatsApp number from page CTA payload (wa.me / api.whatsapp.com links)
-        if (!pageNumberData.error && pageNumberData.call_to_action) {
-            const ctaRaw = JSON.stringify(pageNumberData.call_to_action);
-            const ctaNumbers = extractWhatsAppFromText(ctaRaw);
-            for (const ctaNumber of ctaNumbers) {
-                pushUniquePhone(numbers, {
-                    id: `page-cta-${pageId}-${ctaNumber}`,
-                    display_phone_number: ctaNumber,
-                    verified_name: pageNumberData.name || 'WhatsApp Number'
-                });
-            }
-        }
-
-        // If we already got numbers from Page-level fields, stop here (avoid extra Graph errors)
-        if (numbers.length > 0) {
-            setCachedData(cacheKey, numbers);
-            return numbers;
-        }
-
-        // Step 2: Try connected WABA flow for pages with multiple linked numbers
-        const pageWabaRes = await fetch(`https://graph.facebook.com/v19.0/${pageId}?fields=connected_whatsapp_business_account{id,name}&access_token=${accessToken}`);
-        const pageWabaData = await pageWabaRes.json();
-
-        if (!pageWabaData.error && pageWabaData.connected_whatsapp_business_account?.id) {
-            const connectedWaba = pageWabaData.connected_whatsapp_business_account;
-            const phonesRes = await fetch(`https://graph.facebook.com/v19.0/${connectedWaba.id}/phone_numbers?fields=id,display_phone_number,verified_name,quality_rating&access_token=${accessToken}`);
-            const phonesData = await phonesRes.json();
-
-            if (!phonesData.error && phonesData.data) {
-                for (const phone of phonesData.data) {
-                    if (!phone.display_phone_number) continue;
+        if (pageInfoData.error) {
+            console.warn('[WhatsApp][Page Info] Graph API error:', pageInfoData.error);
+            // Retry with user token as fallback if page token fails
+            const retryRes = await fetch(`https://graph.facebook.com/v19.0/${pageId}?fields=id,name,whatsapp_number,phone,about,website&access_token=${accessToken}`);
+            const retryData = await retryRes.json();
+            if (retryData.error) {
+                console.warn('[WhatsApp][Page Info Retry] Graph API error:', retryData.error);
+            } else {
+                if (retryData.whatsapp_number) {
                     pushUniquePhone(numbers, {
-                        id: phone.id,
-                        display_phone_number: phone.display_phone_number,
-                        verified_name: phone.verified_name || connectedWaba.name || 'WhatsApp Number',
-                        quality_rating: phone.quality_rating
+                        id: `page-${pageId}`,
+                        display_phone_number: retryData.whatsapp_number,
+                        verified_name: retryData.name || 'WhatsApp Number'
                     });
                 }
-            } else {
-                console.warn('[WhatsApp][WABA Phones] Graph API error:', phonesData.error);
+                if (retryData.phone) {
+                    pushUniquePhone(numbers, {
+                        id: `page-phone-${pageId}`,
+                        display_phone_number: retryData.phone,
+                        verified_name: retryData.name || 'Page Phone'
+                    });
+                }
+                const textBlob = [retryData.about, retryData.website].filter(Boolean).join(' ');
+                for (const parsed of [...extractWhatsAppFromText(textBlob), ...extractPhoneFromText(textBlob)]) {
+                    pushUniquePhone(numbers, {
+                        id: `page-text-${pageId}-${parsed}`,
+                        display_phone_number: parsed,
+                        verified_name: retryData.name || 'WhatsApp Number'
+                    });
+                }
             }
-        } else if (pageWabaData.error) {
-            console.warn('[WhatsApp][Connected WABA] Graph API error:', pageWabaData.error);
+        } else {
+            if (pageInfoData.whatsapp_number) {
+                pushUniquePhone(numbers, {
+                    id: `page-${pageId}`,
+                    display_phone_number: pageInfoData.whatsapp_number,
+                    verified_name: pageInfoData.name || 'WhatsApp Number'
+                });
+            }
+            if (pageInfoData.phone) {
+                pushUniquePhone(numbers, {
+                    id: `page-phone-${pageId}`,
+                    display_phone_number: pageInfoData.phone,
+                    verified_name: pageInfoData.name || 'Page Phone'
+                });
+            }
+            const textBlob = [pageInfoData.about, pageInfoData.website].filter(Boolean).join(' ');
+            for (const parsed of [...extractWhatsAppFromText(textBlob), ...extractPhoneFromText(textBlob)]) {
+                pushUniquePhone(numbers, {
+                    id: `page-text-${pageId}-${parsed}`,
+                    display_phone_number: parsed,
+                    verified_name: pageInfoData.name || 'WhatsApp Number'
+                });
+            }
         }
 
         setCachedData(cacheKey, numbers);
