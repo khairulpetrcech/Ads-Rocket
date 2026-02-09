@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { CommentTemplate, CommentItem } from '../types';
-import { PlusCircle, Trash2, Image as ImageIcon, Save, AlertTriangle, Layers, Loader2, CheckCircle, Cloud, CloudOff, UploadCloud } from 'lucide-react';
+import { PlusCircle, Trash2, Image as ImageIcon, Save, AlertTriangle, Layers, Loader2, CheckCircle, Cloud, CloudOff, UploadCloud, Pencil, X } from 'lucide-react';
 
 const CommentTemplates: React.FC = () => {
     const [templates, setTemplates] = useState<CommentTemplate[]>([]);
@@ -10,6 +10,8 @@ const CommentTemplates: React.FC = () => {
     // Builder State
     const [templateName, setTemplateName] = useState('');
     const [draftItems, setDraftItems] = useState<CommentItem[]>([]);
+    const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
+    const [editingCommentIdx, setEditingCommentIdx] = useState<number | null>(null);
 
     // Inputs
     const [currentMessage, setCurrentMessage] = useState('');
@@ -142,24 +144,69 @@ const CommentTemplates: React.FC = () => {
     };
 
     const addToDraft = () => {
-        if (draftItems.length >= 10) return setError("Max 10 comments per template.");
         if (!currentMessage.trim()) return setError("Comment message cannot be empty.");
 
-        const newItem: CommentItem = {
-            id: Date.now().toString(),
-            message: currentMessage,
-            imageBase64: currentImage || undefined
-        };
-        setDraftItems([...draftItems, newItem]);
+        if (editingCommentIdx !== null) {
+            // Update existing comment in-place
+            const updated = [...draftItems];
+            updated[editingCommentIdx] = {
+                ...updated[editingCommentIdx],
+                message: currentMessage,
+                imageBase64: currentImage || undefined
+            };
+            setDraftItems(updated);
+            setEditingCommentIdx(null);
+        } else {
+            if (draftItems.length >= 10) return setError("Max 10 comments per template.");
+            const newItem: CommentItem = {
+                id: Date.now().toString(),
+                message: currentMessage,
+                imageBase64: currentImage || undefined
+            };
+            setDraftItems([...draftItems, newItem]);
+        }
         setCurrentMessage('');
         setCurrentImage('');
         setError('');
+    };
+
+    const startEditComment = (idx: number) => {
+        const item = draftItems[idx];
+        setCurrentMessage(item.message);
+        setCurrentImage(item.imageBase64 || '');
+        setEditingCommentIdx(idx);
+    };
+
+    const cancelEditComment = () => {
+        setCurrentMessage('');
+        setCurrentImage('');
+        setEditingCommentIdx(null);
     };
 
     const removeFromDraft = (idx: number) => {
         const newDraft = [...draftItems];
         newDraft.splice(idx, 1);
         setDraftItems(newDraft);
+    };
+
+    const handleEditTemplate = (template: CommentTemplate) => {
+        setEditingTemplateId(template.id);
+        setTemplateName(template.name);
+        setDraftItems([...template.items]);
+        setEditingCommentIdx(null);
+        setCurrentMessage('');
+        setCurrentImage('');
+        setError('');
+    };
+
+    const cancelEdit = () => {
+        setEditingTemplateId(null);
+        setTemplateName('');
+        setDraftItems([]);
+        setEditingCommentIdx(null);
+        setCurrentMessage('');
+        setCurrentImage('');
+        setError('');
     };
 
     const handleSaveTemplate = async () => {
@@ -170,7 +217,7 @@ const CommentTemplates: React.FC = () => {
         const fbId = getFbId();
 
         const newTemplate: CommentTemplate = {
-            id: Date.now().toString(),
+            id: editingTemplateId || Date.now().toString(),
             name: templateName,
             items: draftItems,
             created_at: new Date().toISOString()
@@ -193,29 +240,50 @@ const CommentTemplates: React.FC = () => {
                 const data = await res.json();
 
                 if (data.success && data.template) {
-                    setTemplates([data.template, ...templates]);
-                    setSuccessMsg("Template saved to cloud ☁️");
+                    if (editingTemplateId) {
+                        // Replace the edited template in the list
+                        setTemplates(templates.map(t => t.id === editingTemplateId ? data.template : t));
+                        setSuccessMsg("Template updated ☁️");
+                    } else {
+                        setTemplates([data.template, ...templates]);
+                        setSuccessMsg("Template saved to cloud ☁️");
+                    }
                 } else {
                     throw new Error(data.error || 'Failed to save');
                 }
             } catch (e: any) {
                 console.error('Save error:', e);
                 // Fallback to localStorage
-                const updated = [newTemplate, ...templates];
-                setTemplates(updated);
-                localStorage.setItem('ar_comment_templates', JSON.stringify(updated));
-                setSuccessMsg("Template saved locally (offline).");
+                if (editingTemplateId) {
+                    const updated = templates.map(t => t.id === editingTemplateId ? newTemplate : t);
+                    setTemplates(updated);
+                    localStorage.setItem('ar_comment_templates', JSON.stringify(updated));
+                } else {
+                    const updated = [newTemplate, ...templates];
+                    setTemplates(updated);
+                    localStorage.setItem('ar_comment_templates', JSON.stringify(updated));
+                }
+                setSuccessMsg(editingTemplateId ? "Template updated locally (offline)." : "Template saved locally (offline).");
             }
         } else {
             // Save to localStorage
-            const updated = [newTemplate, ...templates];
-            setTemplates(updated);
-            localStorage.setItem('ar_comment_templates', JSON.stringify(updated));
-            setSuccessMsg("Template saved locally.");
+            if (editingTemplateId) {
+                const updated = templates.map(t => t.id === editingTemplateId ? newTemplate : t);
+                setTemplates(updated);
+                localStorage.setItem('ar_comment_templates', JSON.stringify(updated));
+                setSuccessMsg("Template updated locally.");
+            } else {
+                const updated = [newTemplate, ...templates];
+                setTemplates(updated);
+                localStorage.setItem('ar_comment_templates', JSON.stringify(updated));
+                setSuccessMsg("Template saved locally.");
+            }
         }
 
         setTemplateName('');
         setDraftItems([]);
+        setEditingTemplateId(null);
+        setEditingCommentIdx(null);
         setError('');
         setTimeout(() => setSuccessMsg(''), 2000);
         setLoading(false);
@@ -354,9 +422,20 @@ const CommentTemplates: React.FC = () => {
             <div className="grid md:grid-cols-12 gap-8">
                 {/* BUILDER */}
                 <div className="md:col-span-7 bg-white p-6 rounded-xl border border-slate-200 shadow-sm h-fit">
-                    <h2 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
-                        <PlusCircle className="text-indigo-600" size={20} /> Template Builder
-                    </h2>
+                    <div className="flex items-center justify-between mb-4">
+                        <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                            {editingTemplateId ? (
+                                <><Pencil className="text-amber-600" size={20} /> Editing: {templateName}</>
+                            ) : (
+                                <><PlusCircle className="text-indigo-600" size={20} /> Template Builder</>
+                            )}
+                        </h2>
+                        {editingTemplateId && (
+                            <button onClick={cancelEdit} className="text-xs text-slate-500 hover:text-red-500 flex items-center gap-1 bg-slate-100 px-3 py-1.5 rounded-full border border-slate-200 font-medium transition-colors">
+                                <X size={12} /> Cancel Edit
+                            </button>
+                        )}
+                    </div>
 
                     {error && <div className="text-red-600 bg-red-50 p-3 rounded mb-4 text-sm flex items-center gap-2 border border-red-200"><AlertTriangle size={16} />{error}</div>}
                     {successMsg && <div className="text-green-600 bg-green-50 p-3 rounded mb-4 text-sm flex items-center gap-2 border border-green-200"><CheckCircle size={16} />{successMsg}</div>}
@@ -367,37 +446,46 @@ const CommentTemplates: React.FC = () => {
                             type="text" value={templateName} onChange={(e) => setTemplateName(e.target.value)}
                             className="w-full bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 text-slate-800 focus:outline-none focus:border-indigo-500 font-medium"
                             placeholder="e.g. Sales Funnel Reply"
+                            disabled={!!editingTemplateId}
                         />
                     </div>
 
-                    <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 mb-6">
+                    <div className={`p-4 rounded-lg border mb-6 ${editingCommentIdx !== null ? 'bg-amber-50 border-amber-200' : 'bg-slate-50 border-slate-200'}`}>
                         <textarea
                             value={currentMessage} onChange={(e) => setCurrentMessage(e.target.value)}
                             className="w-full bg-white border border-slate-200 rounded-lg px-4 py-2 text-slate-800 h-20 text-sm mb-3 focus:outline-none focus:border-indigo-500"
-                            placeholder="Write a comment..."
+                            placeholder={editingCommentIdx !== null ? 'Edit comment...' : 'Write a comment...'}
                         />
                         <div className="flex justify-between items-center">
                             <label className="cursor-pointer text-slate-500 hover:text-indigo-600 flex items-center gap-2 text-xs bg-white px-3 py-1.5 rounded border border-slate-200 shadow-sm transition-colors font-medium">
                                 <ImageIcon size={14} /> {currentImage ? 'Change Image' : 'Attach Image'}
                                 <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
                             </label>
-                            <button onClick={addToDraft} className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-1.5 rounded text-sm font-bold shadow-sm">Add to List</button>
+                            <div className="flex items-center gap-2">
+                                {editingCommentIdx !== null && (
+                                    <button onClick={cancelEditComment} className="text-slate-500 hover:text-slate-700 px-3 py-1.5 rounded text-sm font-medium border border-slate-200 bg-white">Cancel</button>
+                                )}
+                                <button onClick={addToDraft} className={`text-white px-4 py-1.5 rounded text-sm font-bold shadow-sm ${editingCommentIdx !== null ? 'bg-amber-600 hover:bg-amber-700' : 'bg-indigo-600 hover:bg-indigo-700'}`}>
+                                    {editingCommentIdx !== null ? 'Update' : 'Add to List'}
+                                </button>
+                            </div>
                         </div>
                     </div>
 
                     <div className="space-y-2 mb-6">
                         {draftItems.map((item, idx) => (
-                            <div key={idx} className="flex items-start gap-3 bg-slate-50 p-3 rounded border border-slate-200">
-                                <span className="bg-slate-200 text-slate-600 text-[10px] w-5 h-5 flex items-center justify-center rounded-full font-bold">{idx + 1}</span>
-                                <p className="text-slate-700 text-sm truncate flex-1">{item.message}</p>
-                                {item.imageBase64 && <ImageIcon size={14} className="text-green-500" />}
-                                <button onClick={() => removeFromDraft(idx)}><Trash2 size={14} className="text-slate-400 hover:text-red-500" /></button>
+                            <div key={idx} className={`flex items-start gap-3 p-3 rounded border ${editingCommentIdx === idx ? 'bg-amber-50 border-amber-300' : 'bg-slate-50 border-slate-200'}`}>
+                                <span className="bg-slate-200 text-slate-600 text-[10px] w-5 h-5 flex items-center justify-center rounded-full font-bold mt-0.5">{idx + 1}</span>
+                                <p className="text-slate-700 text-sm flex-1 break-words">{item.message}</p>
+                                {item.imageBase64 && <ImageIcon size={14} className="text-green-500 mt-0.5" />}
+                                <button onClick={() => startEditComment(idx)} className="mt-0.5"><Pencil size={13} className="text-slate-400 hover:text-indigo-500" /></button>
+                                <button onClick={() => removeFromDraft(idx)} className="mt-0.5"><Trash2 size={14} className="text-slate-400 hover:text-red-500" /></button>
                             </div>
                         ))}
                     </div>
 
-                    <button onClick={handleSaveTemplate} disabled={loading} className="w-full bg-green-600 hover:bg-green-700 text-white py-3 rounded-lg font-bold flex items-center justify-center gap-2 shadow-sm transition-all">
-                        {loading ? <Loader2 className="animate-spin" /> : <><Save size={18} /> Save Template</>}
+                    <button onClick={handleSaveTemplate} disabled={loading} className={`w-full text-white py-3 rounded-lg font-bold flex items-center justify-center gap-2 shadow-sm transition-all ${editingTemplateId ? 'bg-amber-600 hover:bg-amber-700' : 'bg-green-600 hover:bg-green-700'}`}>
+                        {loading ? <Loader2 className="animate-spin" /> : <><Save size={18} /> {editingTemplateId ? 'Update Template' : 'Save Template'}</>}
                     </button>
                 </div>
 
@@ -408,13 +496,27 @@ const CommentTemplates: React.FC = () => {
                         templates.length === 0 ? <p className="text-slate-400">No templates found.</p> : (
                             <div className="space-y-3">
                                 {templates.map(t => (
-                                    <div key={t.id} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
+                                    <div key={t.id} className={`bg-white p-4 rounded-xl border shadow-sm hover:shadow-md transition-shadow ${editingTemplateId === t.id ? 'border-amber-400 ring-2 ring-amber-100' : 'border-slate-200'}`}>
                                         <div className="flex justify-between items-start mb-2">
                                             <h3 className="text-slate-800 font-bold truncate pr-4">{t.name}</h3>
-                                            <button onClick={() => handleDeleteTemplate(t.id)} className="text-slate-400 hover:text-red-500"><Trash2 size={16} /></button>
+                                            <div className="flex items-center gap-1">
+                                                <button onClick={() => handleEditTemplate(t)} className="text-slate-400 hover:text-indigo-500 p-1" title="Edit template"><Pencil size={14} /></button>
+                                                <button onClick={() => handleDeleteTemplate(t.id)} className="text-slate-400 hover:text-red-500 p-1" title="Delete template"><Trash2 size={14} /></button>
+                                            </div>
                                         </div>
                                         <div className="bg-slate-50 rounded p-2 text-xs text-slate-500 mb-2 flex items-center gap-2 font-medium">
                                             <Layers size={12} /> {(t.items || []).length} Comments
+                                        </div>
+                                        {/* Show comment preview */}
+                                        <div className="space-y-1">
+                                            {(t.items || []).slice(0, 3).map((item, idx) => (
+                                                <p key={idx} className="text-xs text-slate-400 truncate pl-2 border-l-2 border-slate-200">
+                                                    {item.message}
+                                                </p>
+                                            ))}
+                                            {(t.items || []).length > 3 && (
+                                                <p className="text-xs text-slate-400 pl-2">+{(t.items || []).length - 3} more...</p>
+                                            )}
                                         </div>
                                     </div>
                                 ))}
