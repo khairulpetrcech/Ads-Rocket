@@ -2049,13 +2049,20 @@ const RapidCreator: React.FC = () => {
 
         setIsLaunching(true);
 
+        // Cache uploaded assets: same file only uploaded once, reused for all duplicates
+        const uploadCache = new Map<File, { mediaHash: string; videoId: string }>();
+
+        let successCount = 0;
+        let failCount = 0;
+        const failedAds: string[] = [];
+
         try {
             let campaignId = selectedCampaignId;
 
             if (selectedCampaignId === 'new') {
                 setLaunchProgress('Creating campaign...');
                 const objective = campaignObjective === 'SALES' ? 'OUTCOME_SALES' : 'OUTCOME_ENGAGEMENT';
-                campaignId = await createMetaCampaign(settings.adAccountId, settings.fbAccessToken, newCampaignName, objective);
+                campaignId = await createMetaCampaign(settings.adAccountId, newCampaignName, objective, settings.fbAccessToken);
             }
 
             for (const adset of adSets) {
@@ -2077,40 +2084,77 @@ const RapidCreator: React.FC = () => {
                 }
 
                 for (const creative of adsetCreatives) {
-                    setLaunchProgress(`Uploading ${creative.name}...`);
+                    try {
+                        let mediaHash = '';
+                        let videoId = '';
 
-                    let mediaHash = '';
-                    let videoId = '';
+                        // Check if this file was already uploaded (same file used by multiple ads)
+                        if (creative.file && uploadCache.has(creative.file)) {
+                            const cached = uploadCache.get(creative.file)!;
+                            mediaHash = cached.mediaHash;
+                            videoId = cached.videoId;
+                            setLaunchProgress(`Reusing upload for ${creative.name}...`);
+                            console.debug(`[Launch] Reusing cached upload for ${creative.name}`);
+                        } else if (creative.file) {
+                            setLaunchProgress(`Uploading ${creative.name}...`);
 
-                    if (creative.type === 'image') {
-                        mediaHash = await uploadAdImage(settings.adAccountId, creative.file, settings.fbAccessToken);
-                    } else {
-                        const thumbnailBlob = await extractVideoThumbnail(creative.file);
-                        const thumbnailHash = await uploadAdImageBlob(settings.adAccountId, thumbnailBlob, settings.fbAccessToken);
-                        videoId = await uploadAdVideo(settings.adAccountId, creative.file, settings.fbAccessToken);
-                        mediaHash = thumbnailHash;
+                            if (creative.type === 'image') {
+                                mediaHash = await uploadAdImage(settings.adAccountId, creative.file, settings.fbAccessToken);
+                            } else {
+                                const thumbnailBlob = await extractVideoThumbnail(creative.file);
+                                const thumbnailHash = await uploadAdImageBlob(settings.adAccountId, thumbnailBlob, settings.fbAccessToken);
+                                videoId = await uploadAdVideo(settings.adAccountId, creative.file, settings.fbAccessToken);
+                                mediaHash = thumbnailHash;
+                            }
+
+                            // Cache the upload result for reuse by duplicate creatives
+                            uploadCache.set(creative.file, { mediaHash, videoId });
+                        } else {
+                            throw new Error(`No file attached to creative: ${creative.name}`);
+                        }
+
+                        setLaunchProgress(`Creating ad ${successCount + failCount + 1}/${groupedCreatives.length}: ${creative.name}...`);
+
+                        const advPlusConfig: AdvantagePlusConfig = { enabled: false, visualTouchups: false, textOptimizations: false, mediaCropping: false, music: false };
+
+                        const creativeIdResult = await createMetaCreative(
+                            settings.adAccountId, creative.name, selectedPageId,
+                            creative.type === 'image' ? mediaHash : videoId,
+                            creative.primaryText, creative.headline, destinationUrl, settings.fbAccessToken,
+                            creative.type, creative.callToAction, creative.description, advPlusConfig,
+                            creative.type === 'video' ? mediaHash : undefined
+                        );
+
+                        await createMetaAd(settings.adAccountId, adsetId, creative.adName || creative.name, creativeIdResult, settings.fbAccessToken);
+                        successCount++;
+                    } catch (adError: any) {
+                        failCount++;
+                        failedAds.push(creative.adName || creative.name);
+                        console.error(`Failed to create ad "${creative.adName || creative.name}":`, adError);
+
+                        // If session expired, stop everything
+                        const msg = adError.message?.toLowerCase() || '';
+                        if (msg.includes('session_expired') || msg.includes('invalid oauth') || msg.includes('access token')) {
+                            throw adError; // Re-throw to outer catch
+                        }
+                        // Otherwise continue with next creative
                     }
-
-                    setLaunchProgress(`Creating ad: ${creative.name}...`);
-
-                    const advPlusConfig: AdvantagePlusConfig = { enabled: false, visualTouchups: false, textOptimizations: false, mediaCropping: false, music: false };
-
-                    const creativeIdResult = await createMetaCreative(
-                        settings.adAccountId, creative.name, selectedPageId,
-                        creative.type === 'image' ? mediaHash : videoId,
-                        creative.primaryText, creative.headline, destinationUrl, settings.fbAccessToken,
-                        creative.type, creative.callToAction, creative.description, advPlusConfig,
-                        creative.type === 'video' ? mediaHash : undefined
-                    );
-
-                    await createMetaAd(settings.adAccountId, adsetId, creative.adName || creative.name, creativeIdResult, settings.fbAccessToken);
                 }
             }
 
-            showToast('🎉 All ads launched successfully!', 'success');
-            setCreatives([]);
-            setAdSets([]);
-            setNewCampaignName('');
+            if (failCount === 0) {
+                showToast(`🎉 All ${successCount} ads launched successfully!`, 'success');
+            } else if (successCount > 0) {
+                showToast(`⚠️ ${successCount} ads launched, ${failCount} failed: ${failedAds.join(', ')}`, 'error');
+            } else {
+                showToast(`❌ All ${failCount} ads failed: ${failedAds.join(', ')}`, 'error');
+            }
+
+            if (successCount > 0) {
+                setCreatives([]);
+                setAdSets([]);
+                setNewCampaignName('');
+            }
         } catch (error: any) {
             console.error('Launch failed:', error);
             const errorMsg = error.message?.toLowerCase() || '';
