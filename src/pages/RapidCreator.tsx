@@ -1458,7 +1458,7 @@ const RapidCreator: React.FC = () => {
     const fetchImportedCreatives = async () => {
         setLoadingImported(true);
         try {
-            const response = await fetch('/api/import-to-rapid');
+            const response = await fetch('/api/media-api?action=import-list');
             const data = await response.json();
 
             if (data.success && data.creatives) {
@@ -1497,7 +1497,7 @@ const RapidCreator: React.FC = () => {
     const deleteImportedCreative = async (creativeId: string) => {
         const supabaseId = creativeId.replace('imported-', '');
         try {
-            const response = await fetch(`/api/import-to-rapid?id=${supabaseId}`, {
+            const response = await fetch(`/api/media-api?action=import-delete&id=${supabaseId}`, {
                 method: 'DELETE'
             });
             const data = await response.json();

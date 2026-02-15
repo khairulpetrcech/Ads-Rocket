@@ -127,7 +127,7 @@ const ConnectPage: React.FC = () => {
       });
 
       // Log user to Vercel KV
-      await fetch('/api/log-user', {
+      await fetch('/api/media-api?action=log-user', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

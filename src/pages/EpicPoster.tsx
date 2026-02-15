@@ -78,7 +78,7 @@ const EpicPoster: React.FC = () => {
         setAddingToRapid(prev => new Set([...prev, img.id]));
 
         try {
-            const response = await fetch('/api/import-to-rapid', {
+            const response = await fetch('/api/media-api?action=import', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -173,7 +173,7 @@ const EpicPoster: React.FC = () => {
                 requestBody.imageBase64 = referenceImage;
             }
 
-            const response = await fetch('/api/generate-poster', {
+            const response = await fetch('/api/generate-api?action=poster', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(requestBody)

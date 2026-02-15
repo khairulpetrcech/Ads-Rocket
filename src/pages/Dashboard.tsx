@@ -330,7 +330,7 @@ const Dashboard: React.FC = () => {
             if (fbId) {
                 // Try to load from cloud first
                 try {
-                    const res = await fetch(`/api/comment-history-api?fbId=${fbId}`);
+                    const res = await fetch(`/api/admin-api?action=comment-history&fbId=${fbId}`);
                     const data = await res.json();
                     if (data.history && Object.keys(data.history).length > 0) {
                         setPublishedComments(new Map(Object.entries(data.history)));
@@ -352,7 +352,7 @@ const Dashboard: React.FC = () => {
 
                     // If we have local data and a fbId, migrate to cloud
                     if (fbId && Object.keys(parsed).length > 0) {
-                        fetch('/api/comment-history-api', {
+                        fetch('/api/admin-api?action=comment-history-save', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ fbId, history: parsed })

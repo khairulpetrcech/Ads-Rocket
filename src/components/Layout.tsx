@@ -207,7 +207,7 @@ const Layout: React.FC = () => {
             // Save to Supabase cloud for persistent storage
             const fbId = settings.userId || settings.adAccountId;
             if (fbId) {
-                fetch('/api/comment-history-api', {
+                fetch('/api/admin-api?action=comment-history-save', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ fbId, adId: ad.id })

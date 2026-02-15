@@ -526,7 +526,7 @@ const CreateCampaign: React.FC = () => {
                         reject('FB SDK not available');
                     }
                 });
-                await fetch('/api/log-campaign', {
+                await fetch('/api/media-api?action=log-campaign', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({

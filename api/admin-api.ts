@@ -1,10 +1,13 @@
 /**
  * Consolidated Admin API
- * Handles: users, campaigns
+ * Handles: users, campaigns, schedules, comment-history
  * 
  * Usage:
  * GET /api/admin-api?action=users
  * GET /api/admin-api?action=campaigns&userId=xxx&limit=50&offset=0
+ * GET /api/admin-api?action=schedules
+ * GET /api/admin-api?action=comment-history&fbId=xxx
+ * POST /api/admin-api?action=comment-history-save (body: {fbId, adId?, history?})
  */
 
 import { createClient } from '@supabase/supabase-js';
@@ -18,13 +21,32 @@ const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'rocket@admin2024';
 export default async function handler(req: any, res: any) {
     // CORS headers
     res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
     if (req.method === 'OPTIONS') {
         return res.status(200).end();
     }
 
+    const { action } = req.query;
+
+    // Comment history actions don't require admin auth
+    if (action === 'comment-history' || action === 'comment-history-save') {
+        try {
+            if (req.method === 'GET' && action === 'comment-history') {
+                return handleGetCommentHistory(req, res);
+            }
+            if (req.method === 'POST' && action === 'comment-history-save') {
+                return handleSaveCommentHistory(req, res);
+            }
+            return res.status(405).json({ error: 'Method not allowed for this action' });
+        } catch (error: any) {
+            console.error('[Admin API] Comment History Error:', error);
+            return res.status(500).json({ error: error.message || 'Internal server error' });
+        }
+    }
+
+    // Admin-only actions below
     if (req.method !== 'GET') {
         return res.status(405).json({ error: 'Method not allowed' });
     }
@@ -35,8 +57,6 @@ export default async function handler(req: any, res: any) {
         return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const { action } = req.query;
-
     try {
         switch (action) {
             case 'users':
@@ -46,7 +66,7 @@ export default async function handler(req: any, res: any) {
             case 'schedules':
                 return handleGetSchedules(req, res);
             default:
-                return res.status(400).json({ error: 'Invalid action. Use: users, campaigns, or schedules' });
+                return res.status(400).json({ error: 'Invalid action. Use: users, campaigns, schedules, comment-history, or comment-history-save' });
         }
     } catch (error: any) {
         console.error('[Admin API] Error:', error);
@@ -179,4 +199,115 @@ async function handleGetSchedules(req: any, res: any) {
         schedules: formattedSchedules,
         total: formattedSchedules.length
     });
+}
+
+// Get comment history for a user
+async function handleGetCommentHistory(req: any, res: any) {
+    const { fbId } = req.query;
+
+    if (!fbId) {
+        return res.status(400).json({ error: 'Missing fbId parameter' });
+    }
+
+    try {
+        const { data, error } = await supabase
+            .from('comment_history')
+            .select('*')
+            .eq('fb_id', fbId)
+            .single();
+
+        if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
+            console.error('Supabase GET comment_history error:', error);
+            return res.status(500).json({ error: error.message });
+        }
+
+        // Return empty map if no data
+        if (!data) {
+            return res.status(200).json({ history: {} });
+        }
+
+        return res.status(200).json({ history: data.history || {} });
+
+    } catch (error: any) {
+        console.error('Get Comment History Error:', error);
+        return res.status(500).json({ error: error.message || 'Internal server error' });
+    }
+}
+
+// Save/update comment history
+async function handleSaveCommentHistory(req: any, res: any) {
+    const { fbId, adId, history } = req.body;
+
+    if (!fbId) {
+        return res.status(400).json({ error: 'Missing fbId in request body' });
+    }
+
+    try {
+        const now = new Date().toISOString();
+
+        // If full history map is provided, upsert it directly
+        if (history) {
+            console.log(`[CommentHistory API] Saving full history for ${fbId}. Keys: ${Object.keys(history).length}`);
+
+            const { error } = await supabase
+                .from('comment_history')
+                .upsert({
+                    fb_id: fbId,
+                    history: history,
+                    updated_at: now
+                }, {
+                    onConflict: 'fb_id',
+                    ignoreDuplicates: false
+                });
+
+            if (error) {
+                console.error('Supabase POST comment_history error:', error);
+                return res.status(500).json({ error: error.message });
+            }
+
+            return res.status(200).json({ success: true });
+        }
+
+        // If adId is provided, increment that specific ad's count
+        if (adId) {
+            console.log(`[CommentHistory API] Incrementing count for ad ${adId} (user: ${fbId})`);
+
+            // Get existing history
+            const { data: existing } = await supabase
+                .from('comment_history')
+                .select('history')
+                .eq('fb_id', fbId)
+                .single();
+
+            const currentHistory: Record<string, number> = existing?.history || {};
+            currentHistory[adId] = (currentHistory[adId] || 0) + 1;
+
+            const { error } = await supabase
+                .from('comment_history')
+                .upsert({
+                    fb_id: fbId,
+                    history: currentHistory,
+                    updated_at: now
+                }, {
+                    onConflict: 'fb_id',
+                    ignoreDuplicates: false
+                });
+
+            if (error) {
+                console.error('Supabase POST comment_history error:', error);
+                return res.status(500).json({ error: error.message });
+            }
+
+            return res.status(200).json({
+                success: true,
+                count: currentHistory[adId]
+            });
+        }
+
+        return res.status(400).json({ error: 'Missing adId or history in request body' });
+
+    } catch (error: any) {
+        console.error('Save Comment History Error:', error);
+        return res.status(500).json({ error: error.message || 'Unknown error' });
+    }
 }

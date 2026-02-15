@@ -79,7 +79,7 @@ const EpicVideo: React.FC = () => {
         setAddingToRapid(prev => new Set([...prev, video.id]));
 
         try {
-            const response = await fetch('/api/import-to-rapid', {
+            const response = await fetch('/api/media-api?action=import', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -228,7 +228,7 @@ const EpicVideo: React.FC = () => {
                 requestBody.imageBase64 = referenceImage;
             }
 
-            const response = await fetch('/api/generate-video', {
+            const response = await fetch('/api/generate-api?action=video', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(requestBody)
