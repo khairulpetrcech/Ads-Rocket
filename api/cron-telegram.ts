@@ -34,6 +34,8 @@ export default async function handler(req: any, res: any) {
     try {
         console.log(`[Cron] Daily scheduled run at ${new Date().toISOString()}`);
 
+        const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+
         // Fetch ONLY enabled schedules from analysis_schedules
         const { data: schedules, error } = await supabase
             .from('analysis_schedules')
@@ -63,12 +65,27 @@ export default async function handler(req: any, res: any) {
 
         let successCount = 0;
         let failCount = 0;
+        let skipCount = 0;
 
         for (const schedule of schedules) {
             try {
+                // CHECK: If already run today, skip
+                if (schedule.last_run_at && schedule.last_run_at.startsWith(today)) {
+                    console.log(`[Cron] Skipping schedule ${schedule.fb_id} - Already run today (${schedule.last_run_at})`);
+                    skipCount++;
+                    continue;
+                }
+
                 // Pass schedule data instead of telegram_users data
                 await processScheduledAnalysis(schedule, geminiApiKey);
                 successCount++;
+
+                // UPDATE: Mark as run today
+                await supabase
+                    .from('analysis_schedules')
+                    .update({ last_run_at: new Date().toISOString() })
+                    .eq('fb_id', schedule.fb_id);
+
             } catch (err: any) {
                 console.error(`Failed for schedule ${schedule.fb_id}:`, err);
                 failCount++;
@@ -78,7 +95,8 @@ export default async function handler(req: any, res: any) {
         return res.status(200).json({
             success: true,
             totalSchedules: schedules.length,
-            processed: schedules.length,
+            processed: successCount + failCount,
+            skipped: skipCount,
             successful: successCount,
             failed: failCount
         });
