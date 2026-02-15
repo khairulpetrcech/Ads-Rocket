@@ -1220,8 +1220,8 @@ const Dashboard: React.FC = () => {
                                                                                                             // Color states: 0=default, 1=green, 2=blue, 3+=red
                                                                                                             const getCommentButtonStyle = (count: number) => {
                                                                                                                 if (count >= 3) return "bg-red-100 text-red-600 border-red-200 hover:bg-red-200";
-                                                                                                                if (count === 2) return "bg-blue-100 text-blue-600 border-blue-200 hover:bg-blue-200";
-                                                                                                                if (count === 1) return "bg-green-100 text-green-600 border-green-200 hover:bg-green-200";
+                                                                                                                if (count === 2) return "bg-green-100 text-green-600 border-green-200 hover:bg-green-200";
+                                                                                                                if (count === 1) return "bg-blue-100 text-blue-600 border-blue-200 hover:bg-blue-200";
                                                                                                                 return "bg-white text-indigo-600 border-indigo-200 hover:bg-indigo-600 hover:text-white hover:border-indigo-600";
                                                                                                             };
                                                                                                             return (
