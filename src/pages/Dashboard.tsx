@@ -243,18 +243,7 @@ const Dashboard: React.FC = () => {
     const [selectedAdForComment, setSelectedAdForComment] = useState<Ad | null>(null);
     const [templates, setTemplates] = useState<CommentTemplate[]>([]);
 
-    const [publishedComments, setPublishedComments] = useState<Map<string, number>>(() => {
-        const saved = localStorage.getItem('ar_published_comments_v2');
-        if (saved) {
-            try {
-                const parsed = JSON.parse(saved);
-                return new Map(Object.entries(parsed));
-            } catch {
-                return new Map();
-            }
-        }
-        return new Map();
-    });
+    const [publishedComments, setPublishedComments] = useState<Map<string, number>>(new Map());
 
     // Telegram AI Alert State
     const [telegramSending, setTelegramSending] = useState(false);
@@ -333,14 +322,42 @@ const Dashboard: React.FC = () => {
         }
     };
 
-    // Re-load published comments when modal closes or when custom event fires
+    // Re-load published comments from API (cloud) or localStorage (fallback)
     useEffect(() => {
-        const loadComments = () => {
+        const loadComments = async () => {
+            const fbId = settings.userId || settings.adAccountId;
+
+            if (fbId) {
+                // Try to load from cloud first
+                try {
+                    const res = await fetch(`/api/comment-history-api?fbId=${fbId}`);
+                    const data = await res.json();
+                    if (data.history && Object.keys(data.history).length > 0) {
+                        setPublishedComments(new Map(Object.entries(data.history)));
+                        // Also sync to localStorage as cache
+                        localStorage.setItem('ar_published_comments_v2', JSON.stringify(data.history));
+                        return;
+                    }
+                } catch (e) {
+                    console.error('Failed to load comment history from cloud:', e);
+                }
+            }
+
+            // Fallback to localStorage
             const saved = localStorage.getItem('ar_published_comments_v2');
             if (saved) {
                 try {
                     const parsed = JSON.parse(saved);
                     setPublishedComments(new Map(Object.entries(parsed)));
+
+                    // If we have local data and a fbId, migrate to cloud
+                    if (fbId && Object.keys(parsed).length > 0) {
+                        fetch('/api/comment-history-api', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ fbId, history: parsed })
+                        }).catch(e => console.error('Migration to cloud failed:', e));
+                    }
                 } catch {
                     // ignore parse errors
                 }
@@ -356,7 +373,7 @@ const Dashboard: React.FC = () => {
         return () => {
             window.removeEventListener('ar_comments_updated', handleCommentsUpdated);
         };
-    }, [commentModalOpen]);
+    }, [commentModalOpen, settings.userId, settings.adAccountId]);
 
     const isTrafficOrLeads = (obj: string) => {
         if (!obj) return false;

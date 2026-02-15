@@ -191,7 +191,7 @@ const Layout: React.FC = () => {
                 complete: true
             }));
 
-            // Save to published list in local storage (handled here globally) - V2: track count
+            // Save to published list - V3: persist to cloud + localStorage
             const savedPub = localStorage.getItem('ar_published_comments_v2');
             let pubMap: Record<string, number> = {};
             if (savedPub) {
@@ -203,6 +203,17 @@ const Layout: React.FC = () => {
             }
             pubMap[ad.id] = (pubMap[ad.id] || 0) + 1;
             localStorage.setItem('ar_published_comments_v2', JSON.stringify(pubMap));
+
+            // Save to Supabase cloud for persistent storage
+            const fbId = settings.userId || settings.adAccountId;
+            if (fbId) {
+                fetch('/api/comment-history-api', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ fbId, adId: ad.id })
+                }).catch(e => console.error('Failed to save comment history to cloud:', e));
+            }
+
             // Dispatch custom event so Dashboard can update C button color
             window.dispatchEvent(new CustomEvent('ar_comments_updated'));
 
