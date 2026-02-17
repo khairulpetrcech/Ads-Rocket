@@ -7,6 +7,7 @@
  * GET /api/admin-api?action=campaigns&userId=xxx&limit=50&offset=0
  * GET /api/admin-api?action=schedules
  * GET /api/admin-api?action=comment-history&fbId=xxx
+ * GET /api/admin-api?action=telegram-jobs&fbId=xxx
  * POST /api/admin-api?action=comment-history-save (body: {fbId, adId?, history?})
  */
 
@@ -30,14 +31,17 @@ export default async function handler(req: any, res: any) {
 
     const { action } = req.query;
 
-    // Comment history actions don't require admin auth
-    if (action === 'comment-history' || action === 'comment-history-save') {
+    // Comment history & Telegram Jobs actions don't require admin auth
+    if (action === 'comment-history' || action === 'comment-history-save' || action === 'telegram-jobs') {
         try {
-            if (req.method === 'GET' && action === 'comment-history') {
+            if (action === 'comment-history') {
                 return handleGetCommentHistory(req, res);
             }
-            if (req.method === 'POST' && action === 'comment-history-save') {
+            if (action === 'comment-history-save') {
                 return handleSaveCommentHistory(req, res);
+            }
+            if (action === 'telegram-jobs') {
+                return handleGetTelegramJobs(req, res);
             }
             return res.status(405).json({ error: 'Method not allowed for this action' });
         } catch (error: any) {
@@ -309,5 +313,34 @@ async function handleSaveCommentHistory(req: any, res: any) {
     } catch (error: any) {
         console.error('Save Comment History Error:', error);
         return res.status(500).json({ error: error.message || 'Unknown error' });
+    }
+}
+
+// Get telegram campaign jobs for a user
+async function handleGetTelegramJobs(req: any, res: any) {
+    const { fbId } = req.query;
+
+    if (!fbId) {
+        return res.status(400).json({ error: 'Missing fbId parameter' });
+    }
+
+    try {
+        const { data: jobs, error } = await supabase
+            .from('telegram_campaign_jobs')
+            .select('*')
+            .eq('fb_id', fbId)
+            .order('created_at', { ascending: false })
+            .limit(10);
+
+        if (error) {
+            console.error('Supabase GET telegram_campaign_jobs error:', error);
+            return res.status(500).json({ error: error.message });
+        }
+
+        return res.status(200).json({ jobs: jobs || [] });
+
+    } catch (error: any) {
+        console.error('Get Telegram Jobs Error:', error);
+        return res.status(500).json({ error: error.message || 'Internal server error' });
     }
 }
