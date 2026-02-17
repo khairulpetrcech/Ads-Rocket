@@ -354,9 +354,15 @@ async function createMetaAdSet(accountId: string, campaignId: string, name: stri
         body.promoted_object = { page_id: pageId };
     }
 
+    console.log(`[Telegram Launch] Creating AdSet with body:`, JSON.stringify({ ...body, access_token: 'REDACTED' }));
+
     const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const data = await res.json();
-    if (data.error) throw new Error(data.error.message);
+
+    if (data.error) {
+        console.error('[Telegram Launch] Meta AdSet Error:', JSON.stringify(data.error));
+        throw new Error(`Meta API Error: ${data.error.message} (${data.error.error_subcode || 'no subcode'})`);
+    }
     return data;
 }
 
