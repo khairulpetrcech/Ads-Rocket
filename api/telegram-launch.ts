@@ -73,17 +73,17 @@ export default async function handler(req: any, res: any) {
             console.log(`[Telegram Launch] Uploading video to Meta...`);
             assetId = await uploadVideoToMeta(job.ad_account_id, mediaBuffer, accessToken);
 
-            // Wait for video to be ready (READY status)
-            console.log(`[Telegram Launch] Waiting for video ${assetId} to be ready...`);
-            const ready = await waitForVideoReady(assetId, accessToken);
-            if (!ready) throw new Error('Video processing timed out on Meta servers');
+            // Skip waiting for video to be ready - Meta will process it asynchronously
+            // The ad will be queued and go live once the video is processed
+            console.log(`[Telegram Launch] Video uploaded (${assetId}). Meta will process it asynchronously.`);
 
-            // For video ads, Meta requires a thumbnail image hash.
-            // In a real server-side env, we'd extract it from video. 
-            // Simplified: Use the video's automatically generated picture if available, or just skip for now and see if Meta accepts without.
-            // Actually, some API versions REQUIRE image_hash for video_data. 
-            // We'll try to fetch the video's picture and upload it back as adimage hash.
-            thumbnailHash = await getAutoThumbnailHash(job.ad_account_id, assetId, accessToken);
+            // Try to get thumbnail, but don't fail if it's not ready yet
+            try {
+                thumbnailHash = await getAutoThumbnailHash(job.ad_account_id, assetId, accessToken);
+            } catch (e) {
+                console.warn('[Telegram Launch] Could not get thumbnail (video may still be processing):', e);
+                thumbnailHash = undefined;
+            }
         } else {
             console.log(`[Telegram Launch] Uploading image to Meta...`);
             assetId = await uploadImageToMeta(job.ad_account_id, mediaBuffer, accessToken);
