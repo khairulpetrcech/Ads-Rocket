@@ -309,18 +309,24 @@ async function createMetaCampaign(accountId: string, name: string, objective: st
     const actId = accountId.startsWith('act_') ? accountId : `act_${accountId}`;
     const url = `https://graph.facebook.com/v19.0/${actId}/campaigns`;
 
-    const body = {
+    const body: any = {
         name,
         objective,
         status: 'ACTIVE',
-        special_ad_categories: [],
+        special_ad_categories: ['NONE'], // Try ['NONE'] instead of []
         buying_type: 'AUCTION',
         access_token: accessToken
     };
 
+    console.log(`[Telegram Launch] Creating Campaign with body:`, JSON.stringify({ ...body, access_token: 'REDACTED' }));
+
     const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const data = await res.json();
-    if (data.error) throw new Error(data.error.message);
+
+    if (data.error) {
+        console.error('[Telegram Launch] Meta Campaign Error:', JSON.stringify(data.error));
+        throw new Error(`Meta API Error: ${data.error.message} (${data.error.error_subcode || 'no subcode'})`);
+    }
     return data;
 }
 
