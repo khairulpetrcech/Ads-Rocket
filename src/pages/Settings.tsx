@@ -140,7 +140,11 @@ const Settings: React.FC = () => {
             telegramBotToken: cleanSettings.telegramBotToken,
             telegramChatId: cleanSettings.telegramChatId,
             scheduleTime: '08:00',
-            isEnabled: true
+            isEnabled: true,
+            // Add default campaign settings for Telegram bot launch
+            pageId: cleanSettings.defaultPageId,
+            pixelId: cleanSettings.defaultPixelId,
+            websiteUrl: cleanSettings.defaultWebsiteUrl
           })
         });
         console.log('Telegram settings saved to analysis_schedules for daily cron (userId:', settings.userId, ')');

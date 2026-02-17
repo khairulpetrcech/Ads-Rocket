@@ -49,7 +49,7 @@ export default async function handler(req: any, res: any) {
         // 2. Fetch User Tokens & Ad Account
         const { data: user, error: userError } = await supabase
             .from('telegram_users')
-            .select('fb_access_token, telegram_bot_token')
+            .select('fb_access_token, telegram_bot_token, default_page_id, default_pixel_id, default_website_url')
             .eq('fb_id', job.fb_id)
             .single();
 
@@ -107,9 +107,9 @@ export default async function handler(req: any, res: any) {
             cta: 'LEARN_MORE'
         };
 
-        const pageId = settings.pageId || template?.config?.pageId;
-        const pixelId = settings.pixelId || template?.config?.pixelId;
-        const websiteUrl = settings.websiteUrl || template?.config?.url;
+        const pageId = settings.pageId || template?.config?.pageId || user.default_page_id;
+        const pixelId = settings.pixelId || template?.config?.pixelId || user.default_pixel_id;
+        const websiteUrl = settings.websiteUrl || template?.config?.url || user.default_website_url;
 
         if (!pageId) throw new Error('Missing Page ID. Please set a default Page in your Website Settings.');
 

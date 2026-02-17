@@ -625,7 +625,10 @@ async function handleSaveSettings(req: any, res: any) {
             adAccountId,
             telegramBotToken,
             telegramChatId,
-            enabled
+            enabled,
+            pageId,
+            pixelId,
+            websiteUrl
         } = req.body;
 
         if (!fbId) {
@@ -641,6 +644,9 @@ async function handleSaveSettings(req: any, res: any) {
                 telegram_bot_token: telegramBotToken,
                 telegram_chat_id: telegramChatId,
                 enabled: enabled !== false,
+                default_page_id: pageId,
+                default_pixel_id: pixelId,
+                default_website_url: websiteUrl,
                 updated_at: new Date().toISOString()
             }, {
                 onConflict: 'fb_id'
@@ -714,7 +720,10 @@ async function handleSaveSchedule(req: any, res: any) {
             isEnabled,
             telegramBotToken,
             telegramChatId,
-            fbAccessToken  // Include FB token for cron job
+            fbAccessToken,  // Include FB token for cron job
+            pageId,
+            pixelId,
+            websiteUrl
         } = req.body;
 
         if (!fbId) {
@@ -724,7 +733,7 @@ async function handleSaveSchedule(req: any, res: any) {
         // Preserve existing values when partial payload arrives (e.g., reconnect flow without Telegram fields)
         const { data: existingSchedule, error: existingError } = await supabase
             .from('analysis_schedules')
-            .select('schedule_time, is_enabled, telegram_bot_token, telegram_chat_id, fb_access_token')
+            .select('schedule_time, is_enabled, telegram_bot_token, telegram_chat_id, fb_access_token, default_page_id, default_pixel_id, default_website_url')
             .eq('fb_id', fbId)
             .maybeSingle();
 
@@ -761,7 +770,10 @@ async function handleSaveSchedule(req: any, res: any) {
                 is_enabled: finalIsEnabled,
                 telegram_bot_token: finalTelegramBotToken,
                 telegram_chat_id: finalTelegramChatId,
-                fb_access_token: finalFbAccessToken,  // Save FB token
+                fb_access_token: finalFbAccessToken,
+                default_page_id: pageId || existingSchedule?.default_page_id,
+                default_pixel_id: pixelId || existingSchedule?.default_pixel_id,
+                default_website_url: websiteUrl || existingSchedule?.default_website_url,
                 updated_at: new Date().toISOString()
             }, {
                 onConflict: 'fb_id'
