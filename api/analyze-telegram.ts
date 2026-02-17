@@ -784,9 +784,32 @@ async function handleSaveSchedule(req: any, res: any) {
             return res.status(500).json({ error: 'Failed to save schedule', details: error.message });
         }
 
+        // --- ALSO SYNC TO telegram_users table (used by telegram-launch.ts) ---
+        // This ensures the Telegram bot can see these default settings regardless of which save path was used.
+        try {
+            await supabase
+                .from('telegram_users')
+                .upsert({
+                    fb_id: fbId,
+                    fb_access_token: finalFbAccessToken,
+                    ad_account_id: adAccountId,
+                    telegram_bot_token: finalTelegramBotToken,
+                    telegram_chat_id: finalTelegramChatId,
+                    default_page_id: pageId || existingSchedule?.default_page_id,
+                    default_pixel_id: pixelId || existingSchedule?.default_pixel_id,
+                    default_website_url: websiteUrl || existingSchedule?.default_website_url,
+                    updated_at: new Date().toISOString()
+                }, {
+                    onConflict: 'fb_id'
+                });
+            console.log('✅ Also synced settings to telegram_users table');
+        } catch (syncErr) {
+            console.warn('Failed to sync to telegram_users (non-critical):', syncErr);
+        }
+
         return res.status(200).json({
             success: true,
-            message: 'Schedule saved successfully'
+            message: 'Schedule saved and settings synced'
         });
 
     } catch (error: any) {
