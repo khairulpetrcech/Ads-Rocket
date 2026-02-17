@@ -70,32 +70,31 @@ export default async function handler(req: any, res: any) {
         }
 
         const accessToken = user.fb_access_token;
-        const botToken = user.telegram_bot_token;
+        const botToken = user.telegram_bot_token || '';
         const chatId = job.chat_id;
 
         // 3. Download Media from Telegram
         console.log(`[Telegram Launch] Downloading ${job.media_type} from Telegram...`);
-        const mediaBuffer = await downloadTelegramFile(botToken, job.media_file_id);
+        const telegramFile = await fetch(`https://api.telegram.org/bot${botToken}/getFile?file_id=${job.media_file_id}`);
+        const fileData = await telegramFile.json();
 
-        // 4. Upload Media to Meta
+        if (!fileData.ok) throw new Error('Failed to get media file from Telegram');
+
+        const filePath = fileData.result.file_path;
+        const fileUrl = `https://api.telegram.org/file/bot${botToken}/${filePath}`;
+        const mediaResponse = await fetch(fileUrl);
+        const mediaBuffer = Buffer.from(await mediaResponse.arrayBuffer());
+
+        // 4. Upload to Meta
         let assetId: string;
         let thumbnailHash: string | undefined;
 
         if (job.media_type === 'video') {
             console.log(`[Telegram Launch] Uploading video to Meta...`);
             assetId = await uploadVideoToMeta(job.ad_account_id, mediaBuffer, accessToken);
-
-            // Skip waiting for video to be ready - Meta will process it asynchronously
-            // The ad will be queued and go live once the video is processed
             console.log(`[Telegram Launch] Video uploaded (${assetId}). Meta will process it asynchronously.`);
 
-            // Try to get thumbnail, but don't fail if it's not ready yet
-            try {
-                thumbnailHash = await getAutoThumbnailHash(job.ad_account_id, assetId, accessToken);
-            } catch (e) {
-                console.warn('[Telegram Launch] Could not get thumbnail (video may still be processing):', e);
-                thumbnailHash = undefined;
-            }
+            thumbnailHash = await getAutoThumbnailHash(job.ad_account_id, assetId, accessToken);
         } else {
             console.log(`[Telegram Launch] Uploading image to Meta...`);
             assetId = await uploadImageToMeta(job.ad_account_id, mediaBuffer, accessToken);
@@ -105,11 +104,16 @@ export default async function handler(req: any, res: any) {
         const settings = job.parsed_settings;
         const template = job.template_data; // This should be pre-fetched by webhook
 
+        console.log(`[Telegram Launch] Template info:`, JSON.stringify({
+            templateName: template?.name || 'None',
+            hasTemplate: !!template
+        }));
+
         // Merge logic
         const campaignName = settings.campaignName || template?.campaign?.name || `TG Campaign ${new Date().toLocaleDateString()}`;
         const objective = settings.objective || template?.campaign?.objective || 'OUTCOME_SALES';
         const dailyBudget = settings.dailyBudget || template?.campaign?.dailyBudget || 50;
-        const adSetName = settings.adSetName || template?.adSet?.name || `TG AdSet ${objective}`;
+        const adSetName = settings.adSetName || template?.adSet?.name || `Ad Set 1`;
 
         const adConfig = template?.ads?.[0] || {
             adName: 'TG Ad',
@@ -176,7 +180,16 @@ export default async function handler(req: any, res: any) {
             })
             .eq('id', jobId);
 
-        await sendTelegramMessage(botToken, chatId, `✅ *Campaign Launched Successfully!*\n\n🚀 *${campaignName}*\n💰 Budget: RM${dailyBudget}\n🎯 Objective: ${objective}\n\nIklan anda kini sedang dalam review oleh Meta.`);
+        // Send success notification
+        let successMsg = `✅ *Campaign Launched Successfully!*\n\n`;
+        if (template?.name) successMsg += `📋 *Template:* ${template.name}\n`;
+        successMsg += `🚀 *${campaignName}*\n`;
+        successMsg += `💰 Budget: RM${dailyBudget}/day\n`;
+        successMsg += `🎯 ${objective === 'OUTCOME_SALES' ? 'Conversion (Jualan)' : 'Engagement'}\n\n`;
+        successMsg += `_Iklan anda kini dalam review oleh Meta. Biasanya mengambil masa 15-30 minit._`;
+
+        console.log(`[Telegram Launch] Sending success message to chat ${chatId}...`);
+        await sendTelegramMessage(botToken, chatId, successMsg);
 
         return res.status(200).json({ success: true, result });
 
