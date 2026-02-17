@@ -418,11 +418,24 @@ async function processCampaignCommand(chatId: any, text: string, botToken: strin
 
     await sendTelegramMessage(botToken, chatId, confirmText);
 
-    const baseUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://ads-rocket.vercel.app';
+    // Trigger the launch API asynchronously (fire-and-forget)
+    const baseUrl = process.env.VERCEL_URL
+        ? `https://${process.env.VERCEL_URL}`
+        : (process.env.VERCEL_ENV === 'production' ? 'https://ads-rocket.vercel.app' : 'http://localhost:3000');
+
+    console.log(`[Campaign Command] Triggering launch API at: ${baseUrl}/api/telegram-launch`);
+
     fetch(`${baseUrl}/api/telegram-launch`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ jobId: job.id })
+    }).then(async (response) => {
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error(`[Webhook] Launch API Error (${response.status}):`, errorText);
+        } else {
+            console.log('[Webhook] Launch API triggered successfully');
+        }
     }).catch(err => console.error('[Webhook] Launch Trigger Error:', err));
 
     await supabase.from('telegram_pending_media').delete().eq('chat_id', String(chatId));
