@@ -4,5 +4,16 @@
             "path": "/api/cron-telegram",
             "schedule": "0 0 * * *"
         }
+    ],
+    "headers": [
+        {
+            "source": "/api/(.*)",
+            "headers": [
+                {
+                    "key": "X-Robots-Tag",
+                    "value": "noindex"
+                }
+            ]
+        }
     ]
 }

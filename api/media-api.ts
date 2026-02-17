@@ -418,14 +418,12 @@ async function processCampaignCommand(chatId: any, text: string, botToken: strin
 
     await sendTelegramMessage(botToken, chatId, confirmText);
 
-    // Trigger the launch API asynchronously (fire-and-forget)
-    const baseUrl = process.env.VERCEL_URL
-        ? `https://${process.env.VERCEL_URL}`
-        : (process.env.VERCEL_ENV === 'production' ? 'https://ads-rocket.vercel.app' : 'http://localhost:3000');
+    // Always use production URL to avoid Vercel deployment protection on preview deployments
+    const apiUrl = 'https://ads-rocket.vercel.app/api/telegram-launch';
 
-    console.log(`[Campaign Command] Triggering launch API at: ${baseUrl}/api/telegram-launch`);
+    console.log(`[Campaign Command] Triggering launch API for job: ${job.id}`);
 
-    fetch(`${baseUrl}/api/telegram-launch`, {
+    fetch(apiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ jobId: job.id })
