@@ -381,7 +381,7 @@ async function processCampaignCommand(chatId: any, text: string, botToken: strin
     }`;
 
     const result = await genAI.models.generateContent({
-        model: "gemini-1.5-flash",
+        model: 'gemini-3-flash-preview',
         contents: [{ text: prompt }]
     });
     const parsed = JSON.parse(result.text.replace(/```json|```/g, '').trim());
