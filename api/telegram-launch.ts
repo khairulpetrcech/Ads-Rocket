@@ -53,7 +53,19 @@ export default async function handler(req: any, res: any) {
             .eq('fb_id', job.fb_id)
             .single();
 
-        if (userError || !user || !user.fb_access_token) {
+        if (userError || !user) {
+            console.error('[Telegram Launch] User record not found for fb_id:', job.fb_id);
+            throw new Error('User settings not found. Please re-save settings on the website.');
+        }
+
+        console.log('[Telegram Launch] User record found:', JSON.stringify({
+            hasToken: !!user.fb_access_token,
+            defaultPage: user.default_page_id,
+            defaultPixel: user.default_pixel_id,
+            defaultUrl: user.default_website_url
+        }));
+
+        if (!user.fb_access_token) {
             throw new Error('User credentials not found');
         }
 
