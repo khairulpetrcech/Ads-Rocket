@@ -313,8 +313,9 @@ async function createMetaCampaign(accountId: string, name: string, objective: st
         name,
         objective,
         status: 'ACTIVE',
-        special_ad_categories: ['NONE'], // Try ['NONE'] instead of []
+        special_ad_categories: [],
         buying_type: 'AUCTION',
+        is_adset_budget_sharing_enabled: false, // Required by Meta API
         access_token: accessToken
     };
 
