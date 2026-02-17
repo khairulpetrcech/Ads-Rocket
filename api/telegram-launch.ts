@@ -345,7 +345,8 @@ async function createMetaAdSet(accountId: string, campaignId: string, name: stri
         start_time: startTime,
         access_token: accessToken,
         optimization_goal: optimizationGoal,
-        billing_event: 'IMPRESSIONS'
+        billing_event: 'IMPRESSIONS',
+        bid_strategy: 'LOWEST_COST_WITHOUT_CAP' // Required for conversion optimization
     };
 
     if (optimizationGoal === 'OFFSITE_CONVERSIONS' && pixelId) {
