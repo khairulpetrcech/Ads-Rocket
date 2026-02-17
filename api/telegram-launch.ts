@@ -335,22 +335,37 @@ async function createMetaAdSet(accountId: string, campaignId: string, name: stri
     const actId = accountId.startsWith('act_') ? accountId : `act_${accountId}`;
     const url = `https://graph.facebook.com/v19.0/${actId}/adsets`;
 
+    // Complete targeting matching frontend implementation
+    const targeting = {
+        geo_locations: { countries: ['MY'] },
+        age_min: 18,
+        age_max: 65,
+        publisher_platforms: ['facebook', 'instagram'],
+        device_platforms: ['mobile', 'desktop']
+    };
+
     const startTime = new Date(Date.now() + 60 * 60 * 1000).toISOString().split('.')[0];
+
     const body: any = {
         name,
         campaign_id: campaignId,
         daily_budget: Math.floor(budget * 100),
-        targeting: { geo_locations: { countries: ['MY'] }, age_min: 18 },
+        targeting: targeting,
         status: 'ACTIVE',
         start_time: startTime,
         access_token: accessToken,
         optimization_goal: optimizationGoal,
-        billing_event: 'IMPRESSIONS',
-        bid_strategy: 'LOWEST_COST_WITHOUT_CAP' // Required for conversion optimization
+        bid_strategy: 'LOWEST_COST_WITHOUT_CAP',
+        billing_event: 'IMPRESSIONS'
     };
 
+    // Match frontend logic exactly
     if (optimizationGoal === 'OFFSITE_CONVERSIONS' && pixelId) {
-        body.promoted_object = { pixel_id: pixelId, custom_event_type: 'PURCHASE' };
+        body.destination_type = "WEBSITE";
+        body.promoted_object = {
+            pixel_id: pixelId,
+            custom_event_type: "PURCHASE"
+        };
     } else {
         body.promoted_object = { page_id: pageId };
     }
