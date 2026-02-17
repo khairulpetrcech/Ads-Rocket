@@ -784,17 +784,33 @@ async function handleSaveSchedule(req: any, res: any) {
             return res.status(500).json({ error: 'Failed to save schedule', details: error.message });
         }
 
+        console.log(`[Save Schedule] Successfully updated analysis_schedules for ${fbId}`);
+
         // --- ALSO SYNC TO telegram_users table (used by telegram-launch.ts) ---
-        // This ensures the Telegram bot can see these default settings regardless of which save path was used.
+        // This ensures the Telegram bot can see these default settings.
         try {
-            await supabase
+            console.log(`[Save Schedule] Syncing to telegram_users for fbId: ${fbId}, chatId: ${telegramChatId}`);
+
+            // 1. Clear any other records using the same telegram_chat_id to avoid "ambiguous" lookups in media-api.ts
+            if (telegramChatId) {
+                const { error: clearError } = await supabase
+                    .from('telegram_users')
+                    .update({ telegram_chat_id: null })
+                    .eq('telegram_chat_id', String(telegramChatId))
+                    .neq('fb_id', fbId);
+
+                if (clearError) console.warn('[Save Schedule] Failed to clear stale chat_id links:', clearError.message);
+            }
+
+            // 2. Upsert the current user record
+            const { error: upsertError } = await supabase
                 .from('telegram_users')
                 .upsert({
                     fb_id: fbId,
                     fb_access_token: finalFbAccessToken,
                     ad_account_id: adAccountId,
                     telegram_bot_token: finalTelegramBotToken,
-                    telegram_chat_id: finalTelegramChatId,
+                    telegram_chat_id: telegramChatId ? String(telegramChatId) : null,
                     default_page_id: pageId || existingSchedule?.default_page_id,
                     default_pixel_id: pixelId || existingSchedule?.default_pixel_id,
                     default_website_url: websiteUrl || existingSchedule?.default_website_url,
@@ -802,9 +818,14 @@ async function handleSaveSchedule(req: any, res: any) {
                 }, {
                     onConflict: 'fb_id'
                 });
-            console.log('✅ Also synced settings to telegram_users table');
+
+            if (upsertError) {
+                console.error('[Save Schedule] Upsert to telegram_users failed:', upsertError);
+            } else {
+                console.log('[Save Schedule] ✅ Successfully synced settings to telegram_users table');
+            }
         } catch (syncErr) {
-            console.warn('Failed to sync to telegram_users (non-critical):', syncErr);
+            console.warn('[Save Schedule] Failed to sync to telegram_users (non-critical):', syncErr);
         }
 
         return res.status(200).json({
