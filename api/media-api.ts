@@ -362,29 +362,45 @@ async function processCampaignCommand(chatId: any, text: string, botToken: strin
         return res.status(200).end();
     }
 
-    const { data: presets } = await supabase.from('text_presets').select('ad_templates').eq('fb_id', user.fb_id).single();
-    const templates = presets?.ad_templates || [];
+    // Fetch ALL presets data — ad templates AND copywriting presets by name
+    const { data: presetsRow } = await supabase
+        .from('text_presets')
+        .select('ad_templates, primary_texts, primary_text_names, headlines, headline_names')
+        .eq('fb_id', user.fb_id).single();
+
+    const templates = presetsRow?.ad_templates || [];
+    const primaryTextNames: string[] = presetsRow?.primary_text_names?.filter((n: string) => n?.trim()) || [];
+    const headlineNames: string[] = presetsRow?.headline_names?.filter((n: string) => n?.trim()) || [];
 
     const geminiApiKey = process.env.VITE_GEMINI_3_API;
     const genAI = new GoogleGenAI({ apiKey: geminiApiKey || '' });
 
     const templateNames = templates.map((t: any) => t.name).join(', ');
     const prompt = `Analisa arahan user untuk launch campaign Meta Ads: "${text}"
-    Template sedia ada: [${templateNames}]
-    Berikan JSON output sahaja:
-    {
-      "templateName": "Nama template yang paling padan (null jika tiada)",
-      "dailyBudget": Angka bajet sahaja (null jika tiada),
-      "adAccountName": "Nama ad manager (null jika tiada)",
-      "campaignType": "NEW atau EXISTING",
-      "overrides": { "primaryText": "...", "headline": "..." }
-    }`;
+
+Data sedia ada dalam sistem:
+- Ad Setting Templates: [${templateNames || 'tiada'}]
+- Text Preset (Primary Text) names: [${primaryTextNames.join(', ') || 'tiada'}]
+- Text Preset (Headline) names: [${headlineNames.join(', ') || 'tiada'}]
+
+Tugas: Extract maklumat dari arahan dan padankan dengan data sedia ada.
+Balas JSON sahaja, tiada teks lain:
+{
+  "templateName": "nama template setting yang paling padan (null jika tiada)",
+  "campaignName": "nama campaign yang disebut user (null jika tiada)",
+  "adAccountName": "nama ads manager/akaun yang disebut user (null jika tiada)",
+  "numberOfAds": bilangan integer ads (default 1),
+  "primaryTextPresets": ["senarai nama preset primary text yang disebut, padankan dengan senarai sedia ada"],
+  "headlinePresets": ["senarai nama preset headline yang disebut, padankan dengan senarai sedia ada"],
+  "dailyBudget": angka bajet sahaja atau null
+}`;
 
     const result = await genAI.models.generateContent({
-        model: 'gemini-3-flash-preview',
+        model: 'gemini-2.0-flash',
         contents: [{ text: prompt }]
     });
     const parsed = JSON.parse(result.text.replace(/```json|```/g, '').trim());
+    console.log(`[Campaign Command] Parsed command:`, JSON.stringify(parsed));
 
     const matchedTemplate = templates.find((t: any) =>
         t.name.toLowerCase().includes(parsed.templateName?.toLowerCase()) ||
@@ -398,7 +414,14 @@ async function processCampaignCommand(chatId: any, text: string, botToken: strin
             fb_id: user.fb_id,
             ad_account_id: user.ad_account_id,
             command_text: text,
-            parsed_settings: parsed,
+            parsed_settings: {
+                ...parsed,
+                // Store full preset content so telegram-launch.ts can resolve by name
+                _primaryTexts: presetsRow?.primary_texts || [],
+                _primaryTextNames: presetsRow?.primary_text_names || [],
+                _headlines: presetsRow?.headlines || [],
+                _headlineNames: presetsRow?.headline_names || [],
+            },
             template_name: matchedTemplate?.name || null,
             template_data: matchedTemplate || null,
             media_file_id: media.file_id,
@@ -411,10 +434,19 @@ async function processCampaignCommand(chatId: any, text: string, botToken: strin
 
     if (jobErr) throw jobErr;
 
+    const numAds = parsed.numberOfAds || 1;
+    const presetList = parsed.primaryTextPresets?.length > 0
+        ? parsed.primaryTextPresets.join(', ')
+        : null;
+
     let confirmText = `⏳ *Processing Campaign Launch...*\n\n`;
     if (matchedTemplate) confirmText += `📋 *Template:* ${matchedTemplate.name}\n`;
-    if (parsed.dailyBudget) confirmText += `💰 *Budget:* RM${parsed.dailyBudget}\n`;
-    confirmText += `🎬 *Media:* ${media.media_type === 'video' ? 'Video' : 'Gambar'}\n\n_Sila tunggu, proses ini mengambil masa 30-60 saat._`;
+    if (parsed.campaignName) confirmText += `🚀 *Campaign:* ${parsed.campaignName}\n`;
+    if (parsed.dailyBudget) confirmText += `💰 *Budget:* RM${parsed.dailyBudget}/hari\n`;
+    confirmText += `🎬 *Media:* ${media.media_type === 'video' ? 'Video' : 'Gambar'}\n`;
+    confirmText += `📝 *Ads:* ${numAds} ads`;
+    if (presetList) confirmText += ` (${presetList})`;
+    confirmText += `\n\n_Sila tunggu, proses ini mengambil masa 30-60 saat._`;
 
     await sendTelegramMessage(botToken, chatId, confirmText);
 

@@ -102,14 +102,10 @@ export default async function handler(req: any, res: any) {
 
         // 5. Apply Template + Overrides
         const settings = job.parsed_settings;
-        const template = job.template_data; // This should be pre-fetched by webhook
+        const template = job.template_data;
 
-        console.log(`[Telegram Launch] Template info:`, JSON.stringify({
-            templateName: template?.name || 'None',
-            hasTemplate: !!template
-        }));
+        console.log(`[Telegram Launch] Template:`, template?.name || 'None', '| Presets:', settings.primaryTextPresets);
 
-        // Merge logic
         const campaignName = settings.campaignName || template?.campaign?.name || `TG Campaign ${new Date().toLocaleDateString()}`;
         const objective = settings.objective || template?.campaign?.objective || 'OUTCOME_SALES';
         const dailyBudget = settings.dailyBudget || template?.campaign?.dailyBudget || 50;
@@ -129,7 +125,58 @@ export default async function handler(req: any, res: any) {
 
         if (!pageId) throw new Error('Missing Page ID. Please set a default Page in your Website Settings.');
 
-        // 6. Execute Meta Creation Sequence
+        // 6. Resolve text presets → ads to create
+        const primaryTextPresetNames: string[] = settings.primaryTextPresets || [];
+        const headlinePresetNames: string[] = settings.headlinePresets || [];
+        const storedPrimaryTexts: string[] = settings._primaryTexts || [];
+        const storedPrimaryTextNames: string[] = settings._primaryTextNames || [];
+        const storedHeadlines: string[] = settings._headlines || [];
+        const storedHeadlineNames: string[] = settings._headlineNames || [];
+
+        // Helper to find preset content by name
+        const resolvePreset = (name: string, names: string[], texts: string[]) => {
+            const idx = names.findIndex(n => n?.toLowerCase() === name?.toLowerCase());
+            return idx >= 0 ? texts[idx] : null;
+        };
+
+        // Build list of ads to create
+        let adsToCreate: Array<{ name: string; primaryText: string; headline: string; cta: string; description: string }> = [];
+
+        if (primaryTextPresetNames.length > 0) {
+            // Create one ad per specified preset name 
+            for (const presetName of primaryTextPresetNames) {
+                const primaryText = resolvePreset(presetName, storedPrimaryTextNames, storedPrimaryTexts)
+                    || adConfig.primaryText;
+                // Match headline by same index/name if available, else use from adConfig
+                const headlineName = headlinePresetNames[primaryTextPresetNames.indexOf(presetName)];
+                const headline = (headlineName && resolvePreset(headlineName, storedHeadlineNames, storedHeadlines))
+                    || adConfig.headline;
+
+                adsToCreate.push({
+                    name: presetName,
+                    primaryText,
+                    headline,
+                    cta: adConfig.cta,
+                    description: adConfig.description
+                });
+            }
+        } else {
+            // No presets specified — create numberOfAds copies using template/default
+            const numAds = settings.numberOfAds || 1;
+            for (let i = 0; i < numAds; i++) {
+                adsToCreate.push({
+                    name: numAds > 1 ? `Ad ${i + 1}` : (adConfig.adName || 'TG Ad'),
+                    primaryText: adConfig.primaryText,
+                    headline: adConfig.headline,
+                    cta: adConfig.cta,
+                    description: adConfig.description
+                });
+            }
+        }
+
+        console.log(`[Telegram Launch] Creating ${adsToCreate.length} ads:`, adsToCreate.map(a => a.name));
+
+        // 7. Execute Meta Creation Sequence
         console.log(`[Telegram Launch] Creating Campaign: ${campaignName}`);
         const campaign = await createMetaCampaign(job.ad_account_id, campaignName, objective, accessToken);
 
@@ -145,30 +192,35 @@ export default async function handler(req: any, res: any) {
             pageId
         );
 
-        console.log(`[Telegram Launch] Creating Creative...`);
-        const creativeId = await createMetaCreative(
-            job.ad_account_id,
-            adConfig.adName,
-            pageId,
-            assetId,
-            adConfig.primaryText,
-            adConfig.headline,
-            websiteUrl || 'https://example.com',
-            accessToken,
-            job.media_type,
-            adConfig.cta,
-            adConfig.description,
-            thumbnailHash
-        );
+        // 8. Create all ads in loop
+        const createdAds: Array<{ name: string; id: string }> = [];
+        for (const adSpec of adsToCreate) {
+            console.log(`[Telegram Launch] Creating Creative for: ${adSpec.name}...`);
+            const creativeId = await createMetaCreative(
+                job.ad_account_id,
+                adSpec.name,
+                pageId,
+                assetId,
+                adSpec.primaryText,
+                adSpec.headline,
+                websiteUrl || 'https://example.com',
+                accessToken,
+                job.media_type,
+                adSpec.cta,
+                adSpec.description,
+                thumbnailHash
+            );
 
-        console.log(`[Telegram Launch] Creating Ad...`);
-        const ad = await createMetaAd(job.ad_account_id, adSet.id, adConfig.adName, creativeId, accessToken);
+            console.log(`[Telegram Launch] Creating Ad: ${adSpec.name}...`);
+            const ad = await createMetaAd(job.ad_account_id, adSet.id, adSpec.name, creativeId, accessToken);
+            createdAds.push({ name: adSpec.name, id: ad.id });
+        }
 
-        // 7. Success!
+        // 9. Success!
         const result = {
             campaignId: campaign.id,
             adSetId: adSet.id,
-            adId: ad.id
+            ads: createdAds
         };
 
         await supabase
@@ -180,13 +232,15 @@ export default async function handler(req: any, res: any) {
             })
             .eq('id', jobId);
 
-        // Send success notification
+        // Send detailed success notification
         let successMsg = `✅ *Campaign Launched Successfully!*\n\n`;
         if (template?.name) successMsg += `📋 *Template:* ${template.name}\n`;
         successMsg += `🚀 *${campaignName}*\n`;
         successMsg += `💰 Budget: RM${dailyBudget}/day\n`;
-        successMsg += `🎯 ${objective === 'OUTCOME_SALES' ? 'Conversion (Jualan)' : 'Engagement'}\n\n`;
-        successMsg += `_Iklan anda kini dalam review oleh Meta. Biasanya mengambil masa 15-30 minit._`;
+        successMsg += `🎯 ${objective === 'OUTCOME_SALES' ? 'Conversion (Jualan)' : 'Engagement'}\n`;
+        successMsg += `\n📝 *${createdAds.length} Ads dicipta:*\n`;
+        createdAds.forEach(a => { successMsg += `• ${a.name}\n`; });
+        successMsg += `\n_Iklan anda dalam review oleh Meta. ~15-30 minit._`;
 
         console.log(`[Telegram Launch] Sending success message to chat ${chatId}...`);
         await sendTelegramMessage(botToken, chatId, successMsg);
