@@ -69,30 +69,35 @@ export default async function handler(req: any, res: any) {
 
         for (const schedule of schedules) {
             try {
-                // ATOMIC UPDATE: Mark as run today BEFORE processing
-                // This prevents race conditions where multiple cron triggers pass the check
-                const { data: updateData, error: updateError } = await supabase
-                    .from('analysis_schedules')
-                    .update({ last_run_at: new Date().toISOString() })
-                    .eq('fb_id', schedule.fb_id)
-                    // Only update if it hasn't run today (last_run_at is null or doesn't start with today's date)
-                    .or(`last_run_at.is.null,last_run_at.not.ilike.${today}%`)
-                    .select();
-
-                if (updateError) {
-                    console.error(`[Cron] Update error for ${schedule.fb_id}:`, updateError);
-                    failCount++;
-                    continue;
-                }
-
-                // If no rows were updated, it means another process already marked it as run
-                if (!updateData || updateData.length === 0) {
-                    console.log(`[Cron] Skipping schedule ${schedule.fb_id} - Already run today (processed by concurrent execution)`);
+                // PRE-CHECK: Use data already fetched from DB to skip if run today
+                if (schedule.last_run_at && schedule.last_run_at.startsWith(today)) {
+                    console.log(`[Cron] Skipping schedule ${schedule.fb_id} - Already run today (${schedule.last_run_at})`);
                     skipCount++;
                     continue;
                 }
 
-                console.log(`[Cron] Starting analysis for ${schedule.fb_id} (Locked at ${new Date().toISOString()})`);
+                // ATOMIC LOCK: Update last_run_at only if it still hasn't been set for today.
+                // Uses proper Supabase filter syntax to prevent race conditions.
+                const { data: updateData, error: updateError } = await supabase
+                    .from('analysis_schedules')
+                    .update({ last_run_at: new Date().toISOString() })
+                    .eq('fb_id', schedule.fb_id)
+                    .or(`last_run_at.is.null,last_run_at.lt.${today}T00:00:00.000Z`)
+                    .select();
+
+                if (updateError) {
+                    console.error(`[Cron] Lock update error for ${schedule.fb_id}:`, updateError);
+                    // Fall through and still attempt - don't let DB error block the report
+                }
+
+                // If no rows were updated, another concurrent process already locked this schedule
+                if (!updateError && (!updateData || updateData.length === 0)) {
+                    console.log(`[Cron] Skipping schedule ${schedule.fb_id} - Locked by concurrent execution`);
+                    skipCount++;
+                    continue;
+                }
+
+                console.log(`[Cron] Processing schedule ${schedule.fb_id} at ${new Date().toISOString()}`);
 
                 // Pass schedule data instead of telegram_users data
                 await processScheduledAnalysis(schedule, geminiApiKey);
