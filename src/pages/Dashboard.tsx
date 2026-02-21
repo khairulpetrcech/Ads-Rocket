@@ -10,7 +10,9 @@ import {
     getAds,
     updateEntityStatus,
     updateEntityBudget,
-    refreshFacebookToken
+    refreshFacebookToken,
+    getDailyBreakdownMetrics,
+    EntityDailyBreakdown
 } from '../services/metaService';
 import { MOCK_CAMPAIGNS } from '../services/mockData';
 import {
@@ -194,6 +196,7 @@ const Dashboard: React.FC = () => {
     // Data State
     const [campaigns, setCampaigns] = useState<AdCampaign[]>([]);
     const [adSetsData, setAdSetsData] = useState<Record<string, AdSet[]>>({});
+    const [dailyMetrics, setDailyMetrics] = useState<Record<string, EntityDailyBreakdown>>({});
     const [adsData, setAdsData] = useState<Record<string, Ad[]>>({});
 
     // UI State
@@ -404,6 +407,9 @@ const Dashboard: React.FC = () => {
         return trafficLeadsTargets.includes(upper);
     };
 
+    // Show L1-L4 columns only when Last 4 Days is selected
+    const showDailyColumns = dateRange === 'last_4d';
+
     // --- FETCH DATA ---
 
     const fetchData = async () => {
@@ -440,6 +446,15 @@ const Dashboard: React.FC = () => {
                     realData = await getRealCampaigns(settings.adAccountId, settings.fbAccessToken, presetParam);
                 }
                 setCampaigns(realData);
+
+                // Fetch L1-L4 daily breakdown when Last 4 Days selected
+                if (dateRange === 'last_4d' && realData.length > 0 && settings.fbAccessToken !== 'dummy_token') {
+                    const ids = realData.map(c => c.id);
+                    try {
+                        const daily = await getDailyBreakdownMetrics(ids, settings.fbAccessToken);
+                        setDailyMetrics(prev => ({ ...prev, ...daily }));
+                    } catch (e) { console.error('Daily breakdown fetch error:', e); }
+                }
             } else {
                 setCampaigns(MOCK_CAMPAIGNS);
             }
@@ -581,6 +596,11 @@ const Dashboard: React.FC = () => {
                     const presetParam = dateRange === 'custom' ? { start: customStartDate, end: customEndDate } : dateRange;
                     const data = await getAdSets(campaignId, settings.fbAccessToken, presetParam);
                     setAdSetsData(prev => ({ ...prev, [campaignId]: data }));
+                    // Fetch L1-L4 for adsets if needed
+                    if (dateRange === 'last_4d' && data.length > 0) {
+                        const daily = await getDailyBreakdownMetrics(data.map(a => a.id), settings.fbAccessToken);
+                        setDailyMetrics(prev => ({ ...prev, ...daily }));
+                    }
                 } catch (e) { console.error(e); }
             }
         }
@@ -598,6 +618,11 @@ const Dashboard: React.FC = () => {
                     const presetParam = dateRange === 'custom' ? { start: customStartDate, end: customEndDate } : dateRange;
                     const data = await getAds(adSetId, settings.fbAccessToken, presetParam);
                     setAdsData(prev => ({ ...prev, [adSetId]: data }));
+                    // Fetch L1-L4 for ads if needed
+                    if (dateRange === 'last_4d' && data.length > 0) {
+                        const daily = await getDailyBreakdownMetrics(data.map(a => a.id), settings.fbAccessToken);
+                        setDailyMetrics(prev => ({ ...prev, ...daily }));
+                    }
                 } catch (e) { console.error(e); }
             }
         }
@@ -705,13 +730,21 @@ const Dashboard: React.FC = () => {
         if (viewMode === 'TRAFFIC') {
             return (
                 <tr className="bg-slate-50 text-slate-500 text-xs uppercase border-b border-slate-200">
-                    <th className="p-4 w-[35%] font-semibold">Name</th>
-                    <th className="p-3 text-right w-[11%] font-semibold">Spend</th>
-                    <th className="p-3 text-right w-[11%] font-semibold">Lead</th>
-                    <th className="p-3 text-right w-[11%] font-semibold">Cost/Lead</th>
-                    <th className="p-3 text-right w-[11%] font-semibold">CTR (All)</th>
-                    <th className="p-3 text-right w-[11%] font-semibold">CTR (Link)</th>
-                    <th className="p-3 text-right w-[10%] font-semibold"></th>
+                    <th className="p-4 w-[30%] font-semibold">Name</th>
+                    <th className="p-3 text-right w-[9%] font-semibold">Spend</th>
+                    <th className="p-3 text-right w-[9%] font-semibold">Lead</th>
+                    <th className="p-3 text-right w-[9%] font-semibold">Cost/Lead</th>
+                    <th className="p-3 text-right w-[9%] font-semibold">CTR (All)</th>
+                    <th className="p-3 text-right w-[9%] font-semibold">CTR (Link)</th>
+                    <th className="p-3 text-right w-[8%] font-semibold"></th>
+                    {showDailyColumns && (
+                        <>
+                            <th className="p-3 text-right w-[6%] font-semibold text-amber-500">CPL L1</th>
+                            <th className="p-3 text-right w-[6%] font-semibold text-amber-500">CPL L2</th>
+                            <th className="p-3 text-right w-[6%] font-semibold text-amber-500">CPL L3</th>
+                            <th className="p-3 text-right w-[6%] font-semibold text-amber-500">CPL L4</th>
+                        </>
+                    )}
                 </tr>
             );
         }
@@ -738,19 +771,28 @@ const Dashboard: React.FC = () => {
 
         return (
             <tr className="bg-slate-50 text-slate-500 text-xs uppercase border-b border-slate-200">
-                <th className="p-4 w-[40%] font-semibold">Name</th>
-                <SortHeader field="spend" label="Spend" width="w-[10%]" />
-                <SortHeader field="roas" label="ROAS" width="w-[7%]" />
-                <SortHeader field="cpa" label="CPA" width="w-[7%]" />
-                <SortHeader field="ctr" label="CTR" width="w-[6%]" />
-                <SortHeader field="frequency" label="Freq" width="w-[6%]" />
-                <SortHeader field="lpv" label="LPV/(CPLV)" width="w-[12%]" />
-                <SortHeader field="purchases" label="Purchases" width="w-[12%]" />
+                <th className="p-4 w-[32%] font-semibold">Name</th>
+                <SortHeader field="spend" label="Spend" width="w-[9%]" />
+                <SortHeader field="roas" label="ROAS" width="w-[6%]" />
+                <SortHeader field="cpa" label="CPA" width="w-[6%]" />
+                <SortHeader field="ctr" label="CTR" width="w-[5%]" />
+                <SortHeader field="frequency" label="Freq" width="w-[5%]" />
+                <SortHeader field="lpv" label="LPV/(CPLV)" width="w-[10%]" />
+                <SortHeader field="purchases" label="Purchases" width="w-[9%]" />
+                {showDailyColumns && (
+                    <>
+                        <th className="p-3 text-right w-[5%] font-semibold text-amber-500">ROAS L1</th>
+                        <th className="p-3 text-right w-[5%] font-semibold text-amber-500">ROAS L2</th>
+                        <th className="p-3 text-right w-[5%] font-semibold text-amber-500">ROAS L3</th>
+                        <th className="p-3 text-right w-[5%] font-semibold text-amber-500">ROAS L4</th>
+                    </>
+                )}
             </tr>
         );
     };
 
-    const renderMetrics = (metrics: any) => {
+    const renderMetrics = (metrics: any, entityId?: string) => {
+        const daily = entityId ? dailyMetrics[entityId] : undefined;
         if (viewMode === 'TRAFFIC') {
             return (
                 <>
@@ -762,6 +804,19 @@ const Dashboard: React.FC = () => {
                     <td className="p-3 text-right whitespace-nowrap text-slate-700">{metrics.ctr.toFixed(2)}%</td>
                     <td className="p-3 text-right whitespace-nowrap text-indigo-600 font-medium">{metrics.inline_link_click_ctr.toFixed(2)}%</td>
                     <td className="p-3 text-right whitespace-nowrap"></td>
+                    {showDailyColumns && (['L1', 'L2', 'L3', 'L4'] as const).map(slot => {
+                        const d = daily?.[slot];
+                        const cpl = d ? d.costPerResult : 0;
+                        return (
+                            <td key={slot} className="p-2 text-right whitespace-nowrap">
+                                {d && d.spend > 0 ? (
+                                    <span className={cpl > 0 && cpl <= 5 ? 'text-green-600 font-semibold text-[11px]' : cpl > 5 ? 'text-red-500 font-semibold text-[11px]' : 'text-slate-400 text-[11px]'}>
+                                        {formatMYR(cpl)}
+                                    </span>
+                                ) : <span className="text-slate-300 text-[11px]">—</span>}
+                            </td>
+                        );
+                    })}
                 </>
             );
         }
@@ -781,6 +836,19 @@ const Dashboard: React.FC = () => {
                     <span className="text-xs text-slate-400 ml-1">({formatMYR(metrics.costPerLandingPageView)})</span>
                 </td>
                 <td className="p-3 text-right whitespace-nowrap text-slate-700">{metrics.purchases}</td>
+                {showDailyColumns && (['L1', 'L2', 'L3', 'L4'] as const).map(slot => {
+                    const d = daily?.[slot];
+                    const roas = d ? d.roas : 0;
+                    return (
+                        <td key={slot} className="p-2 text-right whitespace-nowrap">
+                            {d && d.spend > 0 ? (
+                                <span className={roas >= 2 ? 'text-green-600 font-bold text-[11px]' : roas > 0 ? 'text-red-500 font-bold text-[11px]' : 'text-slate-400 text-[11px]'}>
+                                    {roas.toFixed(2)}x
+                                </span>
+                            ) : <span className="text-slate-300 text-[11px]">—</span>}
+                        </td>
+                    );
+                })}
             </>
         );
     };
@@ -1165,14 +1233,14 @@ const Dashboard: React.FC = () => {
                                                                     </div>
                                                                 </div>
                                                             </td>
-                                                            {renderMetrics(camp.metrics)}
+                                                            {renderMetrics(camp.metrics, camp.id)}
                                                         </tr>
 
                                                         {/* Level 2: Ad Sets */}
                                                         {expandedCampaigns.has(camp.id) && (
                                                             <>
                                                                 {!adSetsData[camp.id] && (
-                                                                    <tr><td colSpan={8} className="text-center py-4 text-xs text-slate-400"><Loader2 className="animate-spin inline mr-2" size={14} /> Loading Ad Sets...</td></tr>
+                                                                    <tr><td colSpan={showDailyColumns ? 12 : 8} className="text-center py-4 text-xs text-slate-400"><Loader2 className="animate-spin inline mr-2" size={14} /> Loading Ad Sets...</td></tr>
                                                                 )}
 
                                                                 {adSetsToShow.map(adset => (
@@ -1202,36 +1270,38 @@ const Dashboard: React.FC = () => {
                                                                                     </div>
                                                                                 </div>
                                                                             </td>
-                                                                            {renderMetrics(adset.metrics)}
+                                                                            {renderMetrics(adset.metrics, adset.id)}
                                                                         </tr>
 
                                                                         {/* Level 3: Ads */}
                                                                         {expandedAdSets.has(adset.id) && (
                                                                             <tr className="bg-slate-50">
-                                                                                <td colSpan={8} className="p-0 border-b border-slate-100">
+                                                                                <td colSpan={showDailyColumns ? 12 : 8} className="p-0 border-b border-slate-100">
                                                                                     <div className="max-h-[350px] overflow-y-auto custom-scrollbar border-y border-slate-200 bg-slate-50/80">
                                                                                         <table className="w-full table-fixed">
                                                                                             <colgroup>
                                                                                                 {viewMode === 'TRAFFIC' ? (
                                                                                                     <>
-                                                                                                        <col style={{ width: '35%' }} />
-                                                                                                        <col style={{ width: '11%' }} />
-                                                                                                        <col style={{ width: '11%' }} />
-                                                                                                        <col style={{ width: '11%' }} />
-                                                                                                        <col style={{ width: '11%' }} />
-                                                                                                        <col style={{ width: '11%' }} />
-                                                                                                        <col style={{ width: '10%' }} />
+                                                                                                        <col style={{ width: '30%' }} />
+                                                                                                        <col style={{ width: '9%' }} />
+                                                                                                        <col style={{ width: '9%' }} />
+                                                                                                        <col style={{ width: '9%' }} />
+                                                                                                        <col style={{ width: '9%' }} />
+                                                                                                        <col style={{ width: '9%' }} />
+                                                                                                        <col style={{ width: '8%' }} />
+                                                                                                        {showDailyColumns && (<><col style={{ width: '6%' }} /><col style={{ width: '6%' }} /><col style={{ width: '6%' }} /><col style={{ width: '5%' }} /></>)}
                                                                                                     </>
                                                                                                 ) : (
                                                                                                     <>
-                                                                                                        <col style={{ width: '40%' }} />
+                                                                                                        <col style={{ width: '32%' }} />
+                                                                                                        <col style={{ width: '9%' }} />
+                                                                                                        <col style={{ width: '6%' }} />
+                                                                                                        <col style={{ width: '6%' }} />
+                                                                                                        <col style={{ width: '5%' }} />
+                                                                                                        <col style={{ width: '5%' }} />
                                                                                                         <col style={{ width: '10%' }} />
-                                                                                                        <col style={{ width: '7%' }} />
-                                                                                                        <col style={{ width: '7%' }} />
-                                                                                                        <col style={{ width: '6%' }} />
-                                                                                                        <col style={{ width: '6%' }} />
-                                                                                                        <col style={{ width: '12%' }} />
-                                                                                                        <col style={{ width: '12%' }} />
+                                                                                                        <col style={{ width: '9%' }} />
+                                                                                                        {showDailyColumns && (<><col style={{ width: '5%' }} /><col style={{ width: '5%' }} /><col style={{ width: '5%' }} /><col style={{ width: '3%' }} /></>)}
                                                                                                     </>
                                                                                                 )}
                                                                                             </colgroup>
@@ -1298,20 +1368,20 @@ const Dashboard: React.FC = () => {
                                                                                                                             </div>
                                                                                                                         </div>
                                                                                                                     </td>
-                                                                                                                    {renderMetrics(ad.metrics)}
+                                                                                                                    {renderMetrics(ad.metrics, ad.id)}
                                                                                                                 </tr>
                                                                                                             )
                                                                                                         })
                                                                                                     ) : (
                                                                                                         <tr>
-                                                                                                            <td colSpan={8} className="text-center py-6 text-xs text-slate-400 italic">
+                                                                                                            <td colSpan={showDailyColumns ? 12 : 8} className="text-center py-6 text-xs text-slate-400 italic">
                                                                                                                 No active ads in this ad set.
                                                                                                             </td>
                                                                                                         </tr>
                                                                                                     )
                                                                                                 ) : (
                                                                                                     <tr>
-                                                                                                        <td colSpan={8} className="text-center py-6 text-xs text-slate-400">
+                                                                                                        <td colSpan={showDailyColumns ? 12 : 8} className="text-center py-6 text-xs text-slate-400">
                                                                                                             <Loader2 className="animate-spin inline mr-2 text-indigo-500" size={14} /> Loading Ads...
                                                                                                         </td>
                                                                                                     </tr>
@@ -1327,7 +1397,7 @@ const Dashboard: React.FC = () => {
 
                                                                 {secondaryAdSets.length > 0 && (
                                                                     <tr className="bg-slate-50/30">
-                                                                        <td colSpan={8} className="text-center py-2 border-b border-slate-100">
+                                                                        <td colSpan={showDailyColumns ? 12 : 8} className="text-center py-2 border-b border-slate-100">
                                                                             <button
                                                                                 onClick={() => toggleHiddenAdSetsForCampaign(camp.id)}
                                                                                 className="text-[10px] text-slate-400 hover:text-indigo-600 uppercase tracking-wide font-bold"

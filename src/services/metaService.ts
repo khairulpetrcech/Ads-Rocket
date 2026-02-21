@@ -655,6 +655,140 @@ export const getAds = async (adSetId: string, accessToken: string, datePreset: s
     } catch (error) { throw error; }
 };
 
+// --- DAILY BREAKDOWN METRICS (L1-L4) ---
+// L1 = yesterday, L2 = 2 days ago, L3 = 3 days ago, L4 = 4 days ago
+
+export interface DailyMetrics {
+    roas: number;
+    spend: number;
+    revenue: number;
+    costPerResult: number; // CPL for leads
+    totalLeads: number;
+    purchases: number;
+}
+
+export type EntityDailyBreakdown = {
+    L1: DailyMetrics;
+    L2: DailyMetrics;
+    L3: DailyMetrics;
+    L4: DailyMetrics;
+};
+
+const mapRawDailyInsights = (row: any): DailyMetrics => {
+    const purchaseActionTypes = [
+        'purchase', 'omni_purchase',
+        'onsite_conversion.purchase',
+        'offsite_conversion.fb_pixel_purchase'
+    ];
+    let maxPurchaseCount = 0;
+    let maxPurchaseValue = 0;
+    if (row.actions) {
+        for (const action of row.actions) {
+            if (purchaseActionTypes.includes(action.action_type)) {
+                const val = parseInt(action.value || '0');
+                if (val > maxPurchaseCount) maxPurchaseCount = val;
+            }
+        }
+    }
+    if (row.action_values) {
+        for (const action of row.action_values) {
+            if (purchaseActionTypes.includes(action.action_type)) {
+                const val = parseFloat(action.value || '0');
+                if (val > maxPurchaseValue) maxPurchaseValue = val;
+            }
+        }
+    }
+    const leads = parseInt(row.actions?.find((a: any) => a.action_type === 'lead')?.value || '0');
+    const msgStarted = parseInt(row.actions?.find((a: any) => a.action_type === 'onsite_conversion.messaging_conversation_started_7d')?.value || '0');
+    const msgInitiated = parseInt(row.actions?.find((a: any) => a.action_type === 'onsite_conversion.messaging_initiated')?.value || '0');
+    const totalLeads = leads + msgStarted + msgInitiated;
+    const spend = parseFloat(row.spend || '0');
+    const revenue = maxPurchaseValue;
+    return {
+        roas: spend > 0 ? parseFloat((revenue / spend).toFixed(2)) : 0,
+        spend,
+        revenue,
+        costPerResult: totalLeads > 0 ? parseFloat((spend / totalLeads).toFixed(2)) : 0,
+        totalLeads,
+        purchases: maxPurchaseCount,
+    };
+};
+
+const emptyDailyMetrics = (): DailyMetrics => ({
+    roas: 0, spend: 0, revenue: 0, costPerResult: 0, totalLeads: 0, purchases: 0,
+});
+
+export const getDailyBreakdownMetrics = async (
+    entityIds: string[],
+    accessToken: string
+): Promise<Record<string, EntityDailyBreakdown>> => {
+    if (!entityIds.length) return {};
+
+    const fmt = (d: Date) => {
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+    };
+    const today = new Date();
+    const until = new Date(today); until.setDate(today.getDate() - 1);
+    const since = new Date(today); since.setDate(today.getDate() - 4);
+
+    // Map each date to its slot label (L1=yesterday, L4=4 days ago)
+    const dateToSlot: Record<string, 'L1' | 'L2' | 'L3' | 'L4'> = {};
+    for (let i = 1; i <= 4; i++) {
+        const d = new Date(today);
+        d.setDate(today.getDate() - i);
+        dateToSlot[fmt(d)] = `L${i}` as 'L1' | 'L2' | 'L3' | 'L4';
+    }
+
+    const timeRange = `{"since":"${fmt(since)}","until":"${fmt(until)}"}`;
+    const insightsFields = `spend,actions,action_values`;
+    const BATCH_SIZE = 10;
+    const result: Record<string, EntityDailyBreakdown> = {};
+
+    for (let i = 0; i < entityIds.length; i += BATCH_SIZE) {
+        const chunk = entityIds.slice(i, i + BATCH_SIZE);
+        const batch = chunk.map(id => ({
+            method: 'GET',
+            relative_url: `${id}/insights?fields=${insightsFields}&time_range=${encodeURIComponent(timeRange)}&time_increment=1&limit=10`
+        }));
+
+        try {
+            const formData = new URLSearchParams();
+            formData.append('batch', JSON.stringify(batch));
+            const response = await fetch(`https://graph.facebook.com/v19.0/?access_token=${accessToken}`, {
+                method: 'POST',
+                body: formData
+            });
+            const batchResult = await response.json();
+            if (!Array.isArray(batchResult)) continue;
+
+            batchResult.forEach((item: any, idx: number) => {
+                const entityId = chunk[idx];
+                const breakdown: EntityDailyBreakdown = {
+                    L1: emptyDailyMetrics(), L2: emptyDailyMetrics(),
+                    L3: emptyDailyMetrics(), L4: emptyDailyMetrics(),
+                };
+                if (item && item.code === 200) {
+                    try {
+                        const body = JSON.parse(item.body);
+                        (body.data || []).forEach((row: any) => {
+                            const slot = dateToSlot[row.date_start];
+                            if (slot) breakdown[slot] = mapRawDailyInsights(row);
+                        });
+                    } catch { /* silent fail */ }
+                }
+                result[entityId] = breakdown;
+            });
+        } catch (e) {
+            console.error('[getDailyBreakdown] Batch error:', e);
+        }
+    }
+
+    return result;
+};
+
 export const getTopAdsForAccount = async (adAccountId: string, accessToken: string): Promise<Ad[]> => {
     const accountId = adAccountId.startsWith('act_') ? adAccountId : `act_${adAccountId}`;
     const cacheKey = `top-ads-${accountId}-last_7d`;
