@@ -97,23 +97,9 @@ async function extractFacebookVideoUrl(
         for (const att of (d3?.attachments?.data || [])) {
             if (att?.media?.source) return att.media.source;
         }
-
-        // 4. Fallback: list videos from ad account (most recent first)
-        if (adAccountId) {
-            const acct = adAccountId.startsWith('act_') ? adAccountId : `act_${adAccountId}`;
-            const d4 = await gfetch(`${G}/${acct}/advideos?fields=source,id,created_time&limit=50&access_token=${token}`);
-            console.log('[FB Extract] Ad account videos count:', d4?.data?.length);
-            if (d4?.data?.length > 0) {
-                const sorted = [...d4.data].sort((a: any, b: any) =>
-                    new Date(b.created_time).getTime() - new Date(a.created_time).getTime()
-                );
-                for (const v of sorted) {
-                    if (v.source) return v.source;
-                }
-            }
-        }
     }
 
+    // 3 methods failed — return helpful error
     return null;
 }
 
@@ -161,7 +147,7 @@ async function handleAnalyze(req: any, res: any) {
                         videoUrl = scraped;
                     } else {
                         return res.status(400).json({
-                            error: 'Tidak dapat mengekstrak video dari link Facebook ini. Pastikan video adalah Public. Cuba klik kanan video di Facebook → "Copy video address" dan gunakan link tersebut.',
+                            error: 'Tidak dapat mengekstrak video dari link post Facebook ini.\n\nSila gunakan link video terus:\n• Buka Ads Manager → pilih iklan → klik "Preview"\n• Atau pergi ke page Facebook → klik video → klik ikon 3 titik (...) → "Copy link to this post"\n• Atau gunakan link format: facebook.com/{page}/videos/{video_id}',
                         });
                     }
                 } catch {
