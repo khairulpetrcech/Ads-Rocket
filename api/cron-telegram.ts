@@ -343,8 +343,6 @@ async function processScheduledAnalysis(schedule: any, geminiApiKey: string) {
     const startDateMY = formatDateMY(sevenDaysAgo);
     const endDateMY = formatDateMY(today);
 
-    const timeRange = `{"since":"${formatDate(sevenDaysAgo)}","until":"${formatDate(today)}"}`;
-
     // Fetch Account Name
     let accountName = ad_account_id;
     try {
@@ -356,7 +354,6 @@ async function processScheduledAnalysis(schedule: any, geminiApiKey: string) {
         console.warn(`Failed to fetch account name for ${actId}`);
     }
 
-    // Use JSON.stringify for timeRange - matching analyze-telegram.ts exactly
     const timeRangeObj = JSON.stringify({
         since: formatDate(sevenDaysAgo),
         until: formatDate(today)
@@ -364,45 +361,19 @@ async function processScheduledAnalysis(schedule: any, geminiApiKey: string) {
 
     const insightsQuery = `insights.time_range(${timeRangeObj}){spend,impressions,clicks,cpc,ctr,actions,action_values}`;
     const creativeFields = 'creative{video_id,image_url,thumbnail_url,effective_instagram_media_id,object_story_spec}';
-    // Match field order from analyze-telegram.ts: creativeFields BEFORE insightsQuery
     const fields = ['id', 'name', 'status', 'effective_status', creativeFields, insightsQuery].join(',');
-    // Include CAMPAIGN_PAUSED and ADSET_PAUSED to get ads from paused parent campaigns/adsets
     const filtering = encodeURIComponent(`[{"field":"effective_status","operator":"IN","value":["ACTIVE","PAUSED","CAMPAIGN_PAUSED","ADSET_PAUSED"]}]`);
 
     const metaUrl = `https://graph.facebook.com/v19.0/${actId}/ads?fields=${encodeURIComponent(fields)}&access_token=${fb_access_token}&limit=50&filtering=${filtering}`;
 
-    console.log(`[Cron Debug] Fetching ads for account: ${actId}`);
-    console.log(`[Cron Debug] FB Token prefix: ${fb_access_token.substring(0, 20)}...`);
-    console.log(`[Cron Debug] Time range: ${timeRangeObj}`);
-
-    // DEBUG: First check if we can access campaigns
-    try {
-        const campaignsUrl = `https://graph.facebook.com/v19.0/${actId}/campaigns?fields=id,name,status&access_token=${fb_access_token}&limit=10`;
-        const campResponse = await fetch(campaignsUrl);
-        const campData = await campResponse.json();
-        console.log(`[Cron Debug] Campaigns check: count=${campData.data?.length || 0}, error=${campData.error?.message || 'none'}`);
-    } catch (e) {
-        console.log(`[Cron Debug] Campaigns check failed:`, e);
-    }
-
-    // DEBUG: Check ALL ads without filtering
-    try {
-        const allAdsUrl = `https://graph.facebook.com/v19.0/${actId}/ads?fields=id,name,effective_status&access_token=${fb_access_token}&limit=20`;
-        const allAdsResponse = await fetch(allAdsUrl);
-        const allAdsData = await allAdsResponse.json();
-        const statuses = (allAdsData.data || []).map((a: any) => a.effective_status).join(', ');
-        console.log(`[Cron Debug] ALL ads (no filter): count=${allAdsData.data?.length || 0}, statuses=[${statuses}]`);
-    } catch (e) {
-        console.log(`[Cron Debug] ALL ads check failed:`, e);
-    }
+    console.log(`[Cron] Fetching ads for account: ${actId}`);
 
     const metaResponse = await fetch(metaUrl);
     const metaData = await metaResponse.json();
 
-    console.log(`[Cron Debug] Meta API response: ads count=${metaData.data?.length || 0}, error=${metaData.error?.message || 'none'}`);
+    console.log(`[Cron] Meta API: ads=${metaData.data?.length || 0}, error=${metaData.error?.message || 'none'}`);
 
     if (metaData.error) {
-        console.error(`[Cron Debug] Meta API error:`, metaData.error);
         throw new Error(metaData.error.message);
     }
 
@@ -413,7 +384,6 @@ async function processScheduledAnalysis(schedule: any, geminiApiKey: string) {
         const purchaseValue = insights.action_values?.find((a: any) => a.action_type === 'purchase')?.value || 0;
         const revenue = parseFloat(purchaseValue || '0');
 
-        // Check multiple purchase action types (Meta API can return different types)
         const purchaseActionTypes = ['purchase', 'omni_purchase', 'offsite_conversion.fb_pixel_purchase'];
         let purchaseCount = 0;
         if (insights.actions && Array.isArray(insights.actions)) {
@@ -437,38 +407,57 @@ async function processScheduledAnalysis(schedule: any, geminiApiKey: string) {
         };
     });
 
-    // Sort by purchases first, then ROAS (matching analyze-telegram.ts)
     const adsWithSpend = ads.filter((a: any) => a.spend > 0);
-    console.log(`[Cron Debug] Total ads: ${ads.length}, Ads with spend: ${adsWithSpend.length}`);
+    console.log(`[Cron] Total ads: ${ads.length}, Ads with spend: ${adsWithSpend.length}`);
 
     const topAds = adsWithSpend.sort((a: any, b: any) => b.purchases - a.purchases || b.roas - a.roas).slice(0, 3);
 
     if (topAds.length === 0) {
-        // Send no ads message
-        console.log(`[Cron Debug] No ads with spend found, sending "tiada iklan" message`);
         await sendTelegram(telegram_bot_token, telegram_chat_id,
             `📊 *Report : ${accountName}*\n\npast 7 Days\n(${startDateMY} - ${endDateMY})\n\nTiada iklan dengan spend dalam 7 hari lepas.`);
         return;
     }
-
-    // --- Build Report (matching analyze-telegram.ts template) ---
-    const emojis = ['🥇', '🥈', '🥉'];
-    let reportText = `📊 *Report : ${accountName}*\npast 7 Days\n(${startDateMY} - ${endDateMY})\n\n`;
 
     // Calculate CPA for each ad
     topAds.forEach((ad: any) => {
         ad.cpa = ad.purchases > 0 ? ad.spend / ad.purchases : 0;
     });
 
-    reportText += `*Top 3 Win Ads*\n`;
-    topAds.forEach((ad: any, i: number) => {
-        reportText += `${emojis[i]} ${ad.name}\n   ${ad.purchases} purch | ${ad.roas.toFixed(2)}x ROAS | RM${ad.cpa.toFixed(2)} CPA\n`;
+    const emojis = ['🥇', '🥈', '🥉'];
+
+    // --- STEP 1: Send basic stats report FIRST (fast, always succeeds) ---
+    // This ensures user always receives SOMETHING even if AI analysis times out
+    const promptButtons = topAds.map((ad: any, i: number) => {
+        const videoId = ad.creative?.video_id || null;
+        const igMediaId = ad.creative?.effective_instagram_media_id || null;
+        let mediaId: string;
+        if (videoId && igMediaId) {
+            mediaId = `i${igMediaId}`;
+        } else if (videoId) {
+            mediaId = `v${videoId}`;
+        } else if (ad.id) {
+            mediaId = `x${ad.id}`;
+        } else {
+            mediaId = 'none';
+        }
+        return {
+            text: `📝 Prompt Ads ${i + 1}`,
+            callback_data: `p_${i}_${mediaId}_${(ad.name || '').substring(0, 8)}`
+        };
     });
 
-    // PARALLEL Creative Analysis for all top ads (to fit within 60s limit)
-    // Running in parallel: 3 videos × ~20s each = ~25-40s total (instead of 60-120s sequential)
-    console.log(`[Cron] Analyzing creatives for ${topAds.length} ads IN PARALLEL`);
+    let basicReport = `📊 *Report : ${accountName}*\npast 7 Days\n(${startDateMY} - ${endDateMY})\n\n`;
+    basicReport += `*Top 3 Win Ads*\n`;
+    topAds.forEach((ad: any, i: number) => {
+        basicReport += `${emojis[i]} ${ad.name}\n   ${ad.purchases} purch | ${ad.roas.toFixed(2)}x ROAS | RM${ad.cpa.toFixed(2)} CPA\n`;
+    });
+    basicReport += `\n_🤖 Menganalisa kreativiti... sila tunggu._`;
 
+    console.log(`[Cron] Sending basic stats report first...`);
+    await sendTelegramWithButtons(telegram_bot_token, telegram_chat_id, basicReport, promptButtons);
+    console.log(`[Cron] ✅ Basic report sent! Starting AI creative analysis...`);
+
+    // --- STEP 2: AI Creative Analysis (may be slow, run AFTER report is sent) ---
     const analysisPromises = topAds.map(async (ad: any) => {
         try {
             const creativeInsight = await analyzeAdCreative(ad, geminiApiKey, fb_access_token);
@@ -482,41 +471,19 @@ async function processScheduledAnalysis(schedule: any, geminiApiKey: string) {
     const creativeAnalyses = await Promise.all(analysisPromises);
     console.log(`[Cron] All ${creativeAnalyses.length} creative analyses complete`);
 
-    reportText += `\n*🎯 Kenapa Iklan Win?*\n\n`;
+    // --- STEP 3: Send AI analysis as a SECOND message ---
+    let aiReport = `🎯 *Kenapa Iklan Win? (${accountName})*\n\n`;
     creativeAnalyses.forEach((item) => {
-        reportText += `*${item.name}*\n${item.analysis}\n\n`;
+        aiReport += `*${item.name}*\n${item.analysis}\n\n`;
     });
-
-    // Footer
     const estimatedCost = (creativeAnalyses.length * 0.025).toFixed(2);
-    reportText += `---\n_AI: Gemini 3 Pro | Est. Cost: ~RM${estimatedCost}_`;
+    aiReport += `---\n_AI: Gemini 3 Flash | Est. Cost: ~RM${estimatedCost}_`;
 
-    // Build inline keyboard buttons for prompt generation - same as analyze-telegram.ts
-    const promptButtons = topAds.map((ad: any, i: number) => {
-        const videoId = ad.creative?.video_id || null;
-        const igMediaId = ad.creative?.effective_instagram_media_id || null;
-
-        // Determine media type: i{igMediaId} = IG video, v{videoId} = FB video, x{adId} = image
-        let mediaId: string;
-        if (videoId && igMediaId) {
-            mediaId = `i${igMediaId}`;
-        } else if (videoId) {
-            mediaId = `v${videoId}`;
-        } else if (ad.id) {
-            mediaId = `x${ad.id}`;
-        } else {
-            mediaId = 'none';
-        }
-
-        return {
-            text: `📝 Prompt Ads ${i + 1}`,
-            callback_data: `p_${i}_${mediaId}_${(ad.name || '').substring(0, 8)}`
-        };
-    });
-
-    // Send with inline keyboard
-    await sendTelegramWithButtons(telegram_bot_token, telegram_chat_id, reportText, promptButtons);
+    await sendTelegram(telegram_bot_token, telegram_chat_id, aiReport);
+    console.log(`[Cron] ✅ AI analysis sent!`);
 }
+
+
 
 async function sendTelegram(botToken: string, chatId: string, text: string) {
     console.log(`[Telegram Debug] Bot token prefix: ${botToken?.substring(0, 10)}..., Chat ID: ${chatId}`);
