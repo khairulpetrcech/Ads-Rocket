@@ -50,50 +50,77 @@ async function handleAnalyze(req: any, res: any) {
 
         console.log(`[Video Analysis] Analyzing video from URL: ${url}`);
 
-        // 1. Fetch the video content (Bypassing CORS on server)
-        // Note: For Facebook URLs, we might need to extract the direct MP4 link first.
-        // For now, we attempt to fetch directly. If it's a FB page, this might hit HTML.
-
         let videoUrl = url;
 
-        // Simple FB URL extraction logic (heuristic)
+        // Attempt to extract a direct video URL from Facebook page links
         if (url.includes('facebook.com') || url.includes('fb.watch')) {
-            // In a real production app, you'd use a more robust extractor or a 3rd party API.
-            // For now, we'll try to fetch and hope for a direct or redirect link.
-            // Many FB downloaders work by fetching the page and parsing 'hd_src' or 'sd_src'.
             console.log("[Video Analysis] Detected Facebook URL, attempting extraction...");
 
             try {
                 const fbResponse = await fetch(url, {
                     headers: {
-                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                        'Accept-Language': 'en-US,en;q=0.5',
                     }
                 });
                 const html = await fbResponse.text();
 
-                // Regex to find video source in FB HTML
-                const hdMatch = html.match(/hd_src:"([^"]+)"/);
-                const sdMatch = html.match(/sd_src:"([^"]+)"/);
+                // Multiple regex patterns to find video source
+                const patterns = [
+                    /hd_src:"([^"]+)"/,
+                    /sd_src:"([^"]+)"/,
+                    /"playable_url":"([^"]+)"/,
+                    /"playable_url_quality_hd":"([^"]+)"/,
+                    /browser_native_hd_url":"([^"]+)"/,
+                    /browser_native_sd_url":"([^"]+)"/,
+                ];
 
-                if (hdMatch) videoUrl = hdMatch[1].replace(/\\/g, '');
-                else if (sdMatch) videoUrl = sdMatch[1].replace(/\\/g, '');
+                let extractedUrl: string | null = null;
+                for (const pattern of patterns) {
+                    const match = html.match(pattern);
+                    if (match) {
+                        extractedUrl = match[1].replace(/\\/g, '');
+                        break;
+                    }
+                }
 
-                console.log(`[Video Analysis] Extracted FB Video URL: ${videoUrl.substring(0, 100)}...`);
+                if (extractedUrl) {
+                    videoUrl = extractedUrl;
+                    console.log(`[Video Analysis] Successfully extracted video URL`);
+                } else {
+                    return res.status(400).json({
+                        error: 'Tidak dapat mengekstrak video dari link Facebook ini. Sila gunakan direct video URL (link .mp4). Cuba klik kanan video di Facebook → "Copy video address" dan gunakan link tersebut.',
+                    });
+                }
             } catch (fbErr) {
-                console.warn("[Video Analysis] FB Extraction failed, using original URL", fbErr);
+                console.warn("[Video Analysis] FB Extraction failed", fbErr);
+                return res.status(400).json({
+                    error: 'Gagal memuat turun dari link Facebook. Sila gunakan direct video URL (mp4 link) bukan link ke post atau halaman Facebook.',
+                });
             }
         }
 
+        // Fetch the actual video
         const videoResponse = await fetch(videoUrl);
         if (!videoResponse.ok) {
             throw new Error(`Failed to fetch video: ${videoResponse.statusText}`);
         }
 
-        const contentType = videoResponse.headers.get('content-type') || 'video/mp4';
+        const contentType = videoResponse.headers.get('content-type') || '';
+
+        // Reject if we got HTML instead of a video file
+        if (contentType.includes('text/html') || contentType.includes('text/plain')) {
+            return res.status(400).json({
+                error: 'Link yang diberikan tidak mengembalikan video. Sila gunakan direct video URL (mp4 link), bukan link ke post Facebook. Cuba klik kanan pada video di Facebook → "Copy video address".',
+            });
+        }
+
+        const mimeType = contentType.split(';')[0].trim() || 'video/mp4';
         const videoBuffer = await videoResponse.arrayBuffer();
         const base64Video = Buffer.from(videoBuffer).toString('base64');
 
-        // 2. Send to Gemini 3 Flash for analysis
+        // Send to Gemini 3 Flash for analysis
         const genAI = new GoogleGenAI({ apiKey: geminiApiKey });
 
         const prompt = `Analisa video iklan ini secara mendalam untuk kegunaan Meta Ads.
@@ -106,7 +133,6 @@ Berikan maklumat berikut dalam Bahasa Malaysia:
 
 Formatkan jawapan anda dengan kemas menggunakan Markdown. Keputusan mesti dalam Bahasa Malaysia.`;
 
-        // Use the pattern found in analyze-telegram.ts
         const result = await (genAI as any).models.generateContent({
             model: "gemini-3-flash-preview",
             contents: [
@@ -115,7 +141,7 @@ Formatkan jawapan anda dengan kemas menggunakan Markdown. Keputusan mesti dalam 
                         { text: prompt },
                         {
                             inlineData: {
-                                mimeType: contentType,
+                                mimeType: mimeType,
                                 data: base64Video
                             }
                         }
@@ -129,7 +155,7 @@ Formatkan jawapan anda dengan kemas menggunakan Markdown. Keputusan mesti dalam 
         return res.status(200).json({
             success: true,
             analysis: analysisText,
-            videoUrl: videoUrl // Send back the extracted URL if available
+            videoUrl: videoUrl
         });
 
     } catch (error: any) {
