@@ -12,6 +12,7 @@ import CommentTemplates from './pages/CommentTemplates';
 import EpicPoster from './pages/EpicPoster';
 import EpicVideo from './pages/EpicVideo';
 import AiAssistant from './pages/AiAssistant';
+import LogPage from './pages/Log';
 import AdminPage from './pages/Admin';
 import { UserSettings, AiProvider, GlobalProcess } from './types';
 import { initFacebookSdk, isSecureContext } from './services/metaService';
@@ -389,6 +390,7 @@ const App: React.FC = () => {
               <Route path="epic-video" element={<EpicVideo />} />
               <Route path="assistant" element={<AiAssistant />} />
               <Route path="comment-templates" element={<CommentTemplates />} />
+              <Route path="log" element={<LogPage />} />
               <Route path="settings" element={<SettingsPage />} />
             </Route>
 

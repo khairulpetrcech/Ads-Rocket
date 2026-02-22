@@ -248,24 +248,6 @@ const Dashboard: React.FC = () => {
 
     const [publishedComments, setPublishedComments] = useState<Map<string, number>>(new Map());
 
-    // Telegram Campaign Jobs State
-    const [telegramJobs, setTelegramJobs] = useState<any[]>([]);
-    const [loadingJobs, setLoadingJobs] = useState(false);
-
-    const fetchTelegramJobs = async () => {
-        const fbId = settings.userId || settings.adAccountId;
-        if (!fbId) return;
-        setLoadingJobs(true);
-        try {
-            const res = await fetch(`/api/admin-api?action=telegram-jobs&fbId=${fbId}`);
-            const data = await res.json();
-            setTelegramJobs(data.jobs || []);
-        } catch (e) {
-            console.error('Failed to fetch telegram jobs:', e);
-        } finally {
-            setLoadingJobs(false);
-        }
-    };
 
     // Telegram AI Alert State
     const [telegramSending, setTelegramSending] = useState(false);
@@ -579,9 +561,7 @@ const Dashboard: React.FC = () => {
         fetchCommentTemplates();
     }, [commentModalOpen, settings.userId, settings.adAccountId]);
 
-    useEffect(() => {
-        fetchTelegramJobs();
-    }, [settings.userId, settings.adAccountId]);
+
 
 
 
@@ -1431,64 +1411,7 @@ const Dashboard: React.FC = () => {
                     )
                 }
 
-                {/* TELEGRAM CAMPAIGN JOBS HISTORY */}
-                {telegramJobs.length > 0 && (
-                    <div className="mt-12 mb-8">
-                        <div className="flex items-center justify-between mb-4">
-                            <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-                                <Send size={20} className="text-indigo-500" /> Recent Telegram Campaign Jobs
-                            </h2>
-                            <button
-                                onClick={fetchTelegramJobs}
-                                className="text-xs text-indigo-600 font-medium flex items-center gap-1 hover:underline"
-                            >
-                                <RefreshCw size={12} className={loadingJobs ? 'animate-spin' : ''} /> Refresh
-                            </button>
-                        </div>
-                        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
-                            <table className="w-full text-left text-sm">
-                                <thead>
-                                    <tr className="bg-slate-50 text-slate-500 text-xs uppercase border-b border-slate-200 font-semibold">
-                                        <th className="p-4">Template / Command</th>
-                                        <th className="p-4 text-center">Media</th>
-                                        <th className="p-4 text-center">Status</th>
-                                        <th className="p-4 text-right">Date</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {telegramJobs.map(job => (
-                                        <tr key={job.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50 transition-colors">
-                                            <td className="p-4">
-                                                <div className="font-bold text-slate-800">{job.template_name || 'Manual Launch'}</div>
-                                                <div className="text-[10px] text-slate-500 italic mt-1 truncate max-w-[300px]" title={job.command_text}>"{job.command_text}"</div>
-                                            </td>
-                                            <td className="p-4 text-center">
-                                                <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${job.media_type === 'video' ? 'bg-indigo-100 text-indigo-700' : 'bg-orange-100 text-orange-700'}`}>
-                                                    {job.media_type}
-                                                </span>
-                                            </td>
-                                            <td className="p-4 text-center">
-                                                <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold ${job.status === 'COMPLETED' ? 'bg-green-100 text-green-700' :
-                                                    job.status === 'FAILED' ? 'bg-red-100 text-red-700' :
-                                                        'bg-amber-100 text-amber-700'
-                                                    }`}>
-                                                    {job.status === 'COMPLETED' ? <Check size={12} /> : job.status === 'FAILED' ? <X size={12} /> : <Loader2 size={12} className="animate-spin" />}
-                                                    {job.status}
-                                                </span>
-                                                {job.error_message && job.status === 'FAILED' && (
-                                                    <div className="text-[10px] text-red-500 mt-1 max-w-[150px] truncate" title={job.error_message}>{job.error_message}</div>
-                                                )}
-                                            </td>
-                                            <td className="p-4 text-right text-slate-500 text-xs">
-                                                {new Date(job.created_at).toLocaleString('en-MY', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                )}
+
 
                 {/* COMMENT MODAL */}
                 {
