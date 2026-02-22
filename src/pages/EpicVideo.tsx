@@ -277,7 +277,7 @@ const EpicVideo: React.FC = () => {
             const response = await fetch('/api/video-analysis-api?action=analyze', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ url: analysisUrl, fbAccessToken: settings.fbAccessToken })
+                body: JSON.stringify({ url: analysisUrl, fbAccessToken: settings.fbAccessToken, adAccountId: settings.adAccountId })
             });
 
             const data = await response.json();
