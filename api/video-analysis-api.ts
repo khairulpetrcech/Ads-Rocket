@@ -35,9 +35,89 @@ export default async function handler(req: any, res: any) {
     }
 }
 
+/**
+ * Attempt to extract a direct video URL from a Facebook post or business URL
+ * using the Graph API (requires access token).
+ */
+async function extractFacebookVideoUrl(postUrl: string, fbAccessToken?: string): Promise<string | null> {
+    // Parse various FB URL patterns to get post/video ID
+    // business.facebook.com/{page_id}/posts/{post_id}
+    // facebook.com/{page}/videos/{video_id}
+    // facebook.com/video.php?v={video_id}
+    // fb.watch/{code}
+
+    let videoId: string | null = null;
+    let pagePostId: string | null = null;
+
+    // Pattern: /videos/{id}
+    const videoIdMatch = postUrl.match(/\/videos\/(\d+)/);
+    if (videoIdMatch) videoId = videoIdMatch[1];
+
+    // Pattern: video.php?v={id} or ?story_fbid={id}
+    if (!videoId) {
+        const phpMatch = postUrl.match(/[?&]v=(\d+)/) || postUrl.match(/[?&]story_fbid=(\d+)/);
+        if (phpMatch) videoId = phpMatch[1];
+    }
+
+    // Pattern: business.facebook.com/{page_id}/posts/{post_id} or facebook.com/{page}/posts/{post_id}
+    if (!videoId) {
+        const postMatch = postUrl.match(/(\d+)\/posts\/(\d+)/);
+        if (postMatch) {
+            pagePostId = `${postMatch[1]}_${postMatch[2]}`;
+        }
+    }
+
+    if (!videoId && !pagePostId) {
+        console.log('[FB Extract] Could not parse video/post ID from URL:', postUrl);
+        return null;
+    }
+
+    if (!fbAccessToken) {
+        console.log('[FB Extract] No FB access token provided');
+        return null;
+    }
+
+    try {
+        if (videoId) {
+            // Direct video ID — fetch source directly
+            const apiUrl = `https://graph.facebook.com/v19.0/${videoId}?fields=source,permalink_url&access_token=${fbAccessToken}`;
+            const response = await fetch(apiUrl);
+            const data = await response.json();
+            if (data.source) return data.source;
+        }
+
+        if (pagePostId) {
+            // Post ID — fetch attachments to find video
+            const apiUrl = `https://graph.facebook.com/v19.0/${pagePostId}?fields=attachments{media,type,url}&access_token=${fbAccessToken}`;
+            const response = await fetch(apiUrl);
+            const data = await response.json();
+            console.log('[FB Extract] Post attachments:', JSON.stringify(data).substring(0, 300));
+
+            const attachments = data?.attachments?.data || [];
+            for (const att of attachments) {
+                if (att.type === 'video_inline' || att.type === 'video') {
+                    const media = att.media;
+                    if (media?.source) return media.source;
+                    // Try fetching via video ID in media
+                    if (media?.video?.id) {
+                        const vidUrl = `https://graph.facebook.com/v19.0/${media.video.id}?fields=source&access_token=${fbAccessToken}`;
+                        const vidRes = await fetch(vidUrl);
+                        const vidData = await vidRes.json();
+                        if (vidData.source) return vidData.source;
+                    }
+                }
+            }
+        }
+    } catch (err) {
+        console.error('[FB Extract] Graph API error:', err);
+    }
+
+    return null;
+}
+
 async function handleAnalyze(req: any, res: any) {
     try {
-        const { url } = req.body;
+        const { url, fbAccessToken } = req.body;
 
         if (!url) {
             return res.status(400).json({ error: 'URL is required' });
@@ -52,51 +132,52 @@ async function handleAnalyze(req: any, res: any) {
 
         let videoUrl = url;
 
-        // Attempt to extract a direct video URL from Facebook page links
+        // Handle Facebook URLs — try Graph API first (if token provided), then scraping
         if (url.includes('facebook.com') || url.includes('fb.watch')) {
-            console.log("[Video Analysis] Detected Facebook URL, attempting extraction...");
+            console.log("[Video Analysis] Facebook URL detected, extracting via Graph API...");
 
-            try {
-                const fbResponse = await fetch(url, {
-                    headers: {
-                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                        'Accept-Language': 'en-US,en;q=0.5',
-                    }
-                });
-                const html = await fbResponse.text();
-
-                // Multiple regex patterns to find video source
-                const patterns = [
-                    /hd_src:"([^"]+)"/,
-                    /sd_src:"([^"]+)"/,
-                    /"playable_url":"([^"]+)"/,
-                    /"playable_url_quality_hd":"([^"]+)"/,
-                    /browser_native_hd_url":"([^"]+)"/,
-                    /browser_native_sd_url":"([^"]+)"/,
-                ];
-
-                let extractedUrl: string | null = null;
-                for (const pattern of patterns) {
-                    const match = html.match(pattern);
-                    if (match) {
-                        extractedUrl = match[1].replace(/\\/g, '');
-                        break;
-                    }
-                }
-
-                if (extractedUrl) {
-                    videoUrl = extractedUrl;
-                    console.log(`[Video Analysis] Successfully extracted video URL`);
+            if (fbAccessToken) {
+                const extracted = await extractFacebookVideoUrl(url, fbAccessToken);
+                if (extracted) {
+                    videoUrl = extracted;
+                    console.log('[Video Analysis] ✅ Extracted via Graph API');
                 } else {
-                    return res.status(400).json({
-                        error: 'Tidak dapat mengekstrak video dari link Facebook ini. Sila gunakan direct video URL (link .mp4). Cuba klik kanan video di Facebook → "Copy video address" dan gunakan link tersebut.',
-                    });
+                    // Fallback: try HTML scraping
+                    console.log('[Video Analysis] Graph API failed, trying HTML scraping...');
+                    try {
+                        const fbResponse = await fetch(url, {
+                            headers: {
+                                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                            }
+                        });
+                        const html = await fbResponse.text();
+                        const patterns = [
+                            /hd_src:"([^"]+)"/,
+                            /sd_src:"([^"]+)"/,
+                            /"playable_url":"([^"]+)"/,
+                            /"playable_url_quality_hd":"([^"]+)"/,
+                        ];
+                        let scraped: string | null = null;
+                        for (const p of patterns) {
+                            const m = html.match(p);
+                            if (m) { scraped = m[1].replace(/\\/g, ''); break; }
+                        }
+                        if (scraped) {
+                            videoUrl = scraped;
+                        } else {
+                            return res.status(400).json({
+                                error: 'Tidak dapat mengekstrak video dari link Facebook ini. Pastikan link video adalah Public dan ada dalam page anda. Cuba link video terus (klik kanan video → Copy video address).',
+                            });
+                        }
+                    } catch {
+                        return res.status(400).json({
+                            error: 'Gagal memuat turun dari link Facebook. Sila gunakan direct video URL.'
+                        });
+                    }
                 }
-            } catch (fbErr) {
-                console.warn("[Video Analysis] FB Extraction failed", fbErr);
+            } else {
                 return res.status(400).json({
-                    error: 'Gagal memuat turun dari link Facebook. Sila gunakan direct video URL (mp4 link) bukan link ke post atau halaman Facebook.',
+                    error: 'Token Facebook diperlukan untuk menganalisis video dari Business Manager. Sila login ke akaun Facebook anda dalam apl ini terlebih dahulu.',
                 });
             }
         }
@@ -109,10 +190,9 @@ async function handleAnalyze(req: any, res: any) {
 
         const contentType = videoResponse.headers.get('content-type') || '';
 
-        // Reject if we got HTML instead of a video file
         if (contentType.includes('text/html') || contentType.includes('text/plain')) {
             return res.status(400).json({
-                error: 'Link yang diberikan tidak mengembalikan video. Sila gunakan direct video URL (mp4 link), bukan link ke post Facebook. Cuba klik kanan pada video di Facebook → "Copy video address".',
+                error: 'Link yang diberikan tidak mengembalikan video. Sila gunakan direct video URL (mp4 link).',
             });
         }
 
