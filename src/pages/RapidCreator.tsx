@@ -1678,7 +1678,11 @@ const RapidCreator: React.FC = () => {
             ageMin: 18,
             ageMax: 65,
             gender: 'ALL',
-            interests: []
+            interests: [],
+            enhancementPlus: false,
+            scheduleEnabled: false,
+            scheduleStartDate: undefined,
+            scheduleStartTime: undefined
         };
 
         // Capture all grouped ads (assigned to an ad set)
@@ -1703,7 +1707,11 @@ const RapidCreator: React.FC = () => {
                 ageMin: firstAdSet.ageMin,
                 ageMax: firstAdSet.ageMax,
                 gender: firstAdSet.gender as any,
-                interests: firstAdSet.interests || []
+                interests: firstAdSet.interests || [],
+                enhancementPlus: firstAdSet.enhancementPlus || false,
+                scheduleEnabled: firstAdSet.scheduleEnabled || false,
+                scheduleStartDate: firstAdSet.scheduleStartDate,
+                scheduleStartTime: firstAdSet.scheduleStartTime
             },
             config: {
                 pageId: selectedPageId,
@@ -1741,7 +1749,10 @@ const RapidCreator: React.FC = () => {
             ageMax: template.adSet.ageMax,
             gender: template.adSet.gender as any,
             interests: template.adSet.interests,
-            enhancementPlus: false
+            enhancementPlus: template.adSet.enhancementPlus || false,
+            scheduleEnabled: template.adSet.scheduleEnabled || false,
+            scheduleStartDate: template.adSet.scheduleStartDate,
+            scheduleStartTime: template.adSet.scheduleStartTime
         };
 
         setAdSets([newAdSet]);

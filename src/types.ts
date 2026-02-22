@@ -75,6 +75,10 @@ export interface AdTemplate {
     ageMax: number;
     gender: 'ALL' | 'MALE' | 'FEMALE';
     interests: string[];
+    enhancementPlus?: boolean;
+    scheduleEnabled?: boolean;
+    scheduleStartDate?: string;
+    scheduleStartTime?: string;
   };
   ads: Array<{
     type: 'image' | 'video';
