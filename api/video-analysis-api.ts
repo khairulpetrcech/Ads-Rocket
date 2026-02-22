@@ -3,7 +3,7 @@ import { GoogleGenAI } from "@google/genai";
 export const config = {
     api: {
         bodyParser: {
-            sizeLimit: '20mb',
+            sizeLimit: '50mb',
         },
     },
 };
@@ -26,150 +26,203 @@ export default async function handler(req: any, res: any) {
     }
 }
 
-// Safe Graph API fetch helper
-async function gfetch(url: string) {
-    try {
-        const r = await fetch(url);
-        return await r.json();
-    } catch { return {}; }
+/**
+ * Convert any facebook.com URL to mbasic.facebook.com equivalent.
+ * mbasic returns simplified HTML that exposes video sources directly — 
+ * same trick used by fbdown.net, getfvid, etc.
+ */
+function toMbasicUrl(url: string): string {
+    return url
+        .replace('https://business.facebook.com/', 'https://mbasic.facebook.com/')
+        .replace('https://www.facebook.com/', 'https://mbasic.facebook.com/')
+        .replace('https://m.facebook.com/', 'https://mbasic.facebook.com/')
+        .replace('https://fb.watch/', 'https://mbasic.facebook.com/watch/?v=')
+        // strip trailing slash
+        .replace(/\/$/, '');
 }
 
 /**
- * Extract a direct video source URL from a Facebook post/video link
- * using the Graph API with the user's access token.
+ * Scrape a Facebook video URL using the mbasic.facebook.com trick.
+ * mbasic returns plain HTML with the video source embedded in <a> or <video> tags.
+ * This is how most public FB video downloaders work.
  */
-async function extractFacebookVideoUrl(
-    postUrl: string,
-    fbAccessToken: string,
-    adAccountId?: string
-): Promise<string | null> {
+async function scrapeFacebookVideo(originalUrl: string): Promise<string | null> {
+    const mbasicUrl = toMbasicUrl(originalUrl);
+    console.log(`[FB Scrape] Fetching mbasic URL: ${mbasicUrl}`);
+
+    const headers = {
+        'User-Agent': 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'Connection': 'keep-alive',
+        'Upgrade-Insecure-Requests': '1',
+        'sec-fetch-dest': 'document',
+        'sec-fetch-mode': 'navigate',
+        'sec-fetch-site': 'none',
+    };
+
+    try {
+        const response = await fetch(mbasicUrl, { headers });
+        const html = await response.text();
+
+        console.log(`[FB Scrape] Got HTML length: ${html.length}`);
+
+        // Ordered list of patterns — try most specific first
+        const patterns = [
+            // HD video URL in mbasic page
+            /hd_src_no_ratelimit:"(https[^"]+\.mp4[^"]*)"/,
+            /sd_src_no_ratelimit:"(https[^"]+\.mp4[^"]*)"/,
+            /hd_src:"(https[^"]+\.mp4[^"]*)"/,
+            /sd_src:"(https[^"]+\.mp4[^"]*)"/,
+            // playable_url fields (newer FB HTML)
+            /"playable_url_quality_hd":"(https[^"]+)"/,
+            /"playable_url":"(https[^"]+)"/,
+            // browser_native fields
+            /"browser_native_hd_url":"(https[^"]+)"/,
+            /"browser_native_sd_url":"(https[^"]+)"/,
+            // mbasic direct anchor tags (simplest approach)
+            /href="(https:\/\/video[^"]*\.mp4[^"]*)"/,
+            // video source tag
+            /<source\s+src="(https[^"]+\.mp4[^"]*)"/,
+            // CDN video links
+            /(https:\/\/video\.f[^\.]+\.[^\.]+\.fna\.fbcdn\.net[^\s"'<>]+\.mp4[^\s"'<>]*)/,
+            /(https:\/\/scontent[^\.]+\.[^\.]+\.fna\.fbcdn\.net[^\s"'<>]+\.mp4[^\s"'<>]*)/,
+        ];
+
+        for (const pattern of patterns) {
+            const match = html.match(pattern);
+            if (match?.[1]) {
+                const rawUrl = match[1]
+                    .replace(/\\u0026/g, '&')
+                    .replace(/\\u003C/g, '<')
+                    .replace(/\\/g, '')
+                    .split('"')[0]; // truncate at any stray quote
+                console.log(`[FB Scrape] ✅ Found with pattern: ${pattern.source.substring(0, 40)}... => ${rawUrl.substring(0, 80)}`);
+                return rawUrl;
+            }
+        }
+
+        // Log a snippet for debugging
+        console.log(`[FB Scrape] ❌ No video URL found. HTML snippet:`, html.substring(0, 500));
+        return null;
+
+    } catch (err) {
+        console.error('[FB Scrape] Fetch error:', err);
+        return null;
+    }
+}
+
+/**
+ * Try Graph API as a secondary method (for users with token).
+ */
+async function extractViaGraphAPI(postUrl: string, fbAccessToken: string): Promise<string | null> {
+    const G = 'https://graph.facebook.com/v19.0';
+
+    async function gfetch(url: string) {
+        try { return await (await fetch(url)).json(); }
+        catch { return {}; }
+    }
+
     let videoId: string | null = null;
-    let postId: string | null = null;
     let pageId: string | null = null;
+    let postId: string | null = null;
 
-    // Pattern: /videos/{id}
-    const videoIdMatch = postUrl.match(/\/videos\/(\d+)/);
-    if (videoIdMatch) videoId = videoIdMatch[1];
+    const videoMatch = postUrl.match(/\/videos\/(\d+)/);
+    if (videoMatch) videoId = videoMatch[1];
 
-    // Pattern: video.php?v={id} or ?story_fbid={id}
     if (!videoId) {
-        const phpMatch = postUrl.match(/[?&]v=(\d+)/) || postUrl.match(/[?&]story_fbid=(\d+)/);
+        const phpMatch = postUrl.match(/[?&]v=(\d+)/) || postUrl.match(/story_fbid=(\d+)/);
         if (phpMatch) videoId = phpMatch[1];
     }
 
-    // Pattern: {page_id}/posts/{post_id}
     if (!videoId) {
         const postMatch = postUrl.match(/(\d+)\/posts\/(\d+)/);
-        if (postMatch) {
-            pageId = postMatch[1];
-            postId = postMatch[2];
-        }
+        if (postMatch) { pageId = postMatch[1]; postId = postMatch[2]; }
     }
 
-    const G = 'https://graph.facebook.com/v19.0';
-    const token = fbAccessToken;
-
-    // 1. Direct video ID
     if (videoId) {
-        const d = await gfetch(`${G}/${videoId}?fields=source&access_token=${token}`);
-        console.log('[FB Extract] videoId fetch:', JSON.stringify(d).substring(0, 200));
+        const d = await gfetch(`${G}/${videoId}?fields=source&access_token=${fbAccessToken}`);
         if (d.source) return d.source;
     }
 
     if (pageId && postId) {
-        const pagePostId = `${pageId}_${postId}`;
-
-        // 2. page_post_id with source + attachments + subattachments
-        const d2 = await gfetch(`${G}/${pagePostId}?fields=source,attachments{media{source},type,subattachments{media{source},type}}&access_token=${token}`);
-        console.log('[FB Extract] pagePostId:', JSON.stringify(d2).substring(0, 400));
-        if (d2.source) return d2.source;
-        for (const att of (d2?.attachments?.data || [])) {
+        const d = await gfetch(`${G}/${pageId}_${postId}?fields=source,attachments{media{source},type,subattachments{media{source},type}}&access_token=${fbAccessToken}`);
+        if (d.source) return d.source;
+        for (const att of (d?.attachments?.data || [])) {
             if (att?.media?.source) return att.media.source;
             for (const sub of (att?.subattachments?.data || [])) {
                 if (sub?.media?.source) return sub.media.source;
             }
         }
 
-        // 3. Just postId without page prefix
-        const d3 = await gfetch(`${G}/${postId}?fields=source,attachments{media{source},type}&access_token=${token}`);
-        console.log('[FB Extract] postId only:', JSON.stringify(d3).substring(0, 400));
-        if (d3.source) return d3.source;
-        for (const att of (d3?.attachments?.data || [])) {
+        // Try just post ID
+        const d2 = await gfetch(`${G}/${postId}?fields=source,attachments{media{source},type}&access_token=${fbAccessToken}`);
+        if (d2.source) return d2.source;
+        for (const att of (d2?.attachments?.data || [])) {
             if (att?.media?.source) return att.media.source;
         }
     }
 
-    // 3 methods failed — return helpful error
     return null;
 }
 
 async function handleAnalyze(req: any, res: any) {
     try {
-        const { url, fbAccessToken, adAccountId } = req.body;
+        const { url, fbAccessToken } = req.body;
 
         if (!url) return res.status(400).json({ error: 'URL is required' });
 
         const geminiApiKey = process.env.VITE_GEMINI_3_API;
         if (!geminiApiKey) return res.status(500).json({ error: 'VITE_GEMINI_3_API not configured' });
 
-        console.log(`[Video Analysis] URL: ${url}`);
+        console.log(`[Video Analysis] Processing URL: ${url}`);
 
         let videoUrl = url;
 
         if (url.includes('facebook.com') || url.includes('fb.watch')) {
-            if (!fbAccessToken) {
+            // Method 1: mbasic.facebook.com scraping (primary — works without token)
+            let extracted = await scrapeFacebookVideo(url);
+
+            // Method 2: Graph API (if token available and Method 1 failed)
+            if (!extracted && fbAccessToken) {
+                console.log('[Video Analysis] mbasic scraping failed, trying Graph API...');
+                extracted = await extractViaGraphAPI(url, fbAccessToken);
+            }
+
+            if (!extracted) {
                 return res.status(400).json({
-                    error: 'Token Facebook diperlukan. Sila login ke akaun Facebook dalam apl ini terlebih dahulu.',
+                    error: 'Tidak dapat mengekstrak video dari link ini. Pastikan video adalah Public. Cuba tangan dapatkan link video terus (.mp4) dengan:\n• Klik kanan video di Facebook → "Save video as"\n• Atau guna laman fbdown.net untuk dapatkan direct link, kemudian paste link .mp4 tersebut di sini.',
                 });
             }
 
-            console.log('[Video Analysis] Facebook URL, extracting via Graph API...');
-            const extracted = await extractFacebookVideoUrl(url, fbAccessToken, adAccountId);
-
-            if (extracted) {
-                videoUrl = extracted;
-                console.log('[Video Analysis] ✅ Extracted video URL');
-            } else {
-                // Fallback: HTML scraping
-                console.log('[Video Analysis] Graph API failed, trying HTML scraping...');
-                try {
-                    const fbRes = await fetch(url, {
-                        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }
-                    });
-                    const html = await fbRes.text();
-                    const patterns = [/hd_src:"([^"]+)"/, /sd_src:"([^"]+)"/, /"playable_url":"([^"]+)"/, /"playable_url_quality_hd":"([^"]+)"/];
-                    let scraped: string | null = null;
-                    for (const p of patterns) {
-                        const m = html.match(p);
-                        if (m) { scraped = m[1].replace(/\\/g, ''); break; }
-                    }
-                    if (scraped) {
-                        videoUrl = scraped;
-                    } else {
-                        return res.status(400).json({
-                            error: 'Tidak dapat mengekstrak video dari link post Facebook ini.\n\nSila gunakan link video terus:\n• Buka Ads Manager → pilih iklan → klik "Preview"\n• Atau pergi ke page Facebook → klik video → klik ikon 3 titik (...) → "Copy link to this post"\n• Atau gunakan link format: facebook.com/{page}/videos/{video_id}',
-                        });
-                    }
-                } catch {
-                    return res.status(400).json({ error: 'Gagal memuat turun dari link Facebook. Sila gunakan direct video URL.' });
-                }
-            }
+            videoUrl = extracted;
+            console.log('[Video Analysis] ✅ Got video URL:', videoUrl.substring(0, 100));
         }
 
-        // Fetch the actual video
-        const videoResponse = await fetch(videoUrl);
-        if (!videoResponse.ok) throw new Error(`Failed to fetch video: ${videoResponse.statusText}`);
+        // Fetch the actual video binary
+        const videoResponse = await fetch(videoUrl, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            }
+        });
+
+        if (!videoResponse.ok) {
+            throw new Error(`Failed to fetch video (${videoResponse.status}): ${videoResponse.statusText}`);
+        }
 
         const contentType = videoResponse.headers.get('content-type') || '';
-        if (contentType.includes('text/html') || contentType.includes('text/plain')) {
-            return res.status(400).json({ error: 'Link tidak mengembalikan video. Sila gunakan direct video URL (mp4 link).' });
+        if (contentType.includes('text/html')) {
+            return res.status(400).json({ error: 'Link ini mengembalikan HTML bukan video. Sila gunakan direct .mp4 link.' });
         }
 
         const mimeType = contentType.split(';')[0].trim() || 'video/mp4';
         const videoBuffer = await videoResponse.arrayBuffer();
         const base64Video = Buffer.from(videoBuffer).toString('base64');
 
-        // Gemini 3 Flash analysis
+        console.log(`[Video Analysis] Video fetched: ${Math.round(videoBuffer.byteLength / 1024)}KB, type: ${mimeType}`);
+
+        // Gemini 3 Flash multimodal analysis
         const genAI = new GoogleGenAI({ apiKey: geminiApiKey });
 
         const prompt = `Analisa video iklan ini secara mendalam untuk kegunaan Meta Ads.
