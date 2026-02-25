@@ -285,6 +285,17 @@ async function handleTelegramWebhook(req: any, res: any) {
                 const templateId = callbackData.replace('tpl_', '');
                 return await handleTemplateSelection(chatId, templateId, botToken, res);
             }
+
+            // Handle Ads Manager account selection for analysis
+            if (callbackData.startsWith('analyze_act_')) {
+                const adAccountId = callbackData.replace('analyze_act_', '');
+                await fetch(`https://api.telegram.org/bot${botToken}/answerCallbackQuery`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ callback_query_id: callbackQuery.id, text: '⏳ Menganalisa...' })
+                });
+                return await runAnalysisForAccount(chatId, adAccountId, botToken!, res);
+            }
         }
 
         // --- 2. Handle Incoming Message (Media or Text Command) ---
@@ -320,7 +331,15 @@ async function handleTelegramWebhook(req: any, res: any) {
             if (text) {
                 // Check for commands
                 if (text === '/start') {
-                    await sendTelegramMessage(botToken!, chatId, '👋 *Welcome to Ads Rocket!*\n\nHantar video atau gambar produk anda untuk mula create campaign Meta Ads secara automatik.');
+                    const helpText = '👋 *Welcome to Ads Rocket!*\n\n' +
+                        '*📊 Analisa:*\n' +
+                        '`/analisa` — senarai semua ads manager\n' +
+                        '`/analisa Nama Akaun` — analisa akaun tertentu\n' +
+                        '`/ads Nama Iklan` — analisa iklan tertentu\n' +
+                        '`/topads` — tunjuk top ads terakhir\n\n' +
+                        '*🚀 Launch Campaign:*\n' +
+                        'Hantar video/gambar → bagi arahan campaign';
+                    await sendTelegramMessage(botToken!, chatId, helpText);
                     return res.status(200).end();
                 }
 
@@ -330,6 +349,21 @@ async function handleTelegramWebhook(req: any, res: any) {
 
                 if (text === '/status') {
                     return await showJobStatus(chatId, botToken!, res);
+                }
+
+                // --- Analysis Commands ---
+                if (text === '/analisa' || text.startsWith('/analisa ')) {
+                    const accountQuery = text.replace('/analisa', '').trim();
+                    return await handleAnalysisCommand(chatId, accountQuery, botToken!, res);
+                }
+
+                if (text.startsWith('/ads ')) {
+                    const adQuery = text.replace('/ads', '').trim();
+                    return await handleSpecificAdAnalysis(chatId, adQuery, botToken!, res);
+                }
+
+                if (text === '/topads') {
+                    return await handleTopAds(chatId, botToken!, res);
                 }
 
                 // If not a standard command, treat as campaign instructions
@@ -529,6 +563,366 @@ async function showJobStatus(chatId: any, botToken: string, res: any) {
         });
         await sendTelegramMessage(botToken, chatId, text);
     }
+    return res.status(200).end();
+}
+
+// --- ANALYSIS COMMAND HANDLERS ---
+
+/**
+ * /analisa [optional account name]
+ * Lists all configured ad accounts, or directly triggers analysis if name provided
+ */
+async function handleAnalysisCommand(chatId: any, accountQuery: string, botToken: string, res: any) {
+    const { data: user } = await supabase
+        .from('telegram_users')
+        .select('fb_id, fb_access_token, ad_account_id')
+        .eq('telegram_chat_id', String(chatId))
+        .single();
+
+    if (!user) {
+        await sendTelegramMessage(botToken, chatId, '❌ *Belum connected*\n\nSila login ke website Ads Rocket dan save Telegram settings dahulu.');
+        return res.status(200).end();
+    }
+
+    if (!user.fb_access_token) {
+        await sendTelegramMessage(botToken, chatId, '❌ *Token tidak dijumpai*\n\nSila reconnect semula di Settings → Telegram.');
+        return res.status(200).end();
+    }
+
+    // Fetch all ad accounts with enabled schedules for this user
+    const { data: schedules } = await supabase
+        .from('analysis_schedules')
+        .select('ad_account_id')
+        .eq('fb_id', user.fb_id);
+
+    // Collect unique account IDs from schedules + the default one
+    const accountIds: string[] = [];
+    if (user.ad_account_id) accountIds.push(user.ad_account_id);
+    if (schedules) {
+        for (const s of schedules) {
+            if (s.ad_account_id && !accountIds.includes(s.ad_account_id)) {
+                accountIds.push(s.ad_account_id);
+            }
+        }
+    }
+
+    if (accountIds.length === 0) {
+        await sendTelegramMessage(botToken, chatId, '❌ *Tiada Ads Manager dikonfigurasi.*\n\nSila setup di Settings → Telegram.');
+        return res.status(200).end();
+    }
+
+    // Fetch account names from Meta API
+    const accountInfoList: { id: string; name: string }[] = [];
+    for (const accountId of accountIds) {
+        const actId = accountId.startsWith('act_') ? accountId : `act_${accountId}`;
+        try {
+            const r = await fetch(`https://graph.facebook.com/v19.0/${actId}?fields=name&access_token=${user.fb_access_token}`);
+            const d = await r.json();
+            accountInfoList.push({ id: accountId, name: d.name || accountId });
+        } catch {
+            accountInfoList.push({ id: accountId, name: accountId });
+        }
+    }
+
+    // If user specified an account name, fuzzy-match and run immediately
+    if (accountQuery) {
+        const matched = accountInfoList.find(a =>
+            a.name.toLowerCase().includes(accountQuery.toLowerCase()) ||
+            a.id.includes(accountQuery)
+        );
+        if (matched) {
+            return await runAnalysisForAccount(chatId, matched.id, botToken, res);
+        } else {
+            await sendTelegramMessage(botToken, chatId,
+                `❌ Ads Manager *"${accountQuery}"* tidak dijumpai.\n\nAkaun yang ada:\n${accountInfoList.map(a => `• ${a.name}`).join('\n')}`);
+            return res.status(200).end();
+        }
+    }
+
+    // No name given → show button list
+    if (accountInfoList.length === 1) {
+        // Only one account — run directly
+        return await runAnalysisForAccount(chatId, accountInfoList[0].id, botToken, res);
+    }
+
+    const buttons = accountInfoList.map(a => [{
+        text: `📊 ${a.name}`,
+        callback_data: `analyze_act_${a.id}`
+    }]);
+
+    await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            chat_id: chatId,
+            text: '📊 *Pilih Ads Manager untuk analisa:*',
+            parse_mode: 'Markdown',
+            reply_markup: { inline_keyboard: buttons }
+        })
+    });
+    return res.status(200).end();
+}
+
+/**
+ * Triggers analysis for a specific adAccountId by calling analyze-telegram API
+ */
+async function runAnalysisForAccount(chatId: any, adAccountId: string, botToken: string, res: any) {
+    const { data: user } = await supabase
+        .from('telegram_users')
+        .select('fb_access_token')
+        .eq('telegram_chat_id', String(chatId))
+        .single();
+
+    // Also try from schedules if not in telegram_users
+    const { data: schedule } = await supabase
+        .from('analysis_schedules')
+        .select('fb_access_token, telegram_bot_token, fb_id')
+        .eq('ad_account_id', adAccountId)
+        .maybeSingle();
+
+    const fbAccessToken = user?.fb_access_token || schedule?.fb_access_token;
+
+    if (!fbAccessToken) {
+        await sendTelegramMessage(botToken, chatId, '❌ Token tidak dijumpai. Sila reconnect di Settings.');
+        return res.status(200).end();
+    }
+
+    // Fetch account name for display
+    const actId = adAccountId.startsWith('act_') ? adAccountId : `act_${adAccountId}`;
+    let accountName = adAccountId;
+    try {
+        const r = await fetch(`https://graph.facebook.com/v19.0/${actId}?fields=name&access_token=${fbAccessToken}`);
+        const d = await r.json();
+        if (d.name) accountName = d.name;
+    } catch { /* ignore */ }
+
+    await sendTelegramMessage(botToken, chatId, `⏳ *Menganalisa ${accountName}...*\n\nSila tunggu ~30 saat.`);
+
+    // Call the existing analyze-telegram API
+    const apiUrl = 'https://ads-rocket.vercel.app/api/analyze-telegram';
+    try {
+        const response = await fetch(apiUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                adAccountId,
+                fbAccessToken,
+                telegramChatId: String(chatId),
+                telegramBotToken: botToken,
+                fbName: 'telegram-user'
+            })
+        });
+        const data = await response.json();
+        if (!data.success && data.error) {
+            await sendTelegramMessage(botToken, chatId, `❌ *Analisa gagal:* ${data.error}`);
+        }
+    } catch (err: any) {
+        await sendTelegramMessage(botToken, chatId, `❌ *Ralat:* ${err.message}`);
+    }
+
+    return res.status(200).end();
+}
+
+/**
+ * /ads [ad name] — fetch all ads and analyze the matched one specifically
+ */
+async function handleSpecificAdAnalysis(chatId: any, adQuery: string, botToken: string, res: any) {
+    if (!adQuery) {
+        await sendTelegramMessage(botToken, chatId,
+            '❌ Sila nyatakan nama iklan. Contoh: `/ads Nama Iklan Win`');
+        return res.status(200).end();
+    }
+
+    const { data: user } = await supabase
+        .from('telegram_users')
+        .select('fb_access_token, ad_account_id')
+        .eq('telegram_chat_id', String(chatId))
+        .single();
+
+    if (!user?.fb_access_token || !user?.ad_account_id) {
+        await sendTelegramMessage(botToken, chatId, '❌ *Belum connected*\n\nSila login ke website dan setup Telegram settings.');
+        return res.status(200).end();
+    }
+
+    await sendTelegramMessage(botToken, chatId, `🔍 *Mencari iklan "${adQuery}"...*`);
+
+    const actId = user.ad_account_id.startsWith('act_') ? user.ad_account_id : `act_${user.ad_account_id}`;
+    const fbAccessToken = user.fb_access_token;
+
+    // Fetch ads from Meta
+    const today = new Date();
+    const fourDaysAgo = new Date(today);
+    fourDaysAgo.setDate(today.getDate() - 3);
+    const fmt = (d: Date) => d.toISOString().split('T')[0];
+    const timeRange = JSON.stringify({ since: fmt(fourDaysAgo), until: fmt(today) });
+
+    const insightsQuery = `insights.time_range(${timeRange}){spend,impressions,clicks,cpc,ctr,actions,action_values,cost_per_action_type}`;
+    const creativeFields = 'creative{video_id,image_url,thumbnail_url,effective_instagram_media_id}';
+    const fields = ['id', 'name', 'status', 'effective_status', creativeFields, insightsQuery].join(',');
+    const filtering = encodeURIComponent(`[{"field":"effective_status","operator":"IN","value":["ACTIVE","PAUSED","CAMPAIGN_PAUSED","ADSET_PAUSED"]}]`);
+    const metaUrl = `https://graph.facebook.com/v19.0/${actId}/ads?fields=${encodeURIComponent(fields)}&access_token=${fbAccessToken}&limit=50&filtering=${filtering}`;
+
+    const metaRes = await fetch(metaUrl);
+    const metaData = await metaRes.json();
+
+    if (metaData.error) {
+        await sendTelegramMessage(botToken, chatId, `❌ Meta API error: ${metaData.error.message}`);
+        return res.status(200).end();
+    }
+
+    const ads = metaData.data || [];
+    const matched = ads.filter((ad: any) =>
+        ad.name.toLowerCase().includes(adQuery.toLowerCase())
+    );
+
+    if (matched.length === 0) {
+        const adNames = ads.slice(0, 10).map((a: any) => `• ${a.name}`).join('\n');
+        await sendTelegramMessage(botToken, chatId,
+            `❌ Iklan *"${adQuery}"* tidak dijumpai.\n\n*Senarai iklan ada:*\n${adNames || '(tiada)'}`);
+        return res.status(200).end();
+    }
+
+    // Analyze first matched ad
+    const ad = matched[0];
+    const insights = ad.insights?.data?.[0] || {};
+    const spend = parseFloat(insights.spend || '0');
+    const purchaseValue = insights.action_values?.find((a: any) => a.action_type === 'purchase')?.value || 0;
+    const revenue = parseFloat(purchaseValue || '0');
+    const purchaseCount = parseInt(insights.actions?.find((a: any) => a.action_type === 'purchase')?.value || '0');
+    const adRoas = spend > 0 ? revenue / spend : 0;
+
+    const adData = {
+        id: ad.id,
+        name: ad.name,
+        purchases: purchaseCount,
+        roas: adRoas,
+        spend,
+        creative: ad.creative || {}
+    };
+
+    await sendTelegramMessage(botToken, chatId,
+        `🎯 *Menganalisa: ${ad.name}*\n\nSpend: RM${spend.toFixed(2)} | ${purchaseCount} purchases | ROAS ${adRoas.toFixed(2)}x\n\n_Sedang analisa creative..._`);
+
+    // Run Gemini analysis using the same logic as analyze-telegram.ts
+    const geminiApiKey = process.env.VITE_GEMINI_3_API;
+    if (!geminiApiKey) {
+        await sendTelegramMessage(botToken, chatId, '❌ Gemini API tidak dikonfigurasi.');
+        return res.status(200).end();
+    }
+
+    try {
+        const { GoogleGenAI } = await import('@google/genai');
+        const genAI = new GoogleGenAI({ apiKey: geminiApiKey });
+
+        const creative = adData.creative;
+        let analysisText = '(Tiada kreativiti untuk dianalisa)';
+
+        if (creative.video_id) {
+            const videoRes = await fetch(`https://graph.facebook.com/v19.0/${creative.video_id}?fields=source,picture&access_token=${fbAccessToken}`);
+            const videoData = await videoRes.json();
+            let videoSourceUrl = videoData.source;
+
+            if (!videoSourceUrl && creative.effective_instagram_media_id) {
+                const igRes = await fetch(`https://graph.facebook.com/v19.0/${creative.effective_instagram_media_id}?fields=media_url&access_token=${fbAccessToken}`);
+                const igData = await igRes.json();
+                if (igData.media_url) videoSourceUrl = igData.media_url;
+            }
+
+            if (videoSourceUrl) {
+                const vfRes = await fetch(videoSourceUrl);
+                const videoBlob = new Blob([await vfRes.arrayBuffer()], { type: 'video/mp4' });
+                const uploadResult = await genAI.files.upload({ file: videoBlob });
+
+                // Poll until ACTIVE
+                for (let i = 0; i < 15; i++) {
+                    await new Promise(r => setTimeout(r, 1000));
+                    const fileStatus = await genAI.files.get({ name: uploadResult.name });
+                    if (fileStatus.state === 'ACTIVE') break;
+                }
+
+                const prompt = `Analisa video iklan ini (${adData.purchases} purchases, ROAS ${adData.roas.toFixed(2)}x).\n\nBerikan analisa LENGKAP:\n\n*Hook:* (apa yang buat orang stop scroll)\n*Emosi:* (emosi yang drive action)\n*Tawaran:* (offer/value proposition yang kuat)\n*Cadangan:* (apa yang boleh diimprove)\n\nBM ringkas, praktikal.`;
+
+                const result = await genAI.models.generateContent({
+                    model: 'gemini-3-flash-preview',
+                    contents: [
+                        { text: prompt },
+                        { fileData: { fileUri: uploadResult.uri, mimeType: 'video/mp4' } }
+                    ]
+                });
+                await genAI.files.delete({ name: uploadResult.name });
+                analysisText = result.text || analysisText;
+            } else {
+                // Fallback to thumbnail
+                const thumbUrl = videoData.picture || creative.thumbnail_url || creative.image_url;
+                if (thumbUrl) {
+                    const imgRes = await fetch(thumbUrl);
+                    const base64 = Buffer.from(await imgRes.arrayBuffer()).toString('base64');
+                    const imgMime = imgRes.headers.get('content-type') || 'image/jpeg';
+                    const prompt = `Analisa thumbnail/poster iklan ini (${adData.purchases} purchases, ROAS ${adData.roas.toFixed(2)}x).\n\n*Hook:* *Emosi:* *Tawaran:* *Cadangan:*\n\nBM ringkas.`;
+                    const result = await genAI.models.generateContent({
+                        model: 'gemini-3-flash-preview',
+                        contents: [{ text: prompt }, { inlineData: { mimeType: imgMime, data: base64 } }]
+                    });
+                    analysisText = result.text || analysisText;
+                }
+            }
+        } else if (creative.image_url || creative.thumbnail_url) {
+            const imageUrl = creative.image_url || creative.thumbnail_url;
+            const imgRes = await fetch(imageUrl);
+            const base64 = Buffer.from(await imgRes.arrayBuffer()).toString('base64');
+            const imgMime = imgRes.headers.get('content-type') || 'image/jpeg';
+            const prompt = `Analisa poster iklan ini (${adData.purchases} purchases, ROAS ${adData.roas.toFixed(2)}x).\n\n*Hook:* *Emosi:* *Tawaran:* *Cadangan:*\n\nBM ringkas.`;
+            const result = await genAI.models.generateContent({
+                model: 'gemini-3-flash-preview',
+                contents: [{ text: prompt }, { inlineData: { mimeType: imgMime, data: base64 } }]
+            });
+            analysisText = result.text || analysisText;
+        }
+
+        const finalMsg = `🎯 *Analisa: ${ad.name}*\n\n${analysisText}\n\n---\n_AI: Gemini 3 Flash_`;
+        await sendTelegramMessage(botToken, chatId, finalMsg);
+    } catch (err: any) {
+        console.error('[/ads] Analysis error:', err);
+        await sendTelegramMessage(botToken, chatId, `❌ Analisa gagal: ${err.message}`);
+    }
+
+    return res.status(200).end();
+}
+
+/**
+ * /topads — show last cached top ads from Supabase ads_cache
+ */
+async function handleTopAds(chatId: any, botToken: string, res: any) {
+    const { data: cache } = await supabase
+        .from('ads_cache')
+        .select('ads_data, updated_at')
+        .eq('chat_id', String(chatId))
+        .maybeSingle();
+
+    if (!cache || !cache.ads_data) {
+        await sendTelegramMessage(botToken, chatId,
+            '📭 *Tiada data top ads.*\n\nJalankan `/analisa` dahulu untuk mendapatkan data.');
+        return res.status(200).end();
+    }
+
+    let ads: any[] = [];
+    try { ads = typeof cache.ads_data === 'string' ? JSON.parse(cache.ads_data) : cache.ads_data; } catch { ads = []; }
+
+    if (ads.length === 0) {
+        await sendTelegramMessage(botToken, chatId, '📭 *Tiada top ads disimpan.*');
+        return res.status(200).end();
+    }
+
+    const updatedAt = cache.updated_at ? new Date(cache.updated_at).toLocaleDateString('ms-MY') : 'Tidak diketahui';
+    const emojis = ['🥇', '🥈', '🥉'];
+    let msg = `📊 *Top Ads Terakhir*\n_Dikemas kini: ${updatedAt}_\n\n`;
+    ads.forEach((ad: any, i: number) => {
+        msg += `${emojis[i] || `${i + 1}.`} *${ad.name}*\n`;
+        if (ad.id) msg += `   ID: \`${ad.id}\`\n`;
+    });
+    msg += `\n_Guna /ads [nama] untuk analisa iklan tertentu._`;
+
+    await sendTelegramMessage(botToken, chatId, msg);
     return res.status(200).end();
 }
 
