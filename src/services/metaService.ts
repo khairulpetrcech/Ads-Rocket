@@ -903,7 +903,8 @@ export const createMetaAdSet = async (
     pixelId: string | null,
     accessToken: string,
     pageId?: string,
-    whatsappNumber?: string
+    whatsappNumber?: string,
+    startTime?: string
 ) => {
     const actId = accountId.startsWith('act_') ? accountId : `act_${accountId}`;
     const url = `https://graph.facebook.com/v19.0/${actId}/adsets`;
@@ -916,7 +917,8 @@ export const createMetaAdSet = async (
         device_platforms: ['mobile', 'desktop']
     };
 
-    const startTime = new Date(Date.now() + 60 * 60 * 1000).toISOString().split('.')[0];
+    // Use provided startTime or default to 1 hour from now
+    const finalStartTime = startTime || new Date(Date.now() + 60 * 60 * 1000).toISOString().split('.')[0];
 
     const body: any = {
         name: sanitizeInput(name),
@@ -924,7 +926,7 @@ export const createMetaAdSet = async (
         daily_budget: Math.floor(dailyBudget * 100),
         targeting: targeting,
         status: 'ACTIVE',
-        start_time: startTime,
+        start_time: finalStartTime,
         access_token: accessToken,
         optimization_goal: optimizationGoal,
         bid_strategy: 'LOWEST_COST_WITHOUT_CAP',

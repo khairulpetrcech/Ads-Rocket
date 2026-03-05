@@ -2102,10 +2102,26 @@ const RapidCreator: React.FC = () => {
                     setLaunchProgress(`Creating ${adset.name}...`);
                     // Use CONVERSATIONS for Engagement (WhatsApp)
                     const optimizationGoal = campaignObjective === 'SALES' ? 'OFFSITE_CONVERSIONS' : 'CONVERSATIONS';
+                    let startTimeValue: string | undefined = undefined;
+                    if (adset.scheduleEnabled && adset.scheduleStartDate && adset.scheduleStartTime) {
+                        startTimeValue = `${adset.scheduleStartDate}T${adset.scheduleStartTime}:00`;
+                    }
+
                     // Pixel is optional for Lead objective
                     const pixelToUse = campaignObjective === 'LEAD' && !selectedPixelId ? '' : selectedPixelId;
                     // Pass whatsappNumber for conditional WhatsApp CTA
-                    const adsetResult = await createMetaAdSet(settings.adAccountId, campaignId, adset.name, adset.dailyBudget, optimizationGoal, pixelToUse, settings.fbAccessToken, selectedPageId, whatsappNumber || undefined);
+                    const adsetResult = await createMetaAdSet(
+                        settings.adAccountId,
+                        campaignId,
+                        adset.name,
+                        adset.dailyBudget,
+                        optimizationGoal,
+                        pixelToUse,
+                        settings.fbAccessToken,
+                        selectedPageId,
+                        whatsappNumber || undefined,
+                        startTimeValue
+                    );
                     adsetId = adsetResult.id;
                 }
 
