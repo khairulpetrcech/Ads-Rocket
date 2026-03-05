@@ -1790,6 +1790,21 @@ const RapidCreator: React.FC = () => {
         };
         setAdSets(prev => [...prev, newAdSet]);
         setExpandedAdSets(prev => new Set([...prev, newId]));
+
+        // Clone all creatives in this ad set
+        const sourceCreatives = creatives.filter(c => c.adsetId === id);
+        if (sourceCreatives.length > 0) {
+            const cloned = sourceCreatives.map(c => ({
+                ...c,
+                id: `creative-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                adsetId: newId,
+                adName: `${c.adName} (Copy)`
+            }));
+            setCreatives(prev => [...prev, ...cloned]);
+            showToast(`Ad set copied with ${cloned.length} ad(s)! ✨`, 'success');
+        } else {
+            showToast('Ad set copied (empty)', 'success');
+        }
     };
 
     // Update adset settings
