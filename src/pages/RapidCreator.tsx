@@ -265,7 +265,7 @@ const DroppableAdSetZone: React.FC<{
                             onChange={(e) => setEditName(e.target.value)}
                             onBlur={() => { onRenameAdSet(editName); setIsEditing(false); }}
                             onKeyDown={(e) => { if (e.key === 'Enter') { onRenameAdSet(editName); setIsEditing(false); } }}
-                            className="text-sm font-bold text-slate-800 bg-white border border-blue-400 rounded px-2 py-0.5 outline-none w-32"
+                            className="text-sm font-bold text-slate-800 bg-white border border-blue-400 rounded px-2 py-0.5 outline-none w-72"
                             autoFocus
                         />
                     ) : (
