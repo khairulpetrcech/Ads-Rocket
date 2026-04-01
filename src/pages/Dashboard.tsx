@@ -496,39 +496,51 @@ const Dashboard: React.FC = () => {
     };
 
     // --- VIEW MODE AUTO-DETECTION ---
-    // Auto-detect based on actual METRICS, not objectives
-    // Because Meta returns OUTCOME_SALES for both online purchases AND Whatsapp/Lead campaigns
+    // Primary: objective-based. Secondary: metrics as tiebreaker for ambiguous OUTCOME_SALES campaigns.
     useEffect(() => {
         if (campaigns.length > 0) {
-            // Sum up total leads vs total purchases across all campaigns
-            let totalLeadsSum = 0;
-            let totalPurchasesSum = 0;
+            // Step 1: Count objectives
+            let trafficCount = 0;
+            let salesCount = 0;
+            let ambiguousSalesCount = 0; // OUTCOME_SALES that could be WhatsApp/lead
 
             campaigns.forEach(c => {
-                totalLeadsSum += c.metrics.totalLeads || 0;
-                totalPurchasesSum += c.metrics.purchases || 0;
+                if (isTrafficOrLeads(c.objective)) {
+                    trafficCount++;
+                } else {
+                    // OUTCOME_SALES or OUTCOME_CONVERSIONS
+                    salesCount++;
+                    if ((c.objective || '').toUpperCase() === 'OUTCOME_SALES') {
+                        ambiguousSalesCount++;
+                    }
+                }
             });
 
-            // If more leads than purchases, use TRAFFIC mode (Leads view)
-            // If more purchases OR both zero, check objectives as fallback
             let detectedMode: ViewMode;
 
-            if (totalLeadsSum > 0 || totalPurchasesSum > 0) {
-                // We have actual data - use metrics
-                detectedMode = totalLeadsSum >= totalPurchasesSum ? 'TRAFFIC' : 'SALES';
+            if (trafficCount > salesCount) {
+                // Clear majority of traffic/lead objectives
+                detectedMode = 'TRAFFIC';
+            } else if (salesCount > trafficCount) {
+                // Clear majority of sales objectives — use metrics as tiebreaker
+                // only if ALL sales campaigns are ambiguous OUTCOME_SALES
+                if (ambiguousSalesCount === salesCount) {
+                    const totalLeadsSum = campaigns.reduce((a, c) => a + (c.metrics.totalLeads || 0), 0);
+                    const totalPurchasesSum = campaigns.reduce((a, c) => a + (c.metrics.purchases || 0), 0);
+                    // Only flip to TRAFFIC if there are ZERO purchases but has leads
+                    detectedMode = (totalPurchasesSum === 0 && totalLeadsSum > 0) ? 'TRAFFIC' : 'SALES';
+                } else {
+                    detectedMode = 'SALES';
+                }
             } else {
-                // No conversions yet - fallback to objective-based detection
-                let trafficCount = 0;
-                let salesCount = 0;
-                campaigns.forEach(c => {
-                    if (isTrafficOrLeads(c.objective)) trafficCount++;
-                    else salesCount++;
-                });
-                detectedMode = trafficCount >= salesCount ? 'TRAFFIC' : 'SALES';
+                // Tie: use metrics as tiebreaker
+                const totalLeadsSum = campaigns.reduce((a, c) => a + (c.metrics.totalLeads || 0), 0);
+                const totalPurchasesSum = campaigns.reduce((a, c) => a + (c.metrics.purchases || 0), 0);
+                detectedMode = totalLeadsSum > totalPurchasesSum ? 'TRAFFIC' : 'SALES';
             }
 
             setViewMode(detectedMode);
-            console.log(`[Auto-Detect] Leads: ${totalLeadsSum}, Purchases: ${totalPurchasesSum} => Mode: ${detectedMode}`);
+            console.log(`[Auto-Detect] Traffic objectives: ${trafficCount}, Sales objectives: ${salesCount} => Mode: ${detectedMode}`);
         }
     }, [campaigns]);
 
