@@ -986,22 +986,6 @@ const Dashboard: React.FC = () => {
 
                         <div className="flex items-center gap-2">
 
-                            {/* MANUAL VIEW MODE TOGGLE */}
-                            <div className="flex items-center bg-slate-100 rounded-lg p-0.5">
-                                <button
-                                    onClick={() => setViewMode('SALES')}
-                                    className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${viewMode === 'SALES' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                                >
-                                    ROAS
-                                </button>
-                                <button
-                                    onClick={() => setViewMode('TRAFFIC')}
-                                    className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${viewMode === 'TRAFFIC' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                                >
-                                    LEAD
-                                </button>
-                            </div>
-
                             <div className="relative">
                                 <Calendar className="absolute left-3 top-2.5 text-slate-400" size={14} />
                                 <select
