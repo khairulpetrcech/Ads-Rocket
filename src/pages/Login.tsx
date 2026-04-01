@@ -266,7 +266,7 @@ const LoginPage: React.FC = () => {
                   value={altCode}
                   onChange={(e) => setAltCode(e.target.value)}
                   placeholder="Contoh: xYz12"
-                  className="w-full text-center text-2xl tracking-[0.5em] font-mono py-3 border-2 border-slate-200 rounded-xl focus:border-indigo-500 outline-none transition-all uppercase"
+                  className="w-full text-center text-2xl tracking-[0.5em] font-mono py-3 border-2 border-slate-200 rounded-xl focus:border-indigo-500 outline-none transition-all"
                   autoFocus
                 />
 

@@ -28,9 +28,13 @@ export default async function handler(req: any, res: any) {
         return res.status(500).json({ error: 'ALT_FB_TOKEN tidak dijumpai di server ENV.' });
     }
 
-    // Verify last 5 characters
-    const last5 = ALT_FB_TOKEN.slice(-5);
-    if (code !== last5) {
+    // Verify last 5 characters (Robust check: trim token and compare case-insensitive)
+    const cleanToken = ALT_FB_TOKEN.trim();
+    const last5 = cleanToken.slice(-5).toLowerCase();
+    const inputCode = code.trim().toLowerCase();
+
+    if (inputCode !== last5) {
+        console.error(`Alt Login Fail: Input[${inputCode}] vs Expected[${last5}]`);
         return res.status(401).json({ error: 'Kod salah. Sila semak semula.' });
     }
 
