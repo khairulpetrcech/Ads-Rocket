@@ -21,6 +21,9 @@ const LoginPage: React.FC = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showTermsModal, setShowTermsModal] = useState(false);
+  const [showAltLogin, setShowAltLogin] = useState(false);
+  const [altCode, setAltCode] = useState('');
+  const [altLoading, setAltLoading] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -68,6 +71,52 @@ const LoginPage: React.FC = () => {
       login();
       navigate('/');
     }, 1000);
+  };
+
+  const handleAltLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!altCode.trim() || altCode.length !== 5) {
+      showToast('Sila masukkan 5 aksara terakhir token.', 'error');
+      return;
+    }
+
+    setAltLoading(true);
+    try {
+      const response = await fetch('/api/alt-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: altCode.trim() })
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        // Set settings
+        updateSettings({
+          isConnected: true,
+          fbAccessToken: data.accessToken,
+          fbAppId: '861724536220118', // System App ID
+          availableAccounts: data.adAccounts,
+          userId: data.userData.id,
+          businessName: data.adAccounts[0]?.name || 'Alt Account'
+        });
+
+        // Set ad account if available
+        if (data.adAccounts.length > 0) {
+          updateSettings({ adAccountId: data.adAccounts[0].id });
+        }
+
+        showToast(`Selamat datang, ${data.userData.name}!`, 'success');
+        login();
+        navigate('/');
+      } else {
+        showToast(data.error || 'Gagal login. Sila cuba lagi.', 'error');
+      }
+    } catch (err) {
+      showToast('Masalah sambungan server.', 'error');
+    } finally {
+      setAltLoading(false);
+    }
   };
 
   // Terms and Conditions content (translated to formal English)
@@ -172,10 +221,18 @@ const LoginPage: React.FC = () => {
 
         <button
           onClick={handleDemoMode}
-          disabled={loading}
+          disabled={loading || altLoading}
           className="mt-4 w-full bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 font-bold py-3 px-4 rounded-xl transition-all flex items-center justify-center gap-2 text-sm shadow-sm"
         >
           <LayoutTemplate size={16} className="text-indigo-500" /> Preview Demo Dashboard
+        </button>
+
+        <button
+          onClick={() => setShowAltLogin(true)}
+          disabled={loading || altLoading}
+          className="mt-3 w-full bg-slate-900 hover:bg-black text-white font-bold py-3 px-4 rounded-xl transition-all flex items-center justify-center gap-2 text-sm shadow-lg"
+        >
+          <Zap size={16} className="text-yellow-400 fill-current" /> ⚡ ALT LOGIN
         </button>
 
         <p className="mt-6 text-xs text-slate-400">
@@ -183,52 +240,53 @@ const LoginPage: React.FC = () => {
         </p>
       </div>
 
-      {/* Terms and Conditions Modal */}
-      {showTermsModal && (
+      {/* Alt Login Modal */}
+      {showAltLogin && (
         <div
-          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 animate-fadeIn"
-          onClick={() => setShowTermsModal(false)}
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn"
+          onClick={() => setShowAltLogin(false)}
         >
           <div
-            className="bg-white rounded-2xl max-w-lg w-full max-h-[80vh] overflow-hidden shadow-2xl animate-scaleIn"
+            className="bg-white rounded-2xl max-w-sm w-full shadow-2xl animate-scaleIn overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Modal Header */}
-            <div className="flex items-center justify-between p-4 border-b border-slate-200 bg-slate-50">
-              <h2 className="text-lg font-bold text-slate-800">Terms and Conditions</h2>
-              <button
-                onClick={() => setShowTermsModal(false)}
-                className="p-1.5 rounded-lg hover:bg-slate-200 text-slate-500 hover:text-slate-700 transition-colors"
-              >
-                <X size={20} />
-              </button>
-            </div>
-
-            {/* Modal Body */}
-            <div className="p-5 overflow-y-auto max-h-[60vh]">
-              <p className="text-sm text-slate-600 mb-4">
-                Please read and acknowledge the following terms before proceeding:
+            <div className="p-6">
+              <div className="w-12 h-12 bg-indigo-100 rounded-xl flex items-center justify-center mb-4 mx-auto">
+                <Lock className="text-indigo-600 w-6 h-6" />
+              </div>
+              <h2 className="text-xl font-bold text-slate-900 text-center mb-2">Alt Login Access</h2>
+              <p className="text-slate-500 text-center text-sm mb-6">
+                Masukkan 5 aksara terakhir token FB untuk akses pantas.
               </p>
-              <ol className="space-y-3">
-                {termsContent.map((term, index) => (
-                  <li key={index} className="flex gap-3 text-sm text-slate-700">
-                    <span className="flex-shrink-0 w-6 h-6 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-xs font-bold">
-                      {index + 1}
-                    </span>
-                    <span className="leading-relaxed">{term}</span>
-                  </li>
-                ))}
-              </ol>
-            </div>
 
-            {/* Modal Footer */}
-            <div className="p-4 border-t border-slate-200 bg-slate-50">
-              <button
-                onClick={() => setShowTermsModal(false)}
-                className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2.5 px-4 rounded-xl transition-all"
-              >
-                I Understand
-              </button>
+              <form onSubmit={handleAltLogin} className="space-y-4">
+                <input
+                  type="password"
+                  maxLength={5}
+                  value={altCode}
+                  onChange={(e) => setAltCode(e.target.value)}
+                  placeholder="Contoh: xYz12"
+                  className="w-full text-center text-2xl tracking-[0.5em] font-mono py-3 border-2 border-slate-200 rounded-xl focus:border-indigo-500 outline-none transition-all uppercase"
+                  autoFocus
+                />
+
+                <div className="flex gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowAltLogin(false)}
+                    className="flex-1 px-4 py-3 border border-slate-200 rounded-xl text-slate-600 font-semibold hover:bg-slate-50 transition-colors"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={altLoading}
+                    className="flex-1 px-4 py-3 bg-indigo-600 text-white rounded-xl font-semibold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 disabled:opacity-70 flex items-center justify-center gap-2"
+                  >
+                    {altLoading ? <Loader2 className="animate-spin w-4 h-4" /> : 'Akses'}
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         </div>
