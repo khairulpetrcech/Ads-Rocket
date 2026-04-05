@@ -34,9 +34,11 @@ export default async function handler(req: any, res: any) {
                 .from('text_presets')
                 .select('*')
                 .eq('fb_id', fbId)
-                .single();
+                .order('updated_at', { ascending: false })
+                .limit(1)
+                .maybeSingle();
 
-            if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
+            if (error) {
                 console.error('Supabase GET error:', error);
                 return res.status(500).json({ error: error.message });
             }
@@ -81,66 +83,67 @@ export default async function handler(req: any, res: any) {
             const payloadSize = JSON.stringify(req.body).length;
             console.log(`[PresetsAPI] Saving settings for ${fbId}. Size: ${payloadSize} bytes`);
 
-            // Check if adTemplates exists in schema or just try-catch it
-            // For now, we'll try the full upsert.
-            const { data, error } = await supabase
+            const rowData = {
+                fb_id: fbId,
+                primary_texts: primaryTexts || [],
+                primary_text_names: primaryTextNames || [],
+                headlines: headlines || [],
+                headline_names: headlineNames || [],
+                ad_templates: adTemplates || [],
+                updated_at: now
+            };
+
+            // Use select-then-update/insert to avoid dependency on unique constraint
+            const { data: existing, error: selectError } = await supabase
                 .from('text_presets')
-                .upsert({
-                    fb_id: fbId,
-                    primary_texts: primaryTexts || [],
-                    primary_text_names: primaryTextNames || [],
-                    headlines: headlines || [],
-                    headline_names: headlineNames || [],
-                    ad_templates: adTemplates || [],
-                    updated_at: now
-                }, {
-                    onConflict: 'fb_id',
-                    ignoreDuplicates: false
-                });
+                .select('fb_id')
+                .eq('fb_id', fbId)
+                .maybeSingle();
 
-            if (error) {
-                console.error('Supabase POST error:', error);
+            if (selectError) {
+                console.error('[PresetsAPI] Select error:', selectError);
+                return res.status(500).json({ error: 'Database read error', details: selectError.message });
+            }
 
-                // Special handling for missing column error (PGRST204 or explicit message)
+            let saveError: any = null;
+
+            if (existing) {
+                // Row exists → UPDATE
+                const { error: updateError } = await supabase
+                    .from('text_presets')
+                    .update(rowData)
+                    .eq('fb_id', fbId);
+                saveError = updateError;
+            } else {
+                // Row doesn't exist → INSERT
+                const { error: insertError } = await supabase
+                    .from('text_presets')
+                    .insert(rowData);
+                saveError = insertError;
+            }
+
+            if (saveError) {
+                console.error('[PresetsAPI] Save error:', saveError);
+
+                // Detect missing column errors: PostgreSQL error code 42703, or PGRST schema cache error
                 const isMissingColumn =
-                    error.code === 'PGRST204' ||
-                    error.message.includes('column "ad_templates" does not exist') ||
-                    (error.message.includes('ad_templates') && error.message.includes('schema cache'));
+                    saveError.code === '42703' ||
+                    saveError.code === 'PGRST204' ||
+                    saveError.message?.includes('column "ad_templates" does not exist') ||
+                    (saveError.message?.includes('ad_templates') && saveError.message?.includes('schema cache'));
 
                 if (isMissingColumn) {
-                    console.log('[PresetsAPI] ad_templates column missing. Falling back to basic save.');
-                    const { error: fallbackError } = await supabase
-                        .from('text_presets')
-                        .upsert({
-                            fb_id: fbId,
-                            primary_texts: primaryTexts || [],
-                            primary_text_names: primaryTextNames || [],
-                            headlines: headlines || [],
-                            headline_names: headlineNames || [],
-                            updated_at: now
-                        }, {
-                            onConflict: 'fb_id',
-                            ignoreDuplicates: false
-                        });
-
-                    if (fallbackError) {
-                        return res.status(500).json({
-                            error: 'Database constraint error',
-                            details: fallbackError.message
-                        });
-                    }
-
-                    return res.status(200).json({
-                        success: true,
-                        warning: 'Ad Templates saved locally only (DB column missing)',
-                        message: 'Basic presets saved'
+                    console.error('[PresetsAPI] ad_templates column missing. Run this in Supabase SQL Editor:\nALTER TABLE text_presets ADD COLUMN IF NOT EXISTS ad_templates JSONB DEFAULT \'[]\'::jsonb;');
+                    return res.status(500).json({
+                        error: 'Database schema outdated — column ad_templates missing',
+                        details: 'Run in Supabase SQL Editor: ALTER TABLE text_presets ADD COLUMN IF NOT EXISTS ad_templates JSONB DEFAULT \'[]\'::jsonb;'
                     });
                 }
 
                 return res.status(500).json({
-                    error: 'Supabase Error',
-                    details: error.message,
-                    code: error.code
+                    error: 'Supabase Save Error',
+                    details: saveError.message,
+                    code: saveError.code
                 });
             }
 
