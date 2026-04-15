@@ -599,10 +599,12 @@ export const getAdSets = async (campaignId: string, accessToken: string, datePre
         : `insights.date_preset(${date_preset}){spend,impressions,clicks,cpc,ctr,frequency,inline_link_click_ctr,actions,action_values}`;
 
     const fields = ['id', 'name', 'status', 'daily_budget', 'effective_status', 'campaign_id', insightsQuery].join(',');
+    // Include all relevant statuses — same approach as campaigns, so no active adset is hidden by Meta's default filter
+    const adsetFiltering = encodeURIComponent(JSON.stringify([{field: 'effective_status', operator: 'IN', value: ['ACTIVE', 'PAUSED', 'IN_PROCESS', 'WITH_ISSUES', 'ADSET_PAUSED', 'CAMPAIGN_PAUSED']}]));
 
     try {
-        // Fetch more adsets
-        const url = `https://graph.facebook.com/v19.0/${campaignId}/adsets?fields=${fields}&access_token=${accessToken}&limit=100`;
+        // Fetch more adsets — filtering ensures ALL adsets with spend show up, not just Meta's default subset
+        const url = `https://graph.facebook.com/v19.0/${campaignId}/adsets?fields=${fields}&access_token=${accessToken}&limit=200&filtering=${adsetFiltering}`;
         const response = await fetch(url);
         const data = await response.json();
         handleApiError(data);
@@ -631,10 +633,12 @@ export const getAds = async (adSetId: string, accessToken: string, datePreset: s
         : `insights.date_preset(${date_preset}){spend,impressions,clicks,cpc,ctr,frequency,inline_link_click_ctr,actions,action_values}`;
 
     const fields = ['id', 'name', 'status', 'effective_status', 'adset_id', 'creative{thumbnail_url,image_url,effective_object_story_id}', insightsQuery].join(',');
+    // Include all relevant statuses so ads with spend are never hidden
+    const adFiltering = encodeURIComponent(JSON.stringify([{field: 'effective_status', operator: 'IN', value: ['ACTIVE', 'PAUSED', 'IN_PROCESS', 'WITH_ISSUES', 'ADSET_PAUSED', 'CAMPAIGN_PAUSED', 'PENDING_REVIEW', 'DISAPPROVED']}]));
 
     try {
-        // Increased limit to 200 to capture more ads
-        const url = `https://graph.facebook.com/v19.0/${adSetId}/ads?fields=${fields}&access_token=${accessToken}&limit=200`;
+        // Filtering ensures ALL ads show up including those in review or with issues
+        const url = `https://graph.facebook.com/v19.0/${adSetId}/ads?fields=${fields}&access_token=${accessToken}&limit=200&filtering=${adFiltering}`;
         const response = await fetch(url);
         const data = await response.json();
         handleApiError(data);
