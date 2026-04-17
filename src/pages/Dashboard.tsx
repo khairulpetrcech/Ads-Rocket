@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import AnalysisSettingsDialog from '../components/AnalysisSettingsDialog';
 import BudgetEditDialog from '../components/BudgetEditDialog';
+import PurchaseHeatmap from '../components/PurchaseHeatmap';
 
 const formatMYR = (amount: number) => {
     return new Intl.NumberFormat('en-MY', {
@@ -1424,7 +1425,14 @@ const Dashboard: React.FC = () => {
                     )
                 }
 
-
+                {/* PURCHASE HEATMAP — Hourly Sales Distribution */}
+                {settings.fbAccessToken && settings.fbAccessToken !== 'dummy_token' && settings.adAccountId && (
+                    <PurchaseHeatmap
+                        adAccountId={settings.adAccountId}
+                        accessToken={settings.fbAccessToken}
+                        datePreset={dateRange === 'custom' ? { start: customStartDate, end: customEndDate } : dateRange}
+                    />
+                )}
 
                 {/* COMMENT MODAL */}
                 {

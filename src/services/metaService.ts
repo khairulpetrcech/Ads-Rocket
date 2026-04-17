@@ -793,6 +793,86 @@ export const getDailyBreakdownMetrics = async (
     return result;
 };
 
+// --- HOURLY PURCHASE BREAKDOWN (for Heatmap) ---
+// Returns an array of 24 numbers: index 0 = 12am, index 23 = 11pm
+// Uses Meta's hourly_stats_aggregated_by_advertiser_time_zone breakdown
+
+export interface HourlyPurchaseData {
+    purchases: number[]; // length 24
+    maxPurchases: number;
+    totalPurchases: number;
+}
+
+export const getHourlyPurchaseData = async (
+    adAccountId: string,
+    accessToken: string,
+    datePreset: string | { start: string; end: string } = 'today'
+): Promise<HourlyPurchaseData> => {
+    const accountId = adAccountId.startsWith('act_') ? adAccountId : `act_${adAccountId}`;
+    const rangeKey = typeof datePreset === 'string' ? datePreset : `${datePreset.start}_${datePreset.end}`;
+    const cacheKey = `hourly-purchases-${accountId}-${rangeKey}`;
+    const cached = getCachedData(cacheKey);
+    if (cached) return cached;
+
+    const { date_preset, time_range } = getDateRangeParams(datePreset);
+
+    const purchaseTypes = [
+        'purchase',
+        'omni_purchase',
+        'onsite_conversion.purchase',
+        'offsite_conversion.fb_pixel_purchase',
+    ];
+
+    // Initialize 24-slot array
+    const purchases = new Array(24).fill(0);
+
+    try {
+        let url = `https://graph.facebook.com/v19.0/${accountId}/insights?fields=actions,action_values&breakdowns=hourly_stats_aggregated_by_advertiser_time_zone&action_breakdowns=action_type&limit=100&access_token=${accessToken}`;
+        if (time_range) {
+            url += `&time_range=${encodeURIComponent(time_range)}`;
+        } else if (date_preset) {
+            url += `&date_preset=${date_preset}`;
+        }
+
+        const response = await fetch(url);
+        const data = await response.json();
+
+        if (data.error) {
+            console.warn('[HourlyPurchase] API error:', data.error.message);
+            // Return empty data gracefully — don't throw, heatmap just stays grey
+            const empty: HourlyPurchaseData = { purchases, maxPurchases: 0, totalPurchases: 0 };
+            return empty;
+        }
+
+        (data.data || []).forEach((row: any) => {
+            // hourly_stats_aggregated_by_advertiser_time_zone returns e.g. "00:00:00 - 01:00:00"
+            const hourStr = (row.hourly_stats_aggregated_by_advertiser_time_zone || '').slice(0, 2);
+            const hour = parseInt(hourStr, 10);
+            if (isNaN(hour) || hour < 0 || hour > 23) return;
+
+            let maxVal = 0;
+            if (row.actions) {
+                for (const action of row.actions) {
+                    if (purchaseTypes.includes(action.action_type)) {
+                        const val = parseInt(action.value || '0');
+                        if (val > maxVal) maxVal = val;
+                    }
+                }
+            }
+            purchases[hour] += maxVal;
+        });
+
+        const maxPurchases = Math.max(...purchases);
+        const totalPurchases = purchases.reduce((a, b) => a + b, 0);
+        const result: HourlyPurchaseData = { purchases, maxPurchases, totalPurchases };
+        setCachedData(cacheKey, result);
+        return result;
+    } catch (error) {
+        console.error('[HourlyPurchase] Fetch error:', error);
+        return { purchases, maxPurchases: 0, totalPurchases: 0 };
+    }
+};
+
 export const getTopAdsForAccount = async (adAccountId: string, accessToken: string): Promise<Ad[]> => {
     const accountId = adAccountId.startsWith('act_') ? adAccountId : `act_${adAccountId}`;
     const cacheKey = `top-ads-${accountId}-last_7d`;
