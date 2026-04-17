@@ -140,14 +140,14 @@ const PurchaseHeatmap: React.FC<PurchaseHeatmapProps> = ({ adAccountId, accessTo
                         )}
 
                         {/* Hour cells */}
-                        <div className="grid grid-cols-12 gap-1 mb-1">
-                            {HOURS.slice(0, 12).map(hour => {
+                        <div className="flex w-full gap-[2px] mb-1 h-8 sm:h-10">
+                            {HOURS.map(hour => {
                                 const count = data?.purchases[hour] ?? 0;
                                 const max = data?.maxPurchases ?? 0;
                                 return (
                                     <div
                                         key={hour}
-                                        className={`relative h-12 rounded-lg border cursor-default transition-all hover:scale-110 hover:z-10 hover:shadow-md flex items-center justify-center ${getColor(count, max)}`}
+                                        className={`relative flex-1 rounded-sm border cursor-default transition-all hover:scale-125 hover:z-10 hover:shadow-md flex items-center justify-center ${getColor(count, max)}`}
                                         onMouseEnter={(e) => {
                                             const rect = (e.target as HTMLElement).getBoundingClientRect();
                                             const parentRect = containerRef.current?.getBoundingClientRect();
@@ -163,38 +163,7 @@ const PurchaseHeatmap: React.FC<PurchaseHeatmapProps> = ({ adAccountId, accessTo
                                         onMouseLeave={() => setTooltip(null)}
                                     >
                                         {count > 0 && (
-                                            <span className={`text-[11px] font-bold ${getTextColor(count, max)}`}>
-                                                {count}
-                                            </span>
-                                        )}
-                                    </div>
-                                );
-                            })}
-                        </div>
-                        <div className="grid grid-cols-12 gap-1 mb-1">
-                            {HOURS.slice(12, 24).map(hour => {
-                                const count = data?.purchases[hour] ?? 0;
-                                const max = data?.maxPurchases ?? 0;
-                                return (
-                                    <div
-                                        key={hour}
-                                        className={`relative h-12 rounded-lg border cursor-default transition-all hover:scale-110 hover:z-10 hover:shadow-md flex items-center justify-center ${getColor(count, max)}`}
-                                        onMouseEnter={(e) => {
-                                            const rect = (e.target as HTMLElement).getBoundingClientRect();
-                                            const parentRect = containerRef.current?.getBoundingClientRect();
-                                            if (parentRect) {
-                                                setTooltip({
-                                                    hour,
-                                                    count,
-                                                    x: rect.left - parentRect.left + rect.width / 2,
-                                                    y: rect.top - parentRect.top,
-                                                });
-                                            }
-                                        }}
-                                        onMouseLeave={() => setTooltip(null)}
-                                    >
-                                        {count > 0 && (
-                                            <span className={`text-[11px] font-bold ${getTextColor(count, max)}`}>
+                                            <span className={`text-[9px] sm:text-[10px] font-bold ${getTextColor(count, max)}`}>
                                                 {count}
                                             </span>
                                         )}
@@ -203,17 +172,10 @@ const PurchaseHeatmap: React.FC<PurchaseHeatmapProps> = ({ adAccountId, accessTo
                             })}
                         </div>
 
-                        {/* Hour labels — 2 rows */}
-                        <div className="grid grid-cols-12 gap-1 mb-0.5">
-                            {HOURS.slice(0, 12).map(h => (
-                                <div key={h} className="text-center text-[9px] text-slate-400 font-medium truncate">
-                                    {formatHour(h)}
-                                </div>
-                            ))}
-                        </div>
-                        <div className="grid grid-cols-12 gap-1">
-                            {HOURS.slice(12, 24).map(h => (
-                                <div key={h} className="text-center text-[9px] text-slate-400 font-medium truncate">
+                        {/* Hour labels — 1 row */}
+                        <div className="flex w-full gap-[2px]">
+                            {HOURS.map(h => (
+                                <div key={h} className="flex-1 text-center text-[8px] sm:text-[9px] text-slate-400 font-medium truncate">
                                     {formatHour(h)}
                                 </div>
                             ))}
