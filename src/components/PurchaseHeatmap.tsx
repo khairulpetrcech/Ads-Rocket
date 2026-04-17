@@ -37,7 +37,6 @@ const PurchaseHeatmap: React.FC<PurchaseHeatmapProps> = ({ adAccountId, accessTo
     const [data, setData] = useState<HourlyPurchaseData | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
-    const [tooltip, setTooltip] = useState<{ hour: number; count: number; x: number; y: number } | null>(null);
     const containerRef = useRef<HTMLDivElement>(null);
 
     // Determine label to display for the date range
@@ -93,7 +92,7 @@ const PurchaseHeatmap: React.FC<PurchaseHeatmapProps> = ({ adAccountId, accessTo
                         <ShoppingCart size={16} className="text-blue-600" />
                     </div>
                     <div>
-                        <h3 className="text-sm font-bold text-slate-800">Hourly Purchase Heatmap</h3>
+                        <h3 className="text-sm font-bold text-slate-800">Pola Jualan (Mengikut Jam)</h3>
                         <p className="text-[10px] text-slate-400 uppercase tracking-wide">{dateLabel}</p>
                     </div>
                 </div>
@@ -125,20 +124,6 @@ const PurchaseHeatmap: React.FC<PurchaseHeatmapProps> = ({ adAccountId, accessTo
                 <>
                     {/* Heatmap Grid */}
                     <div className="relative">
-                        {/* Tooltip */}
-                        {tooltip && (
-                            <div
-                                className="absolute z-20 pointer-events-none -translate-x-1/2 -translate-y-full"
-                                style={{ left: tooltip.x, top: tooltip.y - 8 }}
-                            >
-                                <div className="bg-slate-800 text-white text-[10px] rounded-lg px-2.5 py-1.5 shadow-lg whitespace-nowrap">
-                                    <div className="font-bold">{formatHour(tooltip.hour)}</div>
-                                    <div className="text-slate-300">{tooltip.count} purchase{tooltip.count !== 1 ? 's' : ''}</div>
-                                </div>
-                                <div className="w-2 h-2 bg-slate-800 rotate-45 mx-auto -mt-1" />
-                            </div>
-                        )}
-
                         {/* Hour cells */}
                         <div className="flex w-full gap-[2px] mb-1 h-8 sm:h-10">
                             {HOURS.map(hour => {
@@ -147,20 +132,8 @@ const PurchaseHeatmap: React.FC<PurchaseHeatmapProps> = ({ adAccountId, accessTo
                                 return (
                                     <div
                                         key={hour}
+                                        title={`${formatHour(hour)}: ${count} jualan`}
                                         className={`relative flex-1 rounded-sm border cursor-default transition-all hover:scale-125 hover:z-10 hover:shadow-md flex items-center justify-center ${getColor(count, max)}`}
-                                        onMouseEnter={(e) => {
-                                            const rect = (e.target as HTMLElement).getBoundingClientRect();
-                                            const parentRect = containerRef.current?.getBoundingClientRect();
-                                            if (parentRect) {
-                                                setTooltip({
-                                                    hour,
-                                                    count,
-                                                    x: rect.left - parentRect.left + rect.width / 2,
-                                                    y: rect.top - parentRect.top,
-                                                });
-                                            }
-                                        }}
-                                        onMouseLeave={() => setTooltip(null)}
                                     >
                                         {count > 0 && (
                                             <span className={`text-[9px] sm:text-[10px] font-bold ${getTextColor(count, max)}`}>
@@ -186,12 +159,12 @@ const PurchaseHeatmap: React.FC<PurchaseHeatmapProps> = ({ adAccountId, accessTo
                     {data && data.totalPurchases > 0 ? (
                         <div className="mt-4 pt-3 border-t border-slate-100 flex items-center gap-6 flex-wrap">
                             <div>
-                                <div className="text-[10px] text-slate-400 uppercase tracking-wide">Total Purchases</div>
+                                <div className="text-[10px] text-slate-400 uppercase tracking-wide">Jumlah Jualan</div>
                                 <div className="text-lg font-extrabold text-slate-800">{data.totalPurchases}</div>
                             </div>
                             {peakHours.length > 0 && (
                                 <div>
-                                    <div className="text-[10px] text-slate-400 uppercase tracking-wide mb-1">Peak Hours</div>
+                                    <div className="text-[10px] text-slate-400 uppercase tracking-wide mb-1">Waktu Kemuncak</div>
                                     <div className="flex gap-2">
                                         {peakHours.map(({ hour, count }, i) => (
                                             <div key={hour} className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold ${i === 0 ? 'bg-blue-800 text-white' : i === 1 ? 'bg-blue-600 text-white' : 'bg-blue-100 text-blue-700'}`}>
