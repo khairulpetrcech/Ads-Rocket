@@ -1180,8 +1180,9 @@ const Dashboard: React.FC = () => {
                                         <tbody className="divide-y divide-slate-100">
                                             {campaignsToShow.map(camp => {
                                                 const allAdSets = adSetsData[camp.id] || [];
-                                                const primaryAdSets = allAdSets.filter(a => a.status === 'ACTIVE' && a.metrics.spend > 0);
-                                                const secondaryAdSets = allAdSets.filter(a => !(a.status === 'ACTIVE' && a.metrics.spend > 0));
+                                                // Primary = has spend (regardless of status) OR is ACTIVE — captures adsets in IN_PROCESS, PENDING etc that are spending
+                                                const primaryAdSets = allAdSets.filter(a => a.metrics.spend > 0 || a.status === 'ACTIVE');
+                                                const secondaryAdSets = allAdSets.filter(a => !(a.metrics.spend > 0 || a.status === 'ACTIVE'));
                                                 const showHidden = showHiddenAdSets.has(camp.id);
                                                 const adSetsToShow = showHidden ? allAdSets : primaryAdSets;
 
@@ -1299,8 +1300,8 @@ const Dashboard: React.FC = () => {
                                                                                             </colgroup>
                                                                                             <tbody>
                                                                                                 {adsData[adset.id] ? (
-                                                                                                    adsData[adset.id].filter(ad => ad.status === 'ACTIVE').length > 0 ? (
-                                                                                                        adsData[adset.id].filter(ad => ad.status === 'ACTIVE').map(ad => {
+                                                                                                    adsData[adset.id].length > 0 ? (
+                                                                                                        adsData[adset.id].map(ad => {
                                                                                                             const commentCount = publishedComments.get(ad.id) || 0;
                                                                                                             // Color states: 0=default, 1=green, 2=blue, 3+=red
                                                                                                             const getCommentButtonStyle = (count: number) => {
