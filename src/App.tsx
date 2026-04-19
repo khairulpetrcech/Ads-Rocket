@@ -12,6 +12,7 @@ import CommentTemplates from './pages/CommentTemplates';
 import EpicPoster from './pages/EpicPoster';
 import EpicVideo from './pages/EpicVideo';
 import AiAssistant from './pages/AiAssistant';
+import Report from './pages/Report';
 import LogPage from './pages/Log';
 import AdminPage from './pages/Admin';
 import { UserSettings, AiProvider, GlobalProcess } from './types';
@@ -390,6 +391,7 @@ const App: React.FC = () => {
               <Route path="epic-video" element={<EpicVideo />} />
               <Route path="assistant" element={<AiAssistant />} />
               <Route path="comment-templates" element={<CommentTemplates />} />
+              <Route path="report" element={<Report />} />
               <Route path="log" element={<LogPage />} />
               <Route path="settings" element={<SettingsPage />} />
             </Route>

@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Settings, LogOut, Rocket, Loader2, ChevronDown, ChevronUp, Play, PlusCircle, MessageSquareText, Menu, X, Minimize2, Maximize2, CheckCircle, Image, Activity, Search, HelpCircle, Bell, Users, FileText, Video, Bot } from 'lucide-react';
+import { LayoutDashboard, Settings, LogOut, Rocket, Loader2, ChevronDown, ChevronUp, Play, PlusCircle, MessageSquareText, Menu, X, Minimize2, Maximize2, CheckCircle, Image, Activity, Search, HelpCircle, Bell, Users, FileText, Video, Bot, BarChart2 } from 'lucide-react';
 import { useSettings } from '../App';
 import { getTopAdsForAccount, publishComment } from '../services/metaService';
 import { analyzeAccountPerformance } from '../services/aiService';
@@ -291,6 +291,10 @@ const Layout: React.FC = () => {
                                 <MessageSquareText size={18} /><span>Comment Templates</span>
                             </NavLink>
 
+                            <NavLink to="/report" className={navLinkClass}>
+                                <BarChart2 size={18} /><span>Report</span>
+                            </NavLink>
+
                             {/* Hidden for now
                             <NavLink to="/assistant" className={navLinkClass}>
                                 <Bot size={18} /><span>AI Assistant</span>
@@ -405,6 +409,10 @@ const Layout: React.FC = () => {
 
                                     <NavLink to="/comment-templates" onClick={() => setIsMobileMenuOpen(false)} className={mobileNavLinkClass}>
                                         <MessageSquareText size={20} /><span>Comment Templates</span>
+                                    </NavLink>
+
+                                    <NavLink to="/report" onClick={() => setIsMobileMenuOpen(false)} className={mobileNavLinkClass}>
+                                        <BarChart2 size={20} /><span>Report</span>
                                     </NavLink>
 
                                     {/* Hidden for now
