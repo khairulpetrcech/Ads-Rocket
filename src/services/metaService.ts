@@ -265,12 +265,13 @@ export interface DailySpendRow {
     date: string;        // YYYY-MM-DD
     spend: number;
     purchases: number;
+    purchaseValue: number; // Revenue from Meta (action_values)
     accountId: string;
     accountName: string;
 }
 
 export const getReportDailySpend = async (
-    accountIds: string[], // e.g. ['act_123', 'act_456']
+    accountIds: string[],
     accessToken: string,
     datePreset: string | { start: string; end: string } = 'last_7d'
 ): Promise<DailySpendRow[]> => {
@@ -283,25 +284,21 @@ export const getReportDailySpend = async (
         const accountId = rawId.startsWith('act_') ? rawId : `act_${rawId}`;
         const cacheKey = `report-spend-${accountId}-${date_preset || time_range}`;
         const cached = getCachedData(cacheKey);
-        if (cached) {
-            allRows.push(...cached);
-            return;
-        }
+        if (cached) { allRows.push(...cached); return; }
 
         try {
-            let url = `https://graph.facebook.com/v19.0/${accountId}/insights?fields=spend,actions&time_increment=1&action_breakdowns=action_type&limit=90&access_token=${accessToken}`;
+            let url = `https://graph.facebook.com/v19.0/${accountId}/insights?fields=spend,actions,action_values&time_increment=1&action_breakdowns=action_type&limit=90&access_token=${accessToken}`;
             if (time_range) url += `&time_range=${encodeURIComponent(time_range)}`;
             else if (date_preset) url += `&date_preset=${date_preset}`;
 
             const res = await fetch(url);
             const data = await res.json();
-            if (data.error) {
-                console.warn(`[ReportSpend] ${accountId}:`, data.error.message);
-                return;
-            }
+            if (data.error) { console.warn(`[ReportSpend] ${accountId}:`, data.error.message); return; }
 
             const rows: DailySpendRow[] = (data.data || []).map((row: any) => {
                 let purchases = 0;
+                let purchaseValue = 0;
+
                 if (row.actions) {
                     let maxPurchase = 0;
                     for (const a of row.actions) {
@@ -312,12 +309,25 @@ export const getReportDailySpend = async (
                     }
                     purchases = maxPurchase;
                 }
+
+                if (row.action_values) {
+                    let maxValue = 0;
+                    for (const a of row.action_values) {
+                        if (purchaseActionTypes.includes(a.action_type)) {
+                            const v = parseFloat(a.value || '0');
+                            if (v > maxValue) maxValue = v;
+                        }
+                    }
+                    purchaseValue = maxValue;
+                }
+
                 return {
                     date: row.date_start,
                     spend: parseFloat(row.spend || '0'),
                     purchases,
+                    purchaseValue,
                     accountId,
-                    accountName: rawId, // will be overwritten by caller if name available
+                    accountName: rawId,
                 };
             });
 
@@ -328,9 +338,9 @@ export const getReportDailySpend = async (
         }
     }));
 
-    // Sort by date descending
     return allRows.sort((a, b) => b.date.localeCompare(a.date));
 };
+
 
 // --- WHATSAPP BUSINESS ACCOUNT & PHONE NUMBERS ---
 

@@ -213,11 +213,12 @@ const Report: React.FC = () => {
     }, [allAccounts, datePreset, customStart, customEnd, selectedIds]);
 
     // ── Aggregate by date (sum across accounts)
-    const byDate: Record<string, { spend: number; purchases: number }> = {};
+    const byDate: Record<string, { spend: number; purchases: number; purchaseValue: number }> = {};
     rows.forEach(r => {
-        if (!byDate[r.date]) byDate[r.date] = { spend: 0, purchases: 0 };
+        if (!byDate[r.date]) byDate[r.date] = { spend: 0, purchases: 0, purchaseValue: 0 };
         byDate[r.date].spend += r.spend;
         byDate[r.date].purchases += r.purchases;
+        byDate[r.date].purchaseValue += r.purchaseValue;
     });
     const dailyRows = Object.entries(byDate)
         .map(([date, v]) => ({ date, ...v }))
@@ -225,6 +226,8 @@ const Report: React.FC = () => {
 
     const totalSpend = dailyRows.reduce((s, r) => s + r.spend, 0);
     const totalPurchases = dailyRows.reduce((s, r) => s + r.purchases, 0);
+    const totalPurchaseValue = dailyRows.reduce((s, r) => s + r.purchaseValue, 0);
+    const totalRoas = totalSpend > 0 ? totalPurchaseValue / totalSpend : 0;
     const cpa = totalPurchases > 0 ? totalSpend / totalPurchases : 0;
 
     // ── Label for account button
@@ -407,10 +410,12 @@ const Report: React.FC = () => {
                 </div>
                 <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
                     <div className="flex items-center justify-between mb-3">
-                        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Jumlah Purchase</span>
-                        <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center"><ShoppingCart size={15} className="text-blue-500" /></div>
+                        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">ROAS (Meta)</span>
+                        <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center"><BarChart2 size={15} className="text-blue-500" /></div>
                     </div>
-                    <div className="text-2xl font-extrabold text-slate-800">{loading ? <span className="text-slate-300">—</span> : totalPurchases}</div>
+                    <div className="text-2xl font-extrabold text-slate-800">
+                        {loading ? <span className="text-slate-300">—</span> : totalRoas > 0 ? `${totalRoas.toFixed(2)}x` : '—'}
+                    </div>
                 </div>
                 <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
                     <div className="flex items-center justify-between mb-3">
@@ -446,7 +451,7 @@ const Report: React.FC = () => {
                                 <tr className="bg-slate-50/60 border-b border-slate-100">
                                     <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">Tarikh</th>
                                     <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Meta Spend</th>
-                                    <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Purchase</th>
+                                    <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">ROAS</th>
                                     <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">CPA</th>
                                     <th className="px-6 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Jualan Sebenar</th>
                                 </tr>
@@ -458,7 +463,14 @@ const Report: React.FC = () => {
                                         <tr key={row.date} className="hover:bg-slate-50/50 transition-colors">
                                             <td className="px-6 py-3.5 text-sm font-medium text-slate-800">{formatDisplayDate(row.date)}</td>
                                             <td className="px-6 py-3.5 text-sm font-mono text-slate-700 text-right">{formatMYR(row.spend)}</td>
-                                            <td className="px-6 py-3.5 text-sm text-slate-700 text-right font-medium">{row.purchases}</td>
+                                            <td className="px-6 py-3.5 text-sm text-right font-medium">
+                                                {row.spend > 0 && row.purchaseValue > 0
+                                                    ? <span className={(row.purchaseValue / row.spend) >= 3 ? 'text-green-600 font-bold' : (row.purchaseValue / row.spend) >= 1.5 ? 'text-blue-600' : 'text-slate-600'}>
+                                                        {(row.purchaseValue / row.spend).toFixed(2)}x
+                                                      </span>
+                                                    : <span className="text-slate-300">—</span>
+                                                }
+                                            </td>
                                             <td className="px-6 py-3.5 text-sm text-right">
                                                 {dayCpa > 0 ? <span className="text-slate-700 font-mono">{formatMYR(dayCpa)}</span> : <span className="text-slate-300">—</span>}
                                             </td>
