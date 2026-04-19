@@ -9,7 +9,7 @@ import { MetaAdAccount } from '../types';
 import {
     BarChart2, DollarSign, TrendingUp, Calendar,
     ShoppingCart, Loader2, RefreshCw, ChevronDown,
-    Link2, Check, X, ChevronLeft, ChevronRight, ChevronUp
+    Link2, Check, X, ChevronLeft, ChevronRight, ChevronUp, Bookmark, Trash2, Plus
 } from 'lucide-react';
 
 const formatMYR = (amount: number) =>
@@ -140,6 +140,37 @@ const Report: React.FC = () => {
     const [sheetsUrl, setSheetsUrl] = useState(() => localStorage.getItem('ar_report_sheets_url') || '');
     const [sheetsInput, setSheetsInput] = useState('');
     const [sheetsEditOpen, setSheetsEditOpen] = useState(false);
+
+    // Presets
+    interface AccountPreset { name: string; ids: string[]; }
+    const loadPresets = (): AccountPreset[] => {
+        try { return JSON.parse(localStorage.getItem('ar_report_presets') || '[]'); } catch { return []; }
+    };
+    const [presets, setPresets] = useState<AccountPreset[]>(loadPresets);
+    const [savingPreset, setSavingPreset] = useState(false);
+    const [presetName, setPresetName] = useState('');
+
+    const handleSavePreset = () => {
+        if (!presetName.trim()) return;
+        const newPreset: AccountPreset = { name: presetName.trim(), ids: Array.from(selectedIds) };
+        const updated = [...presets, newPreset];
+        setPresets(updated);
+        localStorage.setItem('ar_report_presets', JSON.stringify(updated));
+        setPresetName('');
+        setSavingPreset(false);
+    };
+
+    const handleDeletePreset = (idx: number, e: React.MouseEvent) => {
+        e.stopPropagation();
+        const updated = presets.filter((_, i) => i !== idx);
+        setPresets(updated);
+        localStorage.setItem('ar_report_presets', JSON.stringify(updated));
+    };
+
+    const handleApplyPreset = (preset: AccountPreset) => {
+        setSelectedIds(new Set(preset.ids));
+        setAccountPickerOpen(false);
+    };
 
     // ── Close picker on outside click
     useEffect(() => {
@@ -317,6 +348,29 @@ const Report: React.FC = () => {
 
                     {accountPickerOpen && (
                         <div className="absolute top-full left-0 mt-1 w-72 bg-white border border-slate-200 rounded-xl shadow-xl z-20 overflow-hidden">
+
+                            {/* Saved Presets */}
+                            {presets.length > 0 && (
+                                <div className="p-2 border-b border-slate-100">
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-2 mb-1.5">Preset Tersimpan</p>
+                                    <div className="space-y-1">
+                                        {presets.map((preset, idx) => (
+                                            <div key={idx}
+                                                className="flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-indigo-50 cursor-pointer group"
+                                                onClick={() => handleApplyPreset(preset)}>
+                                                <Bookmark size={12} className="text-indigo-400 shrink-0" />
+                                                <span className="text-sm text-slate-700 flex-1 truncate font-medium">{preset.name}</span>
+                                                <span className="text-[10px] text-slate-400">{preset.ids.length} akaun</span>
+                                                <button onClick={(e) => handleDeletePreset(idx, e)}
+                                                    className="opacity-0 group-hover:opacity-100 text-slate-300 hover:text-red-500 transition-all ml-1">
+                                                    <Trash2 size={12} />
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
                             {/* "Semua Ads Manager" toggle */}
                             <div className="p-2 border-b border-slate-100">
                                 <button
@@ -353,7 +407,34 @@ const Report: React.FC = () => {
                                 })}
                             </div>
 
-                            <div className="p-2 border-t border-slate-100">
+                            <div className="p-2 border-t border-slate-100 space-y-1.5">
+                                {savingPreset ? (
+                                    <div className="flex gap-1.5">
+                                        <input
+                                            autoFocus
+                                            type="text"
+                                            placeholder="Nama preset..."
+                                            value={presetName}
+                                            onChange={e => setPresetName(e.target.value)}
+                                            onKeyDown={e => { if (e.key === 'Enter') handleSavePreset(); if (e.key === 'Escape') setSavingPreset(false); }}
+                                            className="flex-1 px-2.5 py-1.5 text-xs border border-indigo-300 rounded-lg outline-none focus:ring-2 focus:ring-indigo-400"
+                                        />
+                                        <button onClick={handleSavePreset}
+                                            className="px-2.5 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700">
+                                            Simpan
+                                        </button>
+                                        <button onClick={() => setSavingPreset(false)}
+                                            className="px-2 py-1.5 text-slate-400 hover:text-slate-600">
+                                            <X size={14} />
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <button onClick={() => { setSavingPreset(true); setPresetName(''); }}
+                                        disabled={selectedIds.size === 0}
+                                        className="flex items-center gap-1.5 w-full px-3 py-1.5 text-xs font-semibold text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors disabled:opacity-40">
+                                        <Plus size={13} />Simpan pilihan sebagai Preset
+                                    </button>
+                                )}
                                 <button onClick={() => setAccountPickerOpen(false)}
                                     className="w-full py-2 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700 transition-colors">
                                     Guna Pilihan Ini
