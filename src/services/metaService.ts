@@ -259,6 +259,79 @@ export const getAdAccounts = async (accessToken: string): Promise<MetaAdAccount[
     }
 };
 
+// --- REPORT: DAILY SPEND PER ACCOUNT (for Report page) ---
+
+export interface DailySpendRow {
+    date: string;        // YYYY-MM-DD
+    spend: number;
+    purchases: number;
+    accountId: string;
+    accountName: string;
+}
+
+export const getReportDailySpend = async (
+    accountIds: string[], // e.g. ['act_123', 'act_456']
+    accessToken: string,
+    datePreset: string | { start: string; end: string } = 'last_7d'
+): Promise<DailySpendRow[]> => {
+    const { date_preset, time_range } = getDateRangeParams(datePreset);
+    const purchaseActionTypes = ['purchase', 'omni_purchase', 'onsite_conversion.purchase', 'offsite_conversion.fb_pixel_purchase'];
+
+    const allRows: DailySpendRow[] = [];
+
+    await Promise.all(accountIds.map(async (rawId) => {
+        const accountId = rawId.startsWith('act_') ? rawId : `act_${rawId}`;
+        const cacheKey = `report-spend-${accountId}-${date_preset || time_range}`;
+        const cached = getCachedData(cacheKey);
+        if (cached) {
+            allRows.push(...cached);
+            return;
+        }
+
+        try {
+            let url = `https://graph.facebook.com/v19.0/${accountId}/insights?fields=spend,actions&time_increment=1&action_breakdowns=action_type&limit=90&access_token=${accessToken}`;
+            if (time_range) url += `&time_range=${encodeURIComponent(time_range)}`;
+            else if (date_preset) url += `&date_preset=${date_preset}`;
+
+            const res = await fetch(url);
+            const data = await res.json();
+            if (data.error) {
+                console.warn(`[ReportSpend] ${accountId}:`, data.error.message);
+                return;
+            }
+
+            const rows: DailySpendRow[] = (data.data || []).map((row: any) => {
+                let purchases = 0;
+                if (row.actions) {
+                    let maxPurchase = 0;
+                    for (const a of row.actions) {
+                        if (purchaseActionTypes.includes(a.action_type)) {
+                            const v = parseInt(a.value || '0', 10);
+                            if (v > maxPurchase) maxPurchase = v;
+                        }
+                    }
+                    purchases = maxPurchase;
+                }
+                return {
+                    date: row.date_start,
+                    spend: parseFloat(row.spend || '0'),
+                    purchases,
+                    accountId,
+                    accountName: rawId, // will be overwritten by caller if name available
+                };
+            });
+
+            setCachedData(cacheKey, rows);
+            allRows.push(...rows);
+        } catch (e) {
+            console.error(`[ReportSpend] Error for ${accountId}:`, e);
+        }
+    }));
+
+    // Sort by date descending
+    return allRows.sort((a, b) => b.date.localeCompare(a.date));
+};
+
 // --- WHATSAPP BUSINESS ACCOUNT & PHONE NUMBERS ---
 
 export interface WhatsAppPhoneNumber {
