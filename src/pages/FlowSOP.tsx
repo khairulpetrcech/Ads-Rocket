@@ -32,9 +32,14 @@ const initialNodes = [
   },
 ];
 
+// Use module-level variables to bypass cross-browser dataTransfer stringification bugs
+let draggedNodeType: string | null = null;
+let draggedNodeLabel: string | null = null;
+
 const Sidebar = () => {
   const onDragStart = (event: React.DragEvent, nodeType: string, label: string) => {
-    event.dataTransfer.setData('application/reactflow', JSON.stringify({ type: nodeType, label }));
+    draggedNodeType = nodeType;
+    draggedNodeLabel = label;
     event.dataTransfer.effectAllowed = 'move';
   };
 
@@ -122,12 +127,7 @@ const Flowboard = () => {
     (event: React.DragEvent) => {
       event.preventDefault();
 
-      const typeData = event.dataTransfer.getData('application/reactflow');
-      if (!typeData) return;
-
-      const { type, label } = JSON.parse(typeData);
-
-      if (typeof type === 'undefined' || !type) {
+      if (!draggedNodeType || !draggedNodeLabel) {
         return;
       }
 
@@ -138,12 +138,16 @@ const Flowboard = () => {
 
       const newNode = {
         id: uuidv4(),
-        type,
+        type: draggedNodeType,
         position,
-        data: { label: label, hoverText: 'Double click to edit label and hover text' },
+        data: { label: draggedNodeLabel, hoverText: 'Double click to edit label and hover text' },
       };
 
       setNodes((nds) => nds.concat(newNode));
+      
+      // Reset after drop
+      draggedNodeType = null;
+      draggedNodeLabel = null;
     },
     [screenToFlowPosition, setNodes],
   );
@@ -174,15 +178,13 @@ const Flowboard = () => {
                 Clear Canvas
             </button>
         </div>
-        <div className="flex-1 h-full w-full" ref={reactFlowWrapper}>
+        <div className="flex-1 h-full w-full" ref={reactFlowWrapper} onDrop={onDrop} onDragOver={onDragOver}>
             <ReactFlow
             nodes={nodes}
             edges={edges}
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
-            onDrop={onDrop}
-            onDragOver={onDragOver}
             onNodeDoubleClick={onNodeDoubleClick}
             nodeTypes={nodeTypes}
             fitView
