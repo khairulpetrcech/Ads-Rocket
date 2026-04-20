@@ -8,8 +8,8 @@ import {
   Controls,
   Background,
   Connection,
-  Edge,
   MarkerType,
+  useReactFlow,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { v4 as uuidv4 } from 'uuid';
@@ -57,7 +57,7 @@ const Sidebar = () => {
         onDragStart={(event) => onDragStart(event, 'diamond', 'Decision')} 
         draggable
       >
-        <span className="text-xs font-medium text-slate-700">Decision</span>
+        <span className="absolute inset-0 flex items-center justify-center text-xs font-medium text-slate-700 transform -rotate-45 p-1 text-center">Decision</span>
       </div>
 
       <div className="flex gap-4 justify-center">
@@ -80,11 +80,11 @@ const Sidebar = () => {
   );
 };
 
-const Flow = () => {
+const Flowboard = () => {
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
-  const [reactFlowInstance, setReactFlowInstance] = useState<any>(null);
+  const { screenToFlowPosition } = useReactFlow();
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
 
   // Load from local storage on mount
@@ -103,7 +103,9 @@ const Flow = () => {
 
   // Save to local storage automatically
   useEffect(() => {
-    localStorage.setItem('ar_flow_sop_data', JSON.stringify({ nodes, edges }));
+    if (nodes.length > 0 || edges.length > 0) {
+      localStorage.setItem('ar_flow_sop_data', JSON.stringify({ nodes, edges }));
+    }
   }, [nodes, edges]);
 
   const onConnect = useCallback(
@@ -129,10 +131,11 @@ const Flow = () => {
         return;
       }
 
-      const position = reactFlowInstance.screenToFlowPosition({
+      const position = screenToFlowPosition({
         x: event.clientX,
         y: event.clientY,
       });
+
       const newNode = {
         id: uuidv4(),
         type,
@@ -142,7 +145,7 @@ const Flow = () => {
 
       setNodes((nds) => nds.concat(newNode));
     },
-    [reactFlowInstance, setNodes],
+    [screenToFlowPosition, setNodes],
   );
 
   const onNodeDoubleClick = (event: React.MouseEvent, node: any) => {
@@ -162,104 +165,111 @@ const Flow = () => {
   };
 
   return (
-    <div className="flex flex-col h-full bg-[#f8fafc]">
-      <div className="mb-6 flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-extrabold text-slate-800 tracking-tight">Flow SOP</h1>
-          <p className="text-slate-500 mt-1">Design your aesthetic standard operating procedures</p>
-        </div>
-        <div className="flex gap-2">
+    <div className="flex-1 h-full relative flex flex-col">
+       <div className="absolute top-4 right-4 z-10 flex gap-2">
             <button 
                 onClick={() => { setNodes([]); setEdges([]); }} 
-                className="px-4 py-2 text-sm font-semibold text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition"
+                className="px-4 py-2 text-sm font-semibold text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition shadow-sm border border-red-100"
             >
                 Clear Canvas
             </button>
         </div>
-      </div>
-
-      <div className="flex flex-row flex-1 h-full min-h-[600px] bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-        <ReactFlowProvider>
-          <Sidebar />
-          <div className="flex-1 h-full relative" ref={reactFlowWrapper}>
+        <div className="flex-1 h-full w-full" ref={reactFlowWrapper}>
             <ReactFlow
-              nodes={nodes}
-              edges={edges}
-              onNodesChange={onNodesChange}
-              onEdgesChange={onEdgesChange}
-              onConnect={onConnect}
-              onInit={setReactFlowInstance}
-              onDrop={onDrop}
-              onDragOver={onDragOver}
-              onNodeDoubleClick={onNodeDoubleClick}
-              nodeTypes={nodeTypes}
-              fitView
-              className="bg-[#fcfdfd]"
+            nodes={nodes}
+            edges={edges}
+            onNodesChange={onNodesChange}
+            onEdgesChange={onEdgesChange}
+            onConnect={onConnect}
+            onDrop={onDrop}
+            onDragOver={onDragOver}
+            onNodeDoubleClick={onNodeDoubleClick}
+            nodeTypes={nodeTypes}
+            fitView
+            className="bg-[#fcfdfd]"
             >
-              <Controls className="bg-white shadow-md border-slate-100 text-slate-700 fill-slate-700" />
-              <Background color="#cbd5e1" gap={20} size={1.5} />
+            <Controls className="bg-white shadow-md border-slate-100 text-slate-700 fill-slate-700" />
+            <Background color="#cbd5e1" gap={20} size={1.5} />
             </ReactFlow>
 
             {/* Edit Modal */}
             {selectedNodeId && (
-              <div className="absolute inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm">
+            <div className="absolute inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm">
                 <div className="bg-white p-6 rounded-xl shadow-xl w-96 max-w-full">
-                  <h3 className="text-lg font-bold text-slate-800 mb-4">Edit Shape</h3>
-                  
-                  {(() => {
+                <h3 className="text-lg font-bold text-slate-800 mb-4">Edit Shape</h3>
+                
+                {(() => {
                     const node = nodes.find(n => n.id === selectedNodeId);
                     if (!node) return null;
                     return (
-                      <form onSubmit={(e) => {
+                    <form onSubmit={(e) => {
                         e.preventDefault();
                         const formData = new FormData(e.currentTarget);
                         updateNodeData(node.id, formData.get('label') as string, formData.get('hoverText') as string);
-                      }}>
+                    }}>
                         <div className="mb-4">
-                          <label className="block text-sm font-medium text-slate-700 mb-1">Label</label>
-                          <input 
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Label</label>
+                        <input 
                             name="label" 
                             defaultValue={node.data.label} 
                             className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" 
                             autoFocus
-                          />
+                        />
                         </div>
                         <div className="mb-6">
-                          <label className="block text-sm font-medium text-slate-700 mb-1">Hover Tooltip Text</label>
-                          <textarea 
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Hover Tooltip Text</label>
+                        <textarea 
                             name="hoverText" 
                             defaultValue={node.data.hoverText} 
                             rows={3} 
                             className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" 
                             placeholder="Text to show on hover"
-                          />
+                        />
                         </div>
                         <div className="flex justify-end gap-2">
-                          <button 
+                        <button 
                             type="button" 
                             onClick={() => setSelectedNodeId(null)} 
                             className="px-4 py-2 text-sm font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition"
-                          >
+                        >
                             Cancel
-                          </button>
-                          <button 
+                        </button>
+                        <button 
                             type="submit" 
                             className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition"
-                          >
+                        >
                             Save Changes
-                          </button>
+                        </button>
                         </div>
-                      </form>
+                    </form>
                     );
-                  })()}
+                })()}
                 </div>
-              </div>
+            </div>
             )}
-          </div>
-        </ReactFlowProvider>
-      </div>
+        </div>
     </div>
   );
 };
+
+const Flow = () => {
+    return (
+        <div className="flex flex-col h-full bg-[#f8fafc]">
+          <div className="mb-6 flex justify-between items-center">
+            <div>
+              <h1 className="text-3xl font-extrabold text-slate-800 tracking-tight">Flow SOP</h1>
+              <p className="text-slate-500 mt-1">Design your aesthetic standard operating procedures</p>
+            </div>
+          </div>
+    
+          <div className="flex flex-row flex-1 h-full min-h-[600px] bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+            <ReactFlowProvider>
+              <Sidebar />
+              <Flowboard />
+            </ReactFlowProvider>
+          </div>
+        </div>
+      );
+}
 
 export default Flow;
