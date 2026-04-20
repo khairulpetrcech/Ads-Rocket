@@ -14,16 +14,19 @@
     "@dnd-kit/utilities": "^3.2.2",
     "@google/genai": "latest",
     "@supabase/supabase-js": "^2.45.0",
+    "@xyflow/react": "^12.10.2",
     "lucide-react": "latest",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-router-dom": "^6.22.0",
-    "recharts": "^2.12.0"
+    "recharts": "^2.12.0",
+    "uuid": "^14.0.0"
   },
   "devDependencies": {
     "@types/node": "^20.11.24",
     "@types/react": "^18.2.56",
     "@types/react-dom": "^18.2.19",
+    "@types/uuid": "^10.0.0",
     "@vitejs/plugin-react": "^4.2.1",
     "autoprefixer": "^10.4.17",
     "postcss": "^8.4.35",
