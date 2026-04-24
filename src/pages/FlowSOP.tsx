@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   ReactFlow,
   ReactFlowProvider,
@@ -23,16 +23,16 @@ const nodeTypes = {
   circle_no: CircleNoNode,
 };
 
-const initialNodes = [
+const defaultInitialNodes = [
   {
     id: '1',
-    type: 'default',
-    data: { label: 'Submit Job\nApplication', hoverText: 'Applicant submits resume and portfolio' },
+    type: 'default' as const,
+    data: { label: 'Start', hoverText: 'Double click to edit' },
     position: { x: 250, y: 150 },
   },
 ];
 
-// Use module-level variables to bypass cross-browser dataTransfer stringification bugs
+// Module-level drag state
 let draggedNodeType: string | null = null;
 let draggedNodeLabel: string | null = null;
 
@@ -40,13 +40,14 @@ const Sidebar = () => {
   const onDragStart = (event: React.DragEvent, nodeType: string, label: string) => {
     draggedNodeType = nodeType;
     draggedNodeLabel = label;
+    event.dataTransfer.setData('application/reactflow', nodeType);
     event.dataTransfer.effectAllowed = 'move';
   };
 
   return (
-    <aside className="w-64 bg-white border-r border-slate-200 p-4 flex flex-col gap-4">
-      <h3 className="font-bold text-slate-800 text-lg mb-2">Shapes Palette</h3>
-      <div className="text-sm text-slate-500 mb-4">Drag and drop shapes to the canvas.</div>
+    <div className="w-56 bg-white border-r border-slate-200 p-4 flex flex-col gap-4" style={{ flexShrink: 0 }}>
+      <h3 className="font-bold text-slate-800 text-base mb-1">Shapes Palette</h3>
+      <div className="text-xs text-slate-500 mb-2">Drag shapes onto the canvas</div>
       
       <div 
         className="flex items-center justify-center p-3 bg-[#f1f8ed] border border-[#8dbf84] rounded-xl shadow-sm cursor-grab hover:shadow-md transition-all text-sm font-medium text-slate-700" 
@@ -57,12 +58,12 @@ const Sidebar = () => {
       </div>
 
       <div 
-        className="flex items-center justify-center w-[80px] h-[80px] mx-auto bg-[#f1f8ed] border border-[#8dbf84] shadow-sm transform cursor-grab hover:shadow-md transition-all relative"
+        className="flex items-center justify-center w-[80px] h-[80px] mx-auto bg-[#f1f8ed] border border-[#8dbf84] shadow-sm cursor-grab hover:shadow-md transition-all"
         style={{ clipPath: 'polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)' }}
         onDragStart={(event) => onDragStart(event, 'diamond', 'Decision')} 
         draggable
       >
-        <span className="absolute inset-0 flex items-center justify-center text-xs font-medium text-slate-700 transform -rotate-45 p-1 text-center">Decision</span>
+        <span className="text-xs font-medium text-slate-700">Decision</span>
       </div>
 
       <div className="flex gap-4 justify-center">
@@ -81,13 +82,12 @@ const Sidebar = () => {
           NO
         </div>
       </div>
-    </aside>
+    </div>
   );
 };
 
 const Flowboard = () => {
-  const reactFlowWrapper = useRef<HTMLDivElement>(null);
-  const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
+  const [nodes, setNodes, onNodesChange] = useNodesState(defaultInitialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const { screenToFlowPosition } = useReactFlow();
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
@@ -126,10 +126,12 @@ const Flowboard = () => {
   const onDrop = useCallback(
     (event: React.DragEvent) => {
       event.preventDefault();
+      event.stopPropagation();
 
-      if (!draggedNodeType || !draggedNodeLabel) {
-        return;
-      }
+      const type = draggedNodeType;
+      const label = draggedNodeLabel;
+
+      if (!type || !label) return;
 
       const position = screenToFlowPosition({
         x: event.clientX,
@@ -138,140 +140,122 @@ const Flowboard = () => {
 
       const newNode = {
         id: uuidv4(),
-        type: draggedNodeType,
+        type: type as 'default',
         position,
-        data: { label: draggedNodeLabel, hoverText: 'Double click to edit label and hover text' },
+        data: { label, hoverText: 'Double click to edit' },
       };
 
-      setNodes((nds) => nds.concat(newNode));
-      
-      // Reset after drop
+      setNodes((nds) => [...nds, newNode]);
       draggedNodeType = null;
       draggedNodeLabel = null;
     },
     [screenToFlowPosition, setNodes],
   );
 
-  const onNodeDoubleClick = (event: React.MouseEvent, node: any) => {
+  const onNodeDoubleClick = useCallback((_event: React.MouseEvent, node: any) => {
     setSelectedNodeId(node.id);
-  };
+  }, []);
 
-  const updateNodeData = (id: string, label: string, hoverText: string) => {
+  const updateNodeData = useCallback((id: string, label: string, hoverText: string) => {
     setNodes((nds) =>
       nds.map((n) => {
         if (n.id === id) {
-          n.data = { ...n.data, label, hoverText };
+          return { ...n, data: { ...n.data, label, hoverText } };
         }
         return n;
       })
     );
     setSelectedNodeId(null);
-  };
+  }, [setNodes]);
 
   return (
-    <div className="flex-1 h-full relative flex flex-col">
-       <div className="absolute top-4 right-4 z-10 flex gap-2">
-            <button 
-                onClick={() => { setNodes([]); setEdges([]); }} 
-                className="px-4 py-2 text-sm font-semibold text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition shadow-sm border border-red-100"
-            >
-                Clear Canvas
-            </button>
-        </div>
-        <div className="flex-1 h-full w-full" ref={reactFlowWrapper} onDrop={onDrop} onDragOver={onDragOver}>
-            <ReactFlow
-            nodes={nodes}
-            edges={edges}
-            onNodesChange={onNodesChange}
-            onEdgesChange={onEdgesChange}
-            onConnect={onConnect}
-            onNodeDoubleClick={onNodeDoubleClick}
-            nodeTypes={nodeTypes}
-            fitView
-            className="bg-[#fcfdfd]"
-            >
-            <Controls className="bg-white shadow-md border-slate-100 text-slate-700 fill-slate-700" />
-            <Background color="#cbd5e1" gap={20} size={1.5} />
-            </ReactFlow>
+    <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
+      <div className="absolute top-4 right-4 z-10 flex gap-2">
+        <button 
+          onClick={() => { setNodes([]); setEdges([]); localStorage.removeItem('ar_flow_sop_data'); }} 
+          className="px-4 py-2 text-sm font-semibold text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition shadow-sm border border-red-100"
+        >
+          Clear Canvas
+        </button>
+      </div>
 
-            {/* Edit Modal */}
-            {selectedNodeId && (
-            <div className="absolute inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm">
-                <div className="bg-white p-6 rounded-xl shadow-xl w-96 max-w-full">
-                <h3 className="text-lg font-bold text-slate-800 mb-4">Edit Shape</h3>
-                
-                {(() => {
-                    const node = nodes.find(n => n.id === selectedNodeId);
-                    if (!node) return null;
-                    return (
-                    <form onSubmit={(e) => {
-                        e.preventDefault();
-                        const formData = new FormData(e.currentTarget);
-                        updateNodeData(node.id, formData.get('label') as string, formData.get('hoverText') as string);
-                    }}>
-                        <div className="mb-4">
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Label</label>
-                        <input 
-                            name="label" 
-                            defaultValue={node.data.label} 
-                            className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" 
-                            autoFocus
-                        />
-                        </div>
-                        <div className="mb-6">
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Hover Tooltip Text</label>
-                        <textarea 
-                            name="hoverText" 
-                            defaultValue={node.data.hoverText} 
-                            rows={3} 
-                            className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" 
-                            placeholder="Text to show on hover"
-                        />
-                        </div>
-                        <div className="flex justify-end gap-2">
-                        <button 
-                            type="button" 
-                            onClick={() => setSelectedNodeId(null)} 
-                            className="px-4 py-2 text-sm font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition"
-                        >
-                            Cancel
-                        </button>
-                        <button 
-                            type="submit" 
-                            className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition"
-                        >
-                            Save Changes
-                        </button>
-                        </div>
-                    </form>
-                    );
-                })()}
-                </div>
-            </div>
-            )}
+      <ReactFlow
+        nodes={nodes}
+        edges={edges}
+        onNodesChange={onNodesChange}
+        onEdgesChange={onEdgesChange}
+        onConnect={onConnect}
+        onDrop={onDrop}
+        onDragOver={onDragOver}
+        onNodeDoubleClick={onNodeDoubleClick}
+        nodeTypes={nodeTypes}
+        fitView
+      >
+        <Controls />
+        <Background color="#cbd5e1" gap={20} size={1.5} />
+      </ReactFlow>
+
+      {/* Edit Modal */}
+      {selectedNodeId && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm">
+          <div className="bg-white p-6 rounded-xl shadow-xl w-96 max-w-full">
+            <h3 className="text-lg font-bold text-slate-800 mb-4">Edit Shape</h3>
+            {(() => {
+              const node = nodes.find(n => n.id === selectedNodeId);
+              if (!node) return null;
+              return (
+                <form onSubmit={(e) => {
+                  e.preventDefault();
+                  const formData = new FormData(e.currentTarget);
+                  updateNodeData(node.id, formData.get('label') as string, formData.get('hoverText') as string);
+                }}>
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Label</label>
+                    <input name="label" defaultValue={node.data.label as string} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" autoFocus />
+                  </div>
+                  <div className="mb-6">
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Hover Tooltip Text</label>
+                    <textarea name="hoverText" defaultValue={node.data.hoverText as string} rows={3} className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="Text to show on hover" />
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <button type="button" onClick={() => setSelectedNodeId(null)} className="px-4 py-2 text-sm font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition">Cancel</button>
+                    <button type="submit" className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition">Save Changes</button>
+                  </div>
+                </form>
+              );
+            })()}
+          </div>
         </div>
+      )}
     </div>
   );
 };
 
-const Flow = () => {
-    return (
-        <div className="flex flex-col h-full bg-[#f8fafc]">
-          <div className="mb-6 flex justify-between items-center">
-            <div>
-              <h1 className="text-3xl font-extrabold text-slate-800 tracking-tight">Flow SOP</h1>
-              <p className="text-slate-500 mt-1">Design your aesthetic standard operating procedures</p>
-            </div>
-          </div>
-    
-          <div className="flex flex-row flex-1 h-full min-h-[600px] bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-            <ReactFlowProvider>
-              <Sidebar />
-              <Flowboard />
-            </ReactFlowProvider>
-          </div>
+const FlowSOP = () => {
+  return (
+    <div>
+      <div className="mb-6 flex justify-between items-center">
+        <div>
+          <h1 className="text-3xl font-extrabold text-slate-800 tracking-tight">Flow SOP</h1>
+          <p className="text-slate-500 mt-1">Design your aesthetic standard operating procedures</p>
         </div>
-      );
-}
+      </div>
+  
+      {/* Fixed-height container - ReactFlow MUST have explicit pixel height */}
+      <div 
+        className="relative bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden"
+        style={{ height: 'calc(100vh - 200px)', minHeight: '500px', display: 'flex' }}
+      >
+        <ReactFlowProvider>
+          <Sidebar />
+          {/* This wrapper div gets explicit width/height from the flex parent above */}
+          <div style={{ flex: 1, position: 'relative' }}>
+            <Flowboard />
+          </div>
+        </ReactFlowProvider>
+      </div>
+    </div>
+  );
+};
 
-export default Flow;
+export default FlowSOP;
