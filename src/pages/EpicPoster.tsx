@@ -164,7 +164,7 @@ const EpicPoster: React.FC = () => {
         try {
             const requestBody: any = {
                 prompt,
-                model: 'nano-banana-pro', // Fixed to Nano Banana Pro
+                model: 'gpt-image-2', // GPT Image 2 via Poyo AI
                 aspectRatio,
                 style
             };
@@ -298,7 +298,7 @@ const EpicPoster: React.FC = () => {
                 </div>
                 <div>
                     <h1 className="text-2xl font-bold text-slate-800">Epic Poster</h1>
-                    <p className="text-xs text-indigo-600 font-bold uppercase tracking-wide">Powered by Imagen via GeminiGen.ai</p>
+                    <p className="text-xs text-indigo-600 font-bold uppercase tracking-wide">Powered by GPT Image 2 via Poyo AI</p>
                 </div>
             </div>
 
@@ -365,11 +365,11 @@ const EpicPoster: React.FC = () => {
                             />
                         </div>
 
-                        {/* Model - Fixed to Nano Banana Pro */}
+                        {/* Model - Fixed to GPT Image 2 */}
                         <div className="mb-4">
                             <label className="block text-sm font-bold text-slate-600 mb-2">Model</label>
                             <div className="py-2 px-3 rounded-lg border text-sm font-bold bg-indigo-600 text-white border-indigo-600 shadow-md text-center">
-                                Nano Banana Pro
+                                GPT Image 2
                             </div>
                         </div>
 

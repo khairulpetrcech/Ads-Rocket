@@ -44,7 +44,7 @@ const EpicVideo: React.FC = () => {
     const { settings, globalProcess, setGlobalProcess } = useSettings();
     const { showToast } = useToast();
     const [prompt, setPrompt] = useState('');
-    const [seconds, setSeconds] = useState<10 | 15>(10);
+    const [seconds, setSeconds] = useState<4 | 8 | 12 | 16 | 20>(8);
     const [aspectRatio, setAspectRatio] = useState<'portrait' | 'landscape'>('portrait');
     const [loading, setLoading] = useState(false);
     const [generatedVideoUrl, setGeneratedVideoUrl] = useState<string | null>(null);
@@ -225,9 +225,8 @@ const EpicVideo: React.FC = () => {
         try {
             const requestBody: any = {
                 prompt,
-                model: 'sora-2',
+                model: 'sora-2-official',
                 duration: seconds,
-                resolution: 'small',
                 aspectRatio
             };
 
@@ -318,7 +317,7 @@ const EpicVideo: React.FC = () => {
                 </div>
                 <div>
                     <h1 className="text-2xl font-bold text-slate-800">Epic Video</h1>
-                    <p className="text-xs text-purple-600 font-bold uppercase tracking-wide">Powered by Sora 2 via GeminiGen.ai</p>
+                    <p className="text-xs text-purple-600 font-bold uppercase tracking-wide">Powered by Sora 2 Official via Poyo AI</p>
                 </div>
             </div>
 
@@ -410,7 +409,7 @@ const EpicVideo: React.FC = () => {
                                 <label className="block text-sm font-bold text-slate-600 mb-2">Model</label>
                                 <div className="grid grid-cols-3 gap-2">
                                     <button className="py-2 px-2 rounded-lg border text-xs font-bold bg-purple-600 text-white border-purple-600 shadow-md">
-                                        Sora 2
+                                        Sora 2 Official
                                     </button>
                                     <button disabled className="py-2 px-2 rounded-lg border text-xs font-bold bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed opacity-60">
                                         Pro (Soon)
@@ -425,19 +424,16 @@ const EpicVideo: React.FC = () => {
                             <div className="grid grid-cols-2 gap-4 mb-6">
                                 <div>
                                     <label className="block text-sm font-bold text-slate-600 mb-2">Duration</label>
-                                    <div className="grid grid-cols-2 gap-2">
-                                        <button
-                                            onClick={() => setSeconds(10)}
-                                            className={`py-2 px-2 rounded-lg border text-xs font-bold transition-all flex items-center justify-center gap-1 ${seconds === 10 ? 'bg-purple-600 text-white border-purple-600 shadow-md' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}
-                                        >
-                                            <Clock size={12} /> 10s
-                                        </button>
-                                        <button
-                                            onClick={() => setSeconds(15)}
-                                            className={`py-2 px-2 rounded-lg border text-xs font-bold transition-all flex items-center justify-center gap-1 ${seconds === 15 ? 'bg-purple-600 text-white border-purple-600 shadow-md' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}
-                                        >
-                                            <Clock size={12} /> 15s
-                                        </button>
+                                    <div className="grid grid-cols-5 gap-1">
+                                        {([4, 8, 12, 16, 20] as const).map((dur) => (
+                                            <button
+                                                key={dur}
+                                                onClick={() => setSeconds(dur)}
+                                                className={`py-2 px-1 rounded-lg border text-xs font-bold transition-all flex items-center justify-center gap-0.5 ${seconds === dur ? 'bg-purple-600 text-white border-purple-600 shadow-md' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}
+                                            >
+                                                <Clock size={10} /> {dur}s
+                                            </button>
+                                        ))}
                                     </div>
                                 </div>
                                 <div>

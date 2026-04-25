@@ -1,5 +1,5 @@
 /**
- * Consolidated Media API for GeminiGen.ai + Rapid Import + Logging
+ * Consolidated Media API for Poyo AI + Rapid Import + Logging
  * Handles: video-status, video-history, image-history, telegram-webhook, import, log-campaign, log-user
  * 
  * Usage:
@@ -73,9 +73,9 @@ export default async function handler(req: any, res: any) {
         return res.status(405).json({ error: 'Method not allowed' });
     }
 
-    const apiKey = process.env.GEMINIGEN_API_KEY;
+    const apiKey = process.env.POYO_API_KEY;
     if (!apiKey) {
-        return res.status(500).json({ error: 'GEMINIGEN_API_KEY not configured' });
+        return res.status(500).json({ error: 'POYO_API_KEY not configured' });
     }
 
     try {
@@ -97,54 +97,52 @@ export default async function handler(req: any, res: any) {
     }
 }
 
-// Video Status Handler
+// Task Status Handler (Poyo AI unified status endpoint)
 async function handleVideoStatus(req: any, res: any, apiKey: string, uuid: string) {
     if (!uuid) {
-        return res.status(400).json({ error: 'UUID is required' });
+        return res.status(400).json({ error: 'task_id is required' });
     }
 
-    const url = `https://api.geminigen.ai/uapi/v1/history/${uuid}`;
+    const url = `https://api.poyo.ai/api/generate/status/${uuid}`;
     const response = await fetch(url, {
-        headers: { "x-api-key": apiKey }
+        headers: { 'Authorization': `Bearer ${apiKey}` }
     });
 
     const data = await response.json();
 
-    if (!response.ok) {
-        return res.status(response.status).json({ error: 'Failed to fetch status' });
+    if (!response.ok || data.code !== 200) {
+        return res.status(response.status || 500).json({ error: 'Failed to fetch status' });
     }
 
-    const status = data.status;
-    const progress = data.status_percentage || 0;
+    const taskData = data.data;
+    const status = taskData?.status;
+    const progress = taskData?.progress || 0;
 
-    if (status === 2) {
-        let videoUrl = null;
-        if (data.generated_video && data.generated_video.length > 0) {
-            videoUrl = data.generated_video[0].video_url;
-        }
-        // Also check for images
-        let imageUrl = null;
-        if (data.generated_image && data.generated_image.length > 0) {
-            imageUrl = data.generated_image[0].image_url;
+    if (status === 'finished') {
+        // Get file URL from files array
+        let fileUrl = null;
+        if (taskData.files && taskData.files.length > 0) {
+            fileUrl = taskData.files[0].file_url;
         }
 
         return res.status(200).json({
             success: true,
             status: 'completed',
             done: true,
-            url: videoUrl || imageUrl,
+            url: fileUrl,
             progress: 100
         });
 
-    } else if (status === 3) {
+    } else if (status === 'failed') {
         return res.status(200).json({
             success: false,
             status: 'failed',
             done: true,
-            error: data.error_message || 'Generation failed'
+            error: taskData.error_message || 'Generation failed'
         });
 
     } else {
+        // not_started or running
         return res.status(200).json({
             success: true,
             status: 'processing',
@@ -154,101 +152,28 @@ async function handleVideoStatus(req: any, res: any, apiKey: string, uuid: strin
     }
 }
 
-// Video History Handler
+// Video History Handler (Poyo AI — check status for each stored task_id)
 async function handleVideoHistory(req: any, res: any, apiKey: string, pageNum: number) {
-    const url = `https://api.geminigen.ai/uapi/v1/histories?filter_by=all&items_per_page=6&page=${pageNum}`;
-    const response = await fetch(url, {
-        headers: { "x-api-key": apiKey }
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-        return res.status(response.status).json({ error: 'Failed to fetch history' });
-    }
-
-    const videoHistory = (data.result || []).filter((item: any) =>
-        item.type === 'video_generation' || item.model_name?.includes('sora')
-    );
-
-    // Fetch detailed history for each video to get actual video URL
-    const videos = await Promise.all(videoHistory.map(async (item: any) => {
-        let videoUrl = item.generate_result || null;
-
-        // If completed, fetch detailed history to get proper video URL
-        if (item.status === 2 && item.uuid) {
-            try {
-                const detailUrl = `https://api.geminigen.ai/uapi/v1/history/${item.uuid}`;
-                const detailRes = await fetch(detailUrl, {
-                    headers: { "x-api-key": apiKey }
-                });
-                const detailData = await detailRes.json();
-
-                if (detailData.generated_video && detailData.generated_video.length > 0) {
-                    videoUrl = detailData.generated_video[0].video_url;
-                }
-            } catch (e) {
-                console.error('Failed to fetch video detail:', e);
-            }
-        }
-
-        return {
-            id: item.id,
-            uuid: item.uuid,
-            prompt: item.input_text,
-            model: item.model_name,
-            status: item.status,
-            thumbnailUrl: item.thumbnail_url || item.generate_result || null,
-            videoUrl: videoUrl,
-            createdAt: item.created_at,
-            expiresAt: item.expired_at
-        };
-    }));
-
+    // Poyo AI doesn't have a history endpoint.
+    // Frontend tracks task_ids in localStorage and polls status individually.
+    // Return empty — frontend handles history via localStorage UUIDs + status polling.
     return res.status(200).json({
         success: true,
-        videos,
-        total: data.total || 0,
+        videos: [],
+        total: 0,
         page: pageNum,
-        totalPages: Math.ceil((data.total || 0) / 6)
+        totalPages: 1
     });
 }
 
-// Image History Handler
+// Image History Handler (Poyo AI — same as video, no server-side history)
 async function handleImageHistory(req: any, res: any, apiKey: string, pageNum: number) {
-    const url = `https://api.geminigen.ai/uapi/v1/histories?filter_by=all&items_per_page=6&page=${pageNum}`;
-    const response = await fetch(url, {
-        headers: { "x-api-key": apiKey }
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-        return res.status(response.status).json({ error: 'Failed to fetch history' });
-    }
-
-    const imageHistory = (data.result || []).filter((item: any) =>
-        item.type === 'image_generation' || item.model_name?.includes('imagen')
-    );
-
-    const images = imageHistory.map((item: any) => ({
-        id: item.id,
-        uuid: item.uuid,
-        prompt: item.input_text,
-        model: item.model_name,
-        status: item.status,
-        imageUrl: item.generate_result || null,
-        thumbnailUrl: item.thumbnail_small || item.generate_result || null,
-        createdAt: item.created_at,
-        expiresAt: item.expired_at
-    }));
-
     return res.status(200).json({
         success: true,
-        images,
-        total: data.total || 0,
+        images: [],
+        total: 0,
         page: pageNum,
-        totalPages: Math.ceil((data.total || 0) / 6)
+        totalPages: 1
     });
 }
 
