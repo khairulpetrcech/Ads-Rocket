@@ -194,29 +194,7 @@ async function handleAnalysis(req: any, res: any) {
             return res.status(200).json({ success: true, message: 'No ads with spend found' });
         }
 
-        // --- STEP 2: Analyze Each Ad Creative (Video/Image) with Gemini Multimodal ---
-        const genAI = new GoogleGenAI({ apiKey: geminiApiKey });
-        const creativeAnalyses: { name: string; analysis: string }[] = [];
-
-        for (const ad of topAds) {
-            try {
-                const analysis = await analyzeAdCreative(ad, genAI, fbAccessToken);
-                if (analysis) {
-                    creativeAnalyses.push({ name: ad.name, analysis });
-                }
-            } catch (err: any) {
-                console.error(`Failed to analyze creative for ${ad.name}:`, err);
-                // Push error to report so user sees it
-                creativeAnalyses.push({
-                    name: ad.name,
-                    analysis: `❌ Error: ${err.message || 'Unknown error'}`
-                });
-            }
-        }
-
-        console.log(`Analyzed ${creativeAnalyses.length} creatives with Gemini multimodal`);
-
-        // --- STEP 3: Build Final Report ---
+        // --- STEP 2: Build Report (No auto creative analysis — user picks via buttons) ---
         const emojis = ['🥇', '🥈', '🥉'];
         let reportText = `📊 *Report : ${accountName}*\npast 4 Days\n(${startDateMY} - ${endDateMY})\n\n`;
 
@@ -225,20 +203,7 @@ async function handleAnalysis(req: any, res: any) {
             reportText += `${emojis[i]} ${ad.name}\n   ${ad.purchases} purch | ${ad.roas.toFixed(2)}x ROAS | RM${ad.cpa.toFixed(2)} CPA\n`;
         });
 
-        reportText += `\n*🎯 Kenapa Iklan Win?*\n\n`;
-        creativeAnalyses.forEach((item) => {
-            reportText += `*${item.name}*\n${item.analysis}\n\n`;
-        });
-
-        // If no creative analyses, add placeholder
-        if (creativeAnalyses.length === 0) {
-            reportText += `(Creative analysis tidak tersedia)\n\n`;
-        }
-
-        // Footer with cost estimate and AI model
-        const validAnalyses = creativeAnalyses.filter(a => !a.analysis.includes('❌ Error'));
-        const estimatedCost = (validAnalyses.length * 0.025).toFixed(2); // Flash = Pro/4 (~RM0.025 per video)
-        reportText += `---\n_AI: Gemini 3 Flash | Est. Cost: ~RM${estimatedCost}_`;
+        reportText += `\n_Klik button untuk bedah creative atau generate prompt._`;
 
         // --- STEP 4: Send to Telegram with Prompt Buttons ---
         const telegramUrl = `https://api.telegram.org/bot${telegramBotToken}/sendMessage`;
@@ -272,32 +237,45 @@ async function handleAnalysis(req: any, res: any) {
             console.error('[Cache] Failed to save to Supabase:', cacheErr);
         }
 
-        // Build inline keyboard buttons for prompt generation
-        // Format: p_{index}_{videoId}_{adName} - include video_id directly to avoid cache lookup
-        // Extract video_id from ad.creative.video_id
-        const promptButtons = topAds.slice(0, 3).map((ad: any, i: number) => {
+        // Build inline keyboard buttons: Bedah (creative analysis) + Prompt (generate prompt)
+        const bedahButtons = topAds.slice(0, 3).map((ad: any, i: number) => {
             const videoId = ad.creative?.video_id || null;
             const igMediaId = ad.creative?.effective_instagram_media_id || null;
-            const imageUrl = ad.creative?.image_url || ad.creative?.thumbnail_url || null;
 
-            // Determine media type and ID for callback
-            // i{igMediaId} = video via Instagram, v{videoId} = video via FB, x{adId} = image ad
             let mediaId: string;
             if (videoId && igMediaId) {
-                // Video ad with Instagram media - prioritize IG
                 mediaId = `i${igMediaId}`;
             } else if (videoId) {
-                // Video ad with FB video only
                 mediaId = `v${videoId}`;
             } else if (ad.id) {
-                // Image ad - include ad_id so we can fetch image URL
                 mediaId = `x${ad.id}`;
             } else {
                 mediaId = 'none';
             }
 
             return {
-                text: `📝 Prompt Ads ${i + 1}`,
+                text: `🔍 Bedah ${i + 1}`,
+                callback_data: `bedah_${i}_${mediaId}_${(ad.name || '').substring(0, 8)}`
+            };
+        });
+
+        const promptButtons = topAds.slice(0, 3).map((ad: any, i: number) => {
+            const videoId = ad.creative?.video_id || null;
+            const igMediaId = ad.creative?.effective_instagram_media_id || null;
+
+            let mediaId: string;
+            if (videoId && igMediaId) {
+                mediaId = `i${igMediaId}`;
+            } else if (videoId) {
+                mediaId = `v${videoId}`;
+            } else if (ad.id) {
+                mediaId = `x${ad.id}`;
+            } else {
+                mediaId = 'none';
+            }
+
+            return {
+                text: `📝 Prompt ${i + 1}`,
                 callback_data: `p_${i}_${mediaId}_${(ad.name || '').substring(0, 8)}`
             };
         });
@@ -310,7 +288,7 @@ async function handleAnalysis(req: any, res: any) {
                 text: reportText,
                 parse_mode: 'Markdown',
                 reply_markup: {
-                    inline_keyboard: [promptButtons]
+                    inline_keyboard: [bedahButtons, promptButtons]
                 }
             })
         });
@@ -425,9 +403,8 @@ async function handleAnalysis(req: any, res: any) {
 
         return res.status(200).json({
             success: true,
-            message: 'Analisis multimodal dihantar ke Telegram!',
-            adsAnalyzed: topAds.length,
-            creativesAnalyzed: creativeAnalyses.length
+            message: 'Report dihantar ke Telegram!',
+            adsAnalyzed: topAds.length
         });
 
     } catch (error: any) {

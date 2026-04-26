@@ -6,6 +6,8 @@
  * POST /api/generate-api?action=poster
  * POST /api/generate-api?action=video
  */
+import { createClient } from '@supabase/supabase-js';
+
 export const config = {
     api: {
         bodyParser: {
@@ -15,6 +17,9 @@ export const config = {
 };
 
 const POYO_BASE_URL = 'https://api.poyo.ai/api/generate/submit';
+const SUPABASE_URL = process.env.SUPABASE_URL || 'https://ztpedgagubjoiluagqzd.supabase.co';
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || '';
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 export default async function handler(req: any, res: any) {
     // CORS headers
@@ -109,10 +114,22 @@ async function handleGeneratePoster(req: any, res: any) {
         const taskId = data.data?.task_id;
         console.log(`[Poyo AI] Image generation started! Task ID: ${taskId}`);
 
+        // Save to Supabase for history tracking
+        try {
+            await supabase.from('generation_tasks').insert({
+                task_id: taskId,
+                task_type: 'image',
+                prompt,
+                model: body.model,
+                status: 'not_started'
+            });
+        } catch (e) {
+            console.error('[Poyo AI] Failed to save task to DB:', e);
+        }
+
         return res.status(200).json({
             success: true,
             task_id: taskId,
-            // Keep uuid field for backward compatibility with frontend
             uuid: taskId,
             status: 'not_started',
             message: 'Image generation started.'
@@ -184,10 +201,22 @@ async function handleGenerateVideo(req: any, res: any) {
         const taskId = data.data?.task_id;
         console.log(`[Poyo AI] Video generation started! Task ID: ${taskId}`);
 
+        // Save to Supabase for history tracking
+        try {
+            await supabase.from('generation_tasks').insert({
+                task_id: taskId,
+                task_type: 'video',
+                prompt,
+                model: 'sora-2-official',
+                status: 'not_started'
+            });
+        } catch (e) {
+            console.error('[Poyo AI] Failed to save task to DB:', e);
+        }
+
         return res.status(200).json({
             success: true,
             task_id: taskId,
-            // Keep uuid field for backward compatibility with frontend
             uuid: taskId,
             status: 'not_started',
             message: 'Video generation started.'

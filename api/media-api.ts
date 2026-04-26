@@ -97,7 +97,7 @@ export default async function handler(req: any, res: any) {
     }
 }
 
-// Task Status Handler (Poyo AI unified status endpoint)
+// Task Status Handler (Poyo AI unified status endpoint + Supabase sync)
 async function handleVideoStatus(req: any, res: any, apiKey: string, uuid: string) {
     if (!uuid) {
         return res.status(400).json({ error: 'task_id is required' });
@@ -119,11 +119,17 @@ async function handleVideoStatus(req: any, res: any, apiKey: string, uuid: strin
     const progress = taskData?.progress || 0;
 
     if (status === 'finished') {
-        // Get file URL from files array
         let fileUrl = null;
         if (taskData.files && taskData.files.length > 0) {
             fileUrl = taskData.files[0].file_url;
         }
+
+        // Sync to Supabase
+        try {
+            await supabase.from('generation_tasks')
+                .update({ status: 'finished', file_url: fileUrl })
+                .eq('task_id', uuid);
+        } catch (e) { console.error('[Status] DB sync error:', e); }
 
         return res.status(200).json({
             success: true,
@@ -134,6 +140,13 @@ async function handleVideoStatus(req: any, res: any, apiKey: string, uuid: strin
         });
 
     } else if (status === 'failed') {
+        // Sync to Supabase
+        try {
+            await supabase.from('generation_tasks')
+                .update({ status: 'failed' })
+                .eq('task_id', uuid);
+        } catch (e) { console.error('[Status] DB sync error:', e); }
+
         return res.status(200).json({
             success: false,
             status: 'failed',
@@ -142,7 +155,6 @@ async function handleVideoStatus(req: any, res: any, apiKey: string, uuid: strin
         });
 
     } else {
-        // not_started or running
         return res.status(200).json({
             success: true,
             status: 'processing',
@@ -152,29 +164,159 @@ async function handleVideoStatus(req: any, res: any, apiKey: string, uuid: strin
     }
 }
 
-// Video History Handler (Poyo AI — check status for each stored task_id)
+// Video History Handler — Query Supabase + poll active tasks from Poyo
 async function handleVideoHistory(req: any, res: any, apiKey: string, pageNum: number) {
-    // Poyo AI doesn't have a history endpoint.
-    // Frontend tracks task_ids in localStorage and polls status individually.
-    // Return empty — frontend handles history via localStorage UUIDs + status polling.
-    return res.status(200).json({
-        success: true,
-        videos: [],
-        total: 0,
-        page: pageNum,
-        totalPages: 1
-    });
+    try {
+        const perPage = 6;
+        const offset = (pageNum - 1) * perPage;
+
+        // Get total count
+        const { count } = await supabase
+            .from('generation_tasks')
+            .select('*', { count: 'exact', head: true })
+            .eq('task_type', 'video');
+
+        // Get page of tasks
+        const { data: tasks, error } = await supabase
+            .from('generation_tasks')
+            .select('*')
+            .eq('task_type', 'video')
+            .order('created_at', { ascending: false })
+            .range(offset, offset + perPage - 1);
+
+        if (error) {
+            console.error('[VideoHistory] DB error:', error);
+            return res.status(500).json({ error: 'Failed to fetch history' });
+        }
+
+        // For non-finished tasks, poll Poyo for latest status
+        const videos = await Promise.all((tasks || []).map(async (task: any, index: number) => {
+            let status = task.status;
+            let fileUrl = task.file_url;
+
+            // Poll active tasks
+            if (status !== 'finished' && status !== 'failed') {
+                try {
+                    const statusRes = await fetch(`https://api.poyo.ai/api/generate/status/${task.task_id}`, {
+                        headers: { 'Authorization': `Bearer ${apiKey}` }
+                    });
+                    const statusData = await statusRes.json();
+                    if (statusData.code === 200) {
+                        status = statusData.data?.status || status;
+                        if (status === 'finished' && statusData.data?.files?.length > 0) {
+                            fileUrl = statusData.data.files[0].file_url;
+                            // Update DB
+                            await supabase.from('generation_tasks')
+                                .update({ status: 'finished', file_url: fileUrl })
+                                .eq('task_id', task.task_id);
+                        } else if (status === 'failed') {
+                            await supabase.from('generation_tasks')
+                                .update({ status: 'failed' })
+                                .eq('task_id', task.task_id);
+                        }
+                    }
+                } catch (e) { /* ignore polling errors */ }
+            }
+
+            return {
+                id: task.id || index,
+                uuid: task.task_id,
+                prompt: task.prompt,
+                model: task.model,
+                status: status === 'finished' ? 2 : status === 'failed' ? 3 : 1,
+                thumbnailUrl: null,
+                videoUrl: fileUrl,
+                createdAt: task.created_at,
+                expiresAt: ''
+            };
+        }));
+
+        return res.status(200).json({
+            success: true,
+            videos,
+            total: count || 0,
+            page: pageNum,
+            totalPages: Math.max(1, Math.ceil((count || 0) / perPage))
+        });
+    } catch (err: any) {
+        console.error('[VideoHistory] Error:', err);
+        return res.status(500).json({ error: err.message });
+    }
 }
 
-// Image History Handler (Poyo AI — same as video, no server-side history)
+// Image History Handler — Same pattern as video
 async function handleImageHistory(req: any, res: any, apiKey: string, pageNum: number) {
-    return res.status(200).json({
-        success: true,
-        images: [],
-        total: 0,
-        page: pageNum,
-        totalPages: 1
-    });
+    try {
+        const perPage = 6;
+        const offset = (pageNum - 1) * perPage;
+
+        const { count } = await supabase
+            .from('generation_tasks')
+            .select('*', { count: 'exact', head: true })
+            .eq('task_type', 'image');
+
+        const { data: tasks, error } = await supabase
+            .from('generation_tasks')
+            .select('*')
+            .eq('task_type', 'image')
+            .order('created_at', { ascending: false })
+            .range(offset, offset + perPage - 1);
+
+        if (error) {
+            console.error('[ImageHistory] DB error:', error);
+            return res.status(500).json({ error: 'Failed to fetch history' });
+        }
+
+        const images = await Promise.all((tasks || []).map(async (task: any, index: number) => {
+            let status = task.status;
+            let fileUrl = task.file_url;
+
+            if (status !== 'finished' && status !== 'failed') {
+                try {
+                    const statusRes = await fetch(`https://api.poyo.ai/api/generate/status/${task.task_id}`, {
+                        headers: { 'Authorization': `Bearer ${apiKey}` }
+                    });
+                    const statusData = await statusRes.json();
+                    if (statusData.code === 200) {
+                        status = statusData.data?.status || status;
+                        if (status === 'finished' && statusData.data?.files?.length > 0) {
+                            fileUrl = statusData.data.files[0].file_url;
+                            await supabase.from('generation_tasks')
+                                .update({ status: 'finished', file_url: fileUrl })
+                                .eq('task_id', task.task_id);
+                        } else if (status === 'failed') {
+                            await supabase.from('generation_tasks')
+                                .update({ status: 'failed' })
+                                .eq('task_id', task.task_id);
+                        }
+                    }
+                } catch (e) { /* ignore */ }
+            }
+
+            return {
+                id: task.id || index,
+                uuid: task.task_id,
+                prompt: task.prompt,
+                model: task.model,
+                status: status === 'finished' ? 2 : status === 'failed' ? 3 : 1,
+                imageUrl: fileUrl,
+                thumbnailUrl: fileUrl,
+                createdAt: task.created_at,
+                expiresAt: ''
+            };
+        }));
+
+        return res.status(200).json({
+            success: true,
+            images,
+            total: count || 0,
+            page: pageNum,
+            totalPages: Math.max(1, Math.ceil((count || 0) / perPage))
+        });
+    } catch (err: any) {
+        console.error('[ImageHistory] Error:', err);
+        return res.status(500).json({ error: err.message });
+    }
 }
 
 // Telegram Webhook Handler for Upscale Callback
@@ -191,6 +333,11 @@ async function handleTelegramWebhook(req: any, res: any) {
             const callbackQuery = update.callback_query;
             const callbackData = callbackQuery.data;
             const chatId = callbackQuery.message.chat.id;
+
+            // Handle bedah creative (on-demand analysis)
+            if (callbackData.startsWith('bedah_')) {
+                return await handleBedahCallback(callbackQuery, botToken, res);
+            }
 
             // Handle prompt generation request
             if (callbackData.startsWith('p_') || callbackData.startsWith('prompt_')) {
@@ -857,6 +1004,159 @@ async function sendTelegramMessage(botToken: string, chatId: any, text: string) 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ chat_id: chatId, text, parse_mode: 'Markdown' })
     });
+}
+// --- Bedah Creative (On-demand analysis via Telegram button) ---
+async function handleBedahCallback(callbackQuery: any, botToken: any, res: any) {
+    const callbackData = callbackQuery.data;
+    const chatId = callbackQuery.message.chat.id;
+    const parts = callbackData.split('_');
+    // Format: bedah_{index}_{mediaId}_{adName}
+    const adIndex = parseInt(parts[1], 10);
+    const mediaId = parts[2] || 'none';
+    const adName = parts.slice(3).join('_') || `Ads ${adIndex + 1}`;
+
+    // Acknowledge button press
+    await fetch(`https://api.telegram.org/bot${botToken}/answerCallbackQuery`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            callback_query_id: callbackQuery.id,
+            text: '🔍 Sedang bedah creative...'
+        })
+    });
+
+    // Send "analyzing" message
+    await sendTelegramMessage(botToken, chatId, `🔍 *Bedah Creative: ${adName}*\n\n⏳ Sedang analisa creative...`);
+
+    try {
+        const geminiApiKey = process.env.VITE_GEMINI_3_API;
+        if (!geminiApiKey) {
+            await sendTelegramMessage(botToken, chatId, '❌ Gemini API key not configured.');
+            return res.status(200).end();
+        }
+
+        // Get FB token from Supabase cache
+        const { data: cacheData } = await supabase
+            .from('ads_cache')
+            .select('fb_access_token')
+            .eq('chat_id', String(chatId))
+            .single();
+
+        const fbAccessToken = cacheData?.fb_access_token;
+        if (!fbAccessToken) {
+            await sendTelegramMessage(botToken, chatId, '❌ Session expired. Please run analisa again.');
+            return res.status(200).end();
+        }
+
+        // Initialize Gemini
+        const { GoogleGenAI } = await import('@google/genai');
+        const genAI = new GoogleGenAI({ apiKey: geminiApiKey });
+
+        // Determine media type from mediaId prefix
+        let analysisText: string | null = null;
+        const mediaIdValue = mediaId.substring(1); // Remove prefix
+
+        if (mediaId.startsWith('v')) {
+            // Video via FB video_id
+            const videoUrl = `https://graph.facebook.com/v19.0/${mediaIdValue}?fields=source,picture&access_token=${fbAccessToken}`;
+            const videoResponse = await fetch(videoUrl);
+            const videoData = await videoResponse.json();
+
+            if (videoData.source) {
+                const videoFileRes = await fetch(videoData.source);
+                const videoBuffer = await videoFileRes.arrayBuffer();
+                const videoBlob = new Blob([videoBuffer], { type: 'video/mp4' });
+
+                const uploadResult = await genAI.files.upload({ file: videoBlob });
+
+                // Wait for file processing
+                let fileReady = false;
+                for (let i = 0; i < 15; i++) {
+                    await new Promise(r => setTimeout(r, 1000));
+                    const fileStatus = await genAI.files.get({ name: uploadResult.name });
+                    if (fileStatus.state === 'ACTIVE') { fileReady = true; break; }
+                }
+
+                if (fileReady) {
+                    const result = await genAI.models.generateContent({
+                        model: 'gemini-3-flash-preview',
+                        contents: [
+                            { text: `Analisa video iklan ini secara mendalam.\n\nFormat jawapan:\n\n*Hook (0-3s):* Apa yang buat orang stop scroll?\n*Storyline:* Flow cerita dari awal sampai akhir\n*Emosi:* Emosi apa yang digunakan?\n*CTA:* Apa call-to-action yang digunakan?\n*Kekuatan:* 2-3 perkara yang buat iklan ni berkesan\n*Kelemahan:* 1-2 perkara yang boleh improve\n\nPERATURAN: Jawab dalam BM ringkas. Max 150 patah perkataan.` },
+                            { fileData: { fileUri: uploadResult.uri, mimeType: 'video/mp4' } }
+                        ]
+                    });
+                    analysisText = result.text || null;
+                    await genAI.files.delete({ name: uploadResult.name });
+                }
+            }
+        } else if (mediaId.startsWith('i')) {
+            // Video via Instagram media_id
+            const igUrl = `https://graph.facebook.com/v19.0/${mediaIdValue}?fields=media_url&access_token=${fbAccessToken}`;
+            const igResponse = await fetch(igUrl);
+            const igData = await igResponse.json();
+
+            if (igData.media_url) {
+                const videoFileRes = await fetch(igData.media_url);
+                const videoBuffer = await videoFileRes.arrayBuffer();
+                const videoBlob = new Blob([videoBuffer], { type: 'video/mp4' });
+
+                const uploadResult = await genAI.files.upload({ file: videoBlob });
+
+                let fileReady = false;
+                for (let i = 0; i < 15; i++) {
+                    await new Promise(r => setTimeout(r, 1000));
+                    const fileStatus = await genAI.files.get({ name: uploadResult.name });
+                    if (fileStatus.state === 'ACTIVE') { fileReady = true; break; }
+                }
+
+                if (fileReady) {
+                    const result = await genAI.models.generateContent({
+                        model: 'gemini-3-flash-preview',
+                        contents: [
+                            { text: `Analisa video iklan ini secara mendalam.\n\nFormat jawapan:\n\n*Hook (0-3s):* Apa yang buat orang stop scroll?\n*Storyline:* Flow cerita dari awal sampai akhir\n*Emosi:* Emosi apa yang digunakan?\n*CTA:* Apa call-to-action yang digunakan?\n*Kekuatan:* 2-3 perkara yang buat iklan ni berkesan\n*Kelemahan:* 1-2 perkara yang boleh improve\n\nPERATURAN: Jawab dalam BM ringkas. Max 150 patah perkataan.` },
+                            { fileData: { fileUri: uploadResult.uri, mimeType: 'video/mp4' } }
+                        ]
+                    });
+                    analysisText = result.text || null;
+                    await genAI.files.delete({ name: uploadResult.name });
+                }
+            }
+        } else if (mediaId.startsWith('x')) {
+            // Image ad — fetch creative image
+            const adUrl = `https://graph.facebook.com/v19.0/${mediaIdValue}?fields=creative{image_url,thumbnail_url}&access_token=${fbAccessToken}`;
+            const adResponse = await fetch(adUrl);
+            const adData = await adResponse.json();
+            const imageUrl = adData.creative?.image_url || adData.creative?.thumbnail_url;
+
+            if (imageUrl) {
+                const imageResponse = await fetch(imageUrl);
+                const imageBuffer = await imageResponse.arrayBuffer();
+                const base64Image = Buffer.from(imageBuffer).toString('base64');
+                const mimeType = imageResponse.headers.get('content-type') || 'image/jpeg';
+
+                const result = await genAI.models.generateContent({
+                    model: 'gemini-3-flash-preview',
+                    contents: [
+                        { text: `Analisa image iklan ini secara mendalam.\n\nFormat jawapan:\n\n*Visual Hook:* Apa yang grab attention?\n*Copywriting:* Analisa text/headline dalam image\n*Emosi:* Emosi apa yang digunakan?\n*CTA:* Apa call-to-action yang digunakan?\n*Kekuatan:* 2-3 perkara yang buat iklan ni berkesan\n*Kelemahan:* 1-2 perkara yang boleh improve\n\nPERATURAN: Jawab dalam BM ringkas. Max 150 patah perkataan.` },
+                        { inlineData: { mimeType, data: base64Image } }
+                    ]
+                });
+                analysisText = result.text || null;
+            }
+        }
+
+        if (analysisText) {
+            await sendTelegramMessage(botToken, chatId, `🔍 *Bedah Creative: ${adName}*\n\n${analysisText}`);
+        } else {
+            await sendTelegramMessage(botToken, chatId, `❌ Tidak dapat analisa creative untuk *${adName}*. Creative mungkin tidak tersedia.`);
+        }
+
+    } catch (err: any) {
+        console.error('[Bedah] Error:', err);
+        await sendTelegramMessage(botToken, chatId, `❌ Error: ${err.message || 'Unknown error'}`);
+    }
+
+    return res.status(200).end();
 }
 
 // --- ORIGINAL HELPERS (Modified to accept botToken) ---

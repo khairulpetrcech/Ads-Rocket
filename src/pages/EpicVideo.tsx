@@ -15,43 +15,7 @@ interface VideoHistoryItem {
     expiresAt: string;
 }
 
-const STORAGE_KEY = 'epicvideo_tasks';
-
-interface StoredTask {
-    taskId: string;
-    prompt: string;
-    createdAt: string;
-}
-
-// Helper to get stored tasks from localStorage
-const getStoredTasks = (): StoredTask[] => {
-    try {
-        const stored = localStorage.getItem(STORAGE_KEY);
-        if (!stored) return [];
-        const parsed = JSON.parse(stored);
-        // Handle legacy format (string[] of UUIDs)
-        if (Array.isArray(parsed) && typeof parsed[0] === 'string') {
-            return parsed.map((id: string) => ({ taskId: id, prompt: '', createdAt: '' }));
-        }
-        return parsed;
-    } catch {
-        return [];
-    }
-};
-
-// Helper to add task to localStorage
-const addStoredTask = (taskId: string, prompt: string) => {
-    try {
-        const tasks = getStoredTasks();
-        if (!tasks.find(t => t.taskId === taskId)) {
-            tasks.unshift({ taskId, prompt, createdAt: new Date().toISOString() });
-            // Keep max 30 tasks
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks.slice(0, 30)));
-        }
-    } catch (e) {
-        console.error('Failed to save task:', e);
-    }
-};
+// No localStorage needed — history is server-side via Supabase
 
 const EpicVideo: React.FC = () => {
     const { settings, globalProcess, setGlobalProcess } = useSettings();
@@ -137,42 +101,16 @@ const EpicVideo: React.FC = () => {
         };
     }, []);
 
-    const fetchVideoHistory = async (_page?: number) => {
+    const fetchVideoHistory = async (page: number) => {
         setHistoryLoading(true);
         try {
-            const storedTasks = getStoredTasks();
-            if (storedTasks.length === 0) {
-                setHistory([]);
-                setHistoryLoading(false);
-                return;
+            const response = await fetch(`/api/media-api?action=video-history&page=${page}`);
+            const data = await response.json();
+            if (data.success) {
+                setHistory(data.videos || []);
+                setHistoryPage(data.page);
+                setHistoryTotalPages(data.totalPages || 1);
             }
-
-            // Poll status for each stored task (max 12 most recent)
-            const tasksToCheck = storedTasks.slice(0, 12);
-            const results = await Promise.allSettled(
-                tasksToCheck.map(async (task, index) => {
-                    const response = await fetch(`/api/media-api?action=video-status&uuid=${task.taskId}`);
-                    const data = await response.json();
-                    return {
-                        id: index,
-                        uuid: task.taskId,
-                        prompt: task.prompt,
-                        model: 'sora-2-official',
-                        status: data.status === 'completed' ? 2 : data.status === 'failed' ? 3 : 1,
-                        thumbnailUrl: null,
-                        videoUrl: data.url || null,
-                        createdAt: task.createdAt,
-                        expiresAt: ''
-                    } as VideoHistoryItem;
-                })
-            );
-
-            const videos = results
-                .filter((r): r is PromiseFulfilledResult<VideoHistoryItem> => r.status === 'fulfilled')
-                .map(r => r.value);
-
-            setHistory(videos);
-            setHistoryTotalPages(Math.max(1, Math.ceil(videos.length / 6)));
         } catch (err) {
             console.error('Failed to fetch video history:', err);
         } finally {
@@ -279,10 +217,7 @@ const EpicVideo: React.FC = () => {
                 throw new Error(data.error || 'Failed to start video generation');
             }
 
-            // Store task in localStorage to track videos created by this app
-            if (data.uuid) {
-                addStoredTask(data.uuid, prompt);
-            }
+            // Task tracked in Supabase via generate-api.ts
 
             setStatusMessage('Video generation started. Processing...');
             setProgress(10);
