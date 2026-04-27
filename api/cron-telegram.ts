@@ -427,6 +427,26 @@ async function processScheduledAnalysis(schedule: any, geminiApiKey: string) {
 
     // --- STEP 1: Send basic stats report FIRST (fast, always succeeds) ---
     // This ensures user always receives SOMETHING even if AI analysis times out
+    // Build buttons: Bedah + Prompt
+    const bedahButtons = topAds.map((ad: any, i: number) => {
+        const videoId = ad.creative?.video_id || null;
+        const igMediaId = ad.creative?.effective_instagram_media_id || null;
+        let mediaId: string;
+        if (videoId && igMediaId) {
+            mediaId = `i${igMediaId}`;
+        } else if (videoId) {
+            mediaId = `v${videoId}`;
+        } else if (ad.id) {
+            mediaId = `x${ad.id}`;
+        } else {
+            mediaId = 'none';
+        }
+        return {
+            text: `🔍 Bedah ${i + 1}`,
+            callback_data: `bedah_${i}_${mediaId}_${(ad.name || '').substring(0, 8)}`
+        };
+    });
+
     const promptButtons = topAds.map((ad: any, i: number) => {
         const videoId = ad.creative?.video_id || null;
         const igMediaId = ad.creative?.effective_instagram_media_id || null;
@@ -441,7 +461,7 @@ async function processScheduledAnalysis(schedule: any, geminiApiKey: string) {
             mediaId = 'none';
         }
         return {
-            text: `📝 Prompt Ads ${i + 1}`,
+            text: `📝 Prompt ${i + 1}`,
             callback_data: `p_${i}_${mediaId}_${(ad.name || '').substring(0, 8)}`
         };
     });
@@ -451,36 +471,11 @@ async function processScheduledAnalysis(schedule: any, geminiApiKey: string) {
     topAds.forEach((ad: any, i: number) => {
         basicReport += `${emojis[i]} ${ad.name}\n   ${ad.purchases} purch | ${ad.roas.toFixed(2)}x ROAS | RM${ad.cpa.toFixed(2)} CPA\n`;
     });
-    basicReport += `\n_🤖 Menganalisa kreativiti... sila tunggu._`;
+    basicReport += `\n_Klik button untuk bedah creative atau generate prompt._`;
 
-    console.log(`[Cron] Sending basic stats report first...`);
-    await sendTelegramWithButtons(telegram_bot_token, telegram_chat_id, basicReport, promptButtons);
-    console.log(`[Cron] ✅ Basic report sent! Starting AI creative analysis...`);
-
-    // --- STEP 2: AI Creative Analysis (may be slow, run AFTER report is sent) ---
-    const analysisPromises = topAds.map(async (ad: any) => {
-        try {
-            const creativeInsight = await analyzeAdCreative(ad, geminiApiKey, fb_access_token);
-            return { name: ad.name, analysis: creativeInsight || '(Tiada analisis)' };
-        } catch (err: any) {
-            console.error(`Failed to analyze creative for ${ad.name}:`, err);
-            return { name: ad.name, analysis: `❌ Analisis gagal` };
-        }
-    });
-
-    const creativeAnalyses = await Promise.all(analysisPromises);
-    console.log(`[Cron] All ${creativeAnalyses.length} creative analyses complete`);
-
-    // --- STEP 3: Send AI analysis as a SECOND message ---
-    let aiReport = `🎯 *Kenapa Iklan Win? (${accountName})*\n\n`;
-    creativeAnalyses.forEach((item) => {
-        aiReport += `*${item.name}*\n${item.analysis}\n\n`;
-    });
-    const estimatedCost = (creativeAnalyses.length * 0.025).toFixed(2);
-    aiReport += `---\n_AI: Gemini 3 Flash | Est. Cost: ~RM${estimatedCost}_`;
-
-    await sendTelegram(telegram_bot_token, telegram_chat_id, aiReport);
-    console.log(`[Cron] ✅ AI analysis sent!`);
+    console.log(`[Cron] Sending report with buttons...`);
+    await sendTelegramWithButtons(telegram_bot_token, telegram_chat_id, basicReport, [bedahButtons, promptButtons]);
+    console.log(`[Cron] ✅ Report sent!`);
 }
 
 
@@ -504,7 +499,7 @@ async function sendTelegram(botToken: string, chatId: string, text: string) {
     }
 }
 
-async function sendTelegramWithButtons(botToken: string, chatId: string, text: string, buttons: any[]) {
+async function sendTelegramWithButtons(botToken: string, chatId: string, text: string, buttons: any[][]) {
     const url = `https://api.telegram.org/bot${botToken}/sendMessage`;
     const response = await fetch(url, {
         method: 'POST',
@@ -514,7 +509,7 @@ async function sendTelegramWithButtons(botToken: string, chatId: string, text: s
             text: text,
             parse_mode: 'Markdown',
             reply_markup: {
-                inline_keyboard: [buttons]
+                inline_keyboard: buttons
             }
         })
     });
