@@ -423,6 +423,24 @@ async function processScheduledAnalysis(schedule: any, geminiApiKey: string) {
         ad.cpa = ad.purchases > 0 ? ad.spend / ad.purchases : 0;
     });
 
+    await supabase.from('ads_cache').upsert({
+        chat_id: String(telegram_chat_id),
+        fb_access_token,
+        telegram_bot_token,
+        ads_data: JSON.stringify(topAds.slice(0, 3).map((ad: any) => ({
+            id: ad.id,
+            name: ad.name,
+            spend: ad.spend,
+            roas: ad.roas,
+            purchases: ad.purchases,
+            cpa: ad.cpa,
+            videoId: ad.creative?.video_id || null,
+            imageUrl: ad.creative?.image_url || null,
+            thumbnailUrl: ad.creative?.thumbnail_url || null
+        }))),
+        updated_at: new Date().toISOString()
+    }, { onConflict: 'chat_id' });
+
     const emojis = ['🥇', '🥈', '🥉'];
 
     // --- STEP 1: Send basic stats report FIRST (fast, always succeeds) ---
@@ -471,6 +489,7 @@ async function processScheduledAnalysis(schedule: any, geminiApiKey: string) {
     topAds.forEach((ad: any, i: number) => {
         basicReport += `${emojis[i]} ${ad.name}\n   ${ad.purchases} purch | ${ad.roas.toFixed(2)}x ROAS | RM${ad.cpa.toFixed(2)} CPA\n`;
     });
+    basicReport += `\n🧠 *Agent next move:* Klik *Prompt* untuk auto-generate creative baru daripada winning pattern, kemudian approve dan launch guna Ad Template.\n`;
     basicReport += `\n_Klik button untuk bedah creative atau generate prompt._`;
 
     console.log(`[Cron] Sending report with buttons...`);

@@ -216,9 +216,13 @@ async function handleAnalysis(req: any, res: any) {
             ads_data: JSON.stringify(topAds.slice(0, 3).map((ad: any) => ({
                 id: ad.id,
                 name: ad.name,
-                videoId: ad.video_id || null,
-                imageUrl: ad.image_url || null,
-                thumbnailUrl: ad.thumbnail_url || null
+                spend: ad.spend,
+                roas: ad.roas,
+                purchases: ad.purchases,
+                cpa: ad.cpa,
+                videoId: ad.creative?.video_id || null,
+                imageUrl: ad.creative?.image_url || null,
+                thumbnailUrl: ad.creative?.thumbnail_url || null
             }))),
             updated_at: new Date().toISOString()
         };

@@ -4,6 +4,8 @@
  * 
  * Usage:
  * POST /api/generate-api?action=poster
+ * POST /api/generate-api?action=creative
+ * POST /api/generate-api?action=nano-banana-pro
  * POST /api/generate-api?action=video
  */
 import { createClient } from '@supabase/supabase-js';
@@ -20,6 +22,18 @@ const POYO_BASE_URL = 'https://api.poyo.ai/api/generate/submit';
 const SUPABASE_URL = process.env.SUPABASE_URL || 'https://ztpedgagubjoiluagqzd.supabase.co';
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || '';
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+function getPublicBaseUrl(req: any) {
+    if (process.env.PUBLIC_BASE_URL) return process.env.PUBLIC_BASE_URL.replace(/\/$/, '');
+    if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
+    const proto = req.headers['x-forwarded-proto'] || 'https';
+    const host = req.headers.host || 'ads-rocket.vercel.app';
+    return `${proto}://${host}`;
+}
+
+function createShortCode() {
+    return Math.random().toString(36).slice(2, 10);
+}
 
 export default async function handler(req: any, res: any) {
     // CORS headers
@@ -41,13 +55,141 @@ export default async function handler(req: any, res: any) {
         if (action === 'poster') {
             return handleGeneratePoster(req, res);
         }
+        if (action === 'creative' || action === 'nano-banana-pro') {
+            return handleGenerateCreative(req, res);
+        }
         if (action === 'video') {
             return handleGenerateVideo(req, res);
         }
-        return res.status(400).json({ error: 'Invalid action. Use: poster or video' });
+        return res.status(400).json({ error: 'Invalid action. Use: poster, creative, nano-banana-pro, or video' });
     } catch (error: any) {
         console.error('[Generate API] Error:', error);
         return res.status(500).json({ error: error.message || 'Internal server error' });
+    }
+}
+
+// Generate agent creative (image/video) and optionally notify Telegram when callback finishes
+async function handleGenerateCreative(req: any, res: any) {
+    try {
+        const {
+            prompt,
+            mediaType = 'image',
+            model,
+            fbId,
+            chatId,
+            strategy,
+            size,
+            aspectRatio,
+            resolution,
+            quality,
+            duration,
+            enableWebSearch = false,
+            outputFormat = 'png',
+            source = 'agent'
+        } = req.body;
+
+        if (!prompt) {
+            return res.status(400).json({ error: 'Prompt is required' });
+        }
+
+        const apiKey = process.env.POYO_API_KEY;
+        if (!apiKey) {
+            return res.status(500).json({ error: 'POYO_API_KEY not configured' });
+        }
+
+        const isVideo = mediaType === 'video';
+        const selectedModel = model || (isVideo ? 'sora-2-official' : 'nano-banana-pro');
+        const baseUrl = getPublicBaseUrl(req);
+        const callbackUrl = `${baseUrl}/api/media-api?action=generation-callback`;
+
+        const input: any = { prompt };
+        if (isVideo) {
+            const validDurations = [4, 8, 12, 16, 20];
+            input.duration = validDurations.includes(Number(duration)) ? Number(duration) : 4;
+            input.aspect_ratio = aspectRatio === 'portrait' ? '9:16' : aspectRatio === 'landscape' ? '16:9' : (aspectRatio || '9:16');
+        } else if (selectedModel.startsWith('nano-banana')) {
+            input.size = size || aspectRatio || '9:16';
+            input.resolution = resolution || '2K';
+            input.output_format = outputFormat;
+            input.enable_web_search = Boolean(enableWebSearch);
+        } else {
+            input.size = size || aspectRatio || '9:16';
+            input.resolution = resolution || '1K';
+            if (quality) input.quality = quality;
+        }
+
+        const body = {
+            model: selectedModel,
+            callback_url: callbackUrl,
+            input
+        };
+
+        console.log(`[Poyo AI] Agent creative generation (${selectedModel}): ${prompt.substring(0, 80)}...`);
+
+        const response = await fetch(POYO_BASE_URL, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${apiKey}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(body)
+        });
+
+        const data = await response.json();
+        if (!response.ok || data.code !== 200) {
+            console.error('[Poyo AI] Creative API Error:', data);
+            return res.status(response.status).json({
+                error: data.error?.message || 'Failed to generate creative',
+                details: data
+            });
+        }
+
+        const taskId = data.data?.task_id;
+        const shortCode = createShortCode();
+
+        await supabase.from('generation_tasks').insert({
+            task_id: taskId,
+            task_type: isVideo ? 'video' : 'image',
+            prompt,
+            model: selectedModel,
+            status: data.data?.status || 'not_started',
+            fb_id: fbId || null,
+            chat_id: chatId ? String(chatId) : null,
+            source,
+            approval_status: 'pending',
+            metadata: { strategy: strategy || null, callback_url: callbackUrl, input }
+        });
+
+        await supabase.from('generated_creatives').insert({
+            short_code: shortCode,
+            fb_id: fbId || null,
+            chat_id: chatId ? String(chatId) : '',
+            generation_task_id: taskId,
+            media_type: isVideo ? 'video' : 'image',
+            model: selectedModel,
+            prompt,
+            source,
+            strategy: strategy || {},
+            status: 'generating',
+            approval_status: 'pending'
+        });
+
+        return res.status(200).json({
+            success: true,
+            task_id: taskId,
+            uuid: taskId,
+            shortCode,
+            model: selectedModel,
+            status: 'not_started',
+            callback_url: callbackUrl,
+            message: 'Creative generation started.'
+        });
+    } catch (error: any) {
+        console.error('[Poyo AI] Creative Server Error:', error);
+        return res.status(500).json({
+            error: error.message || 'Internal server error',
+            details: error.toString()
+        });
     }
 }
 
@@ -73,6 +215,7 @@ async function handleGeneratePoster(req: any, res: any) {
         // Build request body
         const body: any = {
             model: imageBase64 ? 'gpt-image-2-edit' : 'gpt-image-2',
+            callback_url: `${getPublicBaseUrl(req)}/api/media-api?action=generation-callback`,
             input: {
                 prompt,
                 quality,
@@ -121,7 +264,8 @@ async function handleGeneratePoster(req: any, res: any) {
                 task_type: 'image',
                 prompt,
                 model: body.model,
-                status: 'not_started'
+                status: 'not_started',
+                metadata: { input: body.input }
             });
         } catch (e) {
             console.error('[Poyo AI] Failed to save task to DB:', e);
@@ -171,6 +315,7 @@ async function handleGenerateVideo(req: any, res: any) {
 
         const body: any = {
             model: 'sora-2-official',
+            callback_url: `${getPublicBaseUrl(req)}/api/media-api?action=generation-callback`,
             input: {
                 prompt,
                 duration: mappedDuration,
@@ -208,7 +353,8 @@ async function handleGenerateVideo(req: any, res: any) {
                 task_type: 'video',
                 prompt,
                 model: 'sora-2-official',
-                status: 'not_started'
+                status: 'not_started',
+                metadata: { input: body.input }
             });
         } catch (e) {
             console.error('[Poyo AI] Failed to save task to DB:', e);

@@ -39,6 +39,9 @@ export default async function handler(req: any, res: any) {
 
     // Handle POST requests
     if (req.method === 'POST') {
+        if (action === 'generation-callback') {
+            return handleGenerationCallback(req, res);
+        }
         // Auto-detect Telegram webhook from body structure (callback_query or message)
         if (req.body && (req.body.callback_query || req.body.message || req.body.update_id)) {
             console.log('[Media API] Auto-detected Telegram webhook from body');
@@ -129,6 +132,18 @@ async function handleVideoStatus(req: any, res: any, apiKey: string, uuid: strin
             await supabase.from('generation_tasks')
                 .update({ status: 'finished', file_url: fileUrl })
                 .eq('task_id', uuid);
+
+            const { data: creative } = await supabase
+                .from('generated_creatives')
+                .select('*')
+                .eq('generation_task_id', uuid)
+                .maybeSingle();
+            if (creative && !creative.file_url && fileUrl) {
+                await supabase.from('generated_creatives')
+                    .update({ status: 'ready', file_url: fileUrl, updated_at: new Date().toISOString() })
+                    .eq('id', creative.id);
+                await sendGeneratedCreativeToTelegram({ ...creative, file_url: fileUrl });
+            }
         } catch (e) { console.error('[Status] DB sync error:', e); }
 
         return res.status(200).json({
@@ -339,6 +354,20 @@ async function handleTelegramWebhook(req: any, res: any) {
                 return await handleBedahCallback(callbackQuery, botToken, res);
             }
 
+            // Handle generated creative approval workflow
+            if (callbackData.startsWith('appr_')) {
+                return await handleCreativeApprovalCallback(callbackQuery, botToken, 'approved', res);
+            }
+            if (callbackData.startsWith('rej_')) {
+                return await handleCreativeApprovalCallback(callbackQuery, botToken, 'rejected', res);
+            }
+            if (callbackData.startsWith('lcr_')) {
+                return await handleCreativeLaunchTemplateList(callbackQuery, botToken, res);
+            }
+            if (callbackData.startsWith('crtpl_')) {
+                return await handleCreativeTemplateLaunch(callbackQuery, botToken, res);
+            }
+
             // Handle prompt generation request
             if (callbackData.startsWith('p_') || callbackData.startsWith('prompt_')) {
                 return await handlePromptGenerationCallback(callbackQuery, botToken, res);
@@ -376,6 +405,12 @@ async function handleTelegramWebhook(req: any, res: any) {
             const text = update.message.text || update.message.caption || '';
             const video = update.message.video;
             const photo = update.message.photo;
+            const document = update.message.document;
+
+            // A0. Store uploaded documents for strategy/angle generation
+            if (document) {
+                return await handleDocumentUpload(chatId, document, botToken!, res);
+            }
 
             // A. Handling Media (Video or Photo)
             if (video || photo) {
@@ -438,6 +473,15 @@ async function handleTelegramWebhook(req: any, res: any) {
                     return await handleTopAds(chatId, botToken!, res);
                 }
 
+                if (
+                    text.startsWith('/creative') ||
+                    text.startsWith('/generate') ||
+                    text.toLowerCase().startsWith('generate creative') ||
+                    text.toLowerCase().startsWith('buat creative')
+                ) {
+                    return await handleCreativeGenerationCommand(chatId, text, botToken!, res);
+                }
+
                 // If not a standard command, treat as campaign instructions
                 return await processCampaignCommand(chatId, text, botToken!, res);
             }
@@ -449,6 +493,601 @@ async function handleTelegramWebhook(req: any, res: any) {
         console.error('[Telegram Webhook] Error:', error);
         return res.status(500).json({ error: error.message || 'Internal server error' });
     }
+}
+
+// --- AGENTIC CREATIVE WORKFLOW ---
+
+function getPublicBaseUrl(req?: any) {
+    if (process.env.PUBLIC_BASE_URL) return process.env.PUBLIC_BASE_URL.replace(/\/$/, '');
+    if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
+    const host = req?.headers?.host || 'ads-rocket.vercel.app';
+    const proto = req?.headers?.['x-forwarded-proto'] || 'https';
+    return `${proto}://${host}`;
+}
+
+function createShortCode() {
+    return Math.random().toString(36).slice(2, 10);
+}
+
+function extractPoyoTask(payload: any) {
+    const data = payload?.data || payload || {};
+    const taskId = data.task_id || data.taskId || payload?.task_id || payload?.taskId;
+    const status = data.status || payload?.status || 'processing';
+    const files = data.files || payload?.files || [];
+    const firstFile = Array.isArray(files) ? files[0] : null;
+    const fileUrl = firstFile?.file_url || firstFile?.url || data.file_url || data.url || payload?.file_url || payload?.url || null;
+    const errorMessage = data.error_message || data.error?.message || payload?.error_message || payload?.error?.message || null;
+    return { taskId, status, fileUrl, errorMessage };
+}
+
+async function handleGenerationCallback(req: any, res: any) {
+    const { taskId, status, fileUrl, errorMessage } = extractPoyoTask(req.body);
+    console.log('[Generation Callback] Received:', JSON.stringify({ taskId, status, hasFile: !!fileUrl }));
+
+    if (!taskId) {
+        return res.status(400).json({ error: 'Missing task_id' });
+    }
+
+    const normalizedStatus = status === 'finished' ? 'finished' : status === 'failed' ? 'failed' : 'processing';
+
+    await supabase
+        .from('generation_tasks')
+        .update({
+            status: normalizedStatus,
+            file_url: fileUrl,
+            updated_at: new Date().toISOString(),
+            metadata: { callback_payload: req.body, error_message: errorMessage }
+        })
+        .eq('task_id', taskId);
+
+    const { data: creative } = await supabase
+        .from('generated_creatives')
+        .select('*')
+        .eq('generation_task_id', taskId)
+        .maybeSingle();
+
+    if (!creative) {
+        return res.status(200).json({ success: true, message: 'Task synced; no creative row linked' });
+    }
+
+    await supabase
+        .from('generated_creatives')
+        .update({
+            status: normalizedStatus === 'finished' ? 'ready' : normalizedStatus,
+            file_url: fileUrl || creative.file_url,
+            updated_at: new Date().toISOString()
+        })
+        .eq('id', creative.id);
+
+    if (normalizedStatus === 'failed') {
+        const botToken = await getBotTokenForCreative(creative);
+        if (botToken) {
+            await sendTelegramMessage(botToken, creative.chat_id, `❌ *Creative generation failed*\n\n${errorMessage || 'PoYo returned failed status.'}`);
+        }
+        return res.status(200).json({ success: true });
+    }
+
+    if (normalizedStatus === 'finished' && fileUrl) {
+        await sendGeneratedCreativeToTelegram({ ...creative, file_url: fileUrl });
+    }
+
+    return res.status(200).json({ success: true });
+}
+
+async function getBotTokenForCreative(creative: any) {
+    const { data: user } = await supabase
+        .from('telegram_users')
+        .select('telegram_bot_token')
+        .eq('telegram_chat_id', String(creative.chat_id))
+        .maybeSingle();
+    return user?.telegram_bot_token || process.env.TELEGRAM_BOT_TOKEN || null;
+}
+
+async function sendGeneratedCreativeToTelegram(creative: any) {
+    const botToken = await getBotTokenForCreative(creative);
+    if (!botToken || !creative.chat_id || !creative.file_url) return;
+
+    const caption =
+        `✅ *Creative siap untuk review*\n\n` +
+        `Model: \`${creative.model || '-'}\`\n` +
+        `Type: ${creative.media_type}\n\n` +
+        `_Approve kalau nak launch guna Ad Template._`;
+
+    const reply_markup = {
+        inline_keyboard: [
+            [
+                { text: '✅ Approve', callback_data: `appr_${creative.short_code}` },
+                { text: '❌ Reject', callback_data: `rej_${creative.short_code}` }
+            ],
+            [
+                { text: '🚀 Launch With Template', callback_data: `lcr_${creative.short_code}` }
+            ]
+        ]
+    };
+
+    const endpoint = creative.media_type === 'video' ? 'sendVideo' : 'sendPhoto';
+    const mediaKey = creative.media_type === 'video' ? 'video' : 'photo';
+    const response = await fetch(`https://api.telegram.org/bot${botToken}/${endpoint}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            chat_id: creative.chat_id,
+            [mediaKey]: creative.file_url,
+            caption,
+            parse_mode: 'Markdown',
+            reply_markup
+        })
+    });
+
+    const data = await response.json();
+    if (!data.ok) {
+        console.error('[Creative Telegram] Failed to send creative:', data);
+        await sendTelegramMessage(botToken, creative.chat_id, `✅ Creative siap, tapi Telegram gagal preview media.\n\nURL: ${creative.file_url}`);
+        return;
+    }
+
+    const fileId = data.result?.video?.file_id || data.result?.photo?.slice(-1)?.[0]?.file_id || null;
+    if (fileId) {
+        await supabase
+            .from('generated_creatives')
+            .update({ telegram_file_id: fileId, updated_at: new Date().toISOString() })
+            .eq('id', creative.id);
+    }
+}
+
+async function handleDocumentUpload(chatId: any, document: any, botToken: string, res: any) {
+    const { data: user } = await supabase
+        .from('telegram_users')
+        .select('fb_id')
+        .eq('telegram_chat_id', String(chatId))
+        .maybeSingle();
+
+    let contentText: string | null = null;
+    const fileName = document.file_name || 'uploaded-document';
+    const mimeType = document.mime_type || '';
+
+    try {
+        const fileRes = await fetch(`https://api.telegram.org/bot${botToken}/getFile?file_id=${document.file_id}`);
+        const fileData = await fileRes.json();
+        const filePath = fileData.result?.file_path;
+        if (filePath && (mimeType.startsWith('text/') || fileName.endsWith('.txt') || fileName.endsWith('.md'))) {
+            const docRes = await fetch(`https://api.telegram.org/file/bot${botToken}/${filePath}`);
+            contentText = (await docRes.text()).slice(0, 24000);
+        }
+    } catch (err) {
+        console.warn('[Document Upload] Could not read document text:', err);
+    }
+
+    await supabase.from('uploaded_documents').insert({
+        fb_id: user?.fb_id || null,
+        chat_id: String(chatId),
+        telegram_file_id: document.file_id,
+        file_name: fileName,
+        mime_type: mimeType,
+        content_text: contentText,
+        summary: contentText ? contentText.slice(0, 1000) : null
+    });
+
+    await sendTelegramMessage(botToken, chatId,
+        `📄 *Document diterima*\n\n${fileName}\n\nSekarang hantar arahan seperti:\n\`/creative image buat 3 angle untuk produk ni\`\natau\n\`/creative video guna winning ads style\``);
+    return res.status(200).json({ success: true, action: 'document_saved' });
+}
+
+async function handleCreativeGenerationCommand(chatId: any, text: string, botToken: string, res: any) {
+    const { data: user } = await supabase
+        .from('telegram_users')
+        .select('fb_id, ad_account_id')
+        .eq('telegram_chat_id', String(chatId))
+        .maybeSingle();
+
+    if (!user) {
+        await sendTelegramMessage(botToken, chatId, '❌ *Belum connected*\n\nSila login ke website Ads Rocket dan save Telegram settings dahulu.');
+        return res.status(200).end();
+    }
+
+    const lower = text.toLowerCase();
+    const mediaType = lower.includes('video') ? 'video' : 'image';
+    const requestedModel = mediaType === 'video'
+        ? 'sora-2-official'
+        : (lower.includes('gpt image') ? 'gpt-image-2' : 'nano-banana-pro');
+
+    await sendTelegramMessage(botToken, chatId, `🧠 *Agent sedang bina creative brief...*\n\nType: ${mediaType}\nModel: \`${requestedModel}\``);
+
+    const { data: latestDoc } = await supabase
+        .from('uploaded_documents')
+        .select('*')
+        .eq('chat_id', String(chatId))
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+    const { data: cache } = await supabase
+        .from('ads_cache')
+        .select('ads_data')
+        .eq('chat_id', String(chatId))
+        .maybeSingle();
+
+    let topAds: any[] = [];
+    try {
+        topAds = typeof cache?.ads_data === 'string' ? JSON.parse(cache.ads_data) : (cache?.ads_data || []);
+    } catch { topAds = []; }
+
+    const strategy = await buildCreativeStrategy({
+        instruction: text,
+        mediaType,
+        model: requestedModel,
+        documentText: latestDoc?.content_text || latestDoc?.summary || '',
+        documentName: latestDoc?.file_name || null,
+        topAds
+    });
+
+    const poyoResult = await submitAgentCreativeToPoyo({
+        prompt: strategy.prompt,
+        mediaType,
+        model: requestedModel,
+        fbId: user.fb_id,
+        chatId: String(chatId),
+        strategy,
+        source: 'telegram_agent'
+    });
+
+    if (!poyoResult.success) {
+        await sendTelegramMessage(botToken, chatId, `❌ *Generation gagal dimulakan*\n\n${poyoResult.error}`);
+        return res.status(200).end();
+    }
+
+    await sendTelegramMessage(botToken, chatId,
+        `🎨 *Creative generation started*\n\n` +
+        `Angle: ${strategy.angle || '-'}\n` +
+        `Hook: ${strategy.hook || '-'}\n\n` +
+        `Task: \`${poyoResult.taskId}\`\n` +
+        `_Aku akan hantar creative ke sini bila siap untuk approve/reject._`);
+
+    return res.status(200).json({ success: true, taskId: poyoResult.taskId });
+}
+
+async function buildCreativeStrategy(input: any) {
+    const fallbackPrompt = `${input.instruction}\n\nCreate a high-converting Meta Ads ${input.mediaType} creative in Malay. Use a strong 0-3 second hook, clear product benefit, native UGC style, readable text, and direct CTA.`;
+    const geminiApiKey = process.env.VITE_GEMINI_3_API;
+    if (!geminiApiKey) {
+        return { prompt: fallbackPrompt, angle: 'Direct response', hook: 'Problem-solution hook', source: 'fallback' };
+    }
+
+    try {
+        const genAI = new GoogleGenAI({ apiKey: geminiApiKey });
+        const prompt = `You are a senior Meta Ads creative strategist for Malaysian ecommerce.
+
+User instruction:
+${input.instruction}
+
+Latest uploaded document:
+${input.documentName || 'none'}
+${input.documentText || '(no readable document text)'}
+
+Recent top ads context:
+${JSON.stringify(input.topAds || []).slice(0, 8000)}
+
+Create ONE production-ready ${input.mediaType} prompt for ${input.model}.
+Return JSON only:
+{
+  "angle": "specific ad angle",
+  "hook": "0-3 second scroll-stopper",
+  "messaging": "main message",
+  "visual": "visual direction",
+  "cta": "CTA",
+  "prompt": "final generation prompt in English, with Malay ad text if text is needed"
+}`;
+
+        const result = await genAI.models.generateContent({
+            model: 'gemini-2.0-flash',
+            contents: [{ text: prompt }]
+        });
+        const raw = (result.text || '').replace(/```json|```/g, '').trim();
+        const parsed = JSON.parse(raw);
+        return {
+            angle: parsed.angle || 'New winning angle',
+            hook: parsed.hook || '',
+            messaging: parsed.messaging || '',
+            visual: parsed.visual || '',
+            cta: parsed.cta || '',
+            prompt: parsed.prompt || fallbackPrompt,
+            source: 'gemini'
+        };
+    } catch (err) {
+        console.warn('[Creative Strategy] Gemini failed, using fallback:', err);
+        return { prompt: fallbackPrompt, angle: 'Direct response', hook: 'Problem-solution hook', source: 'fallback' };
+    }
+}
+
+async function submitAgentCreativeToPoyo(input: any) {
+    const apiKey = process.env.POYO_API_KEY;
+    if (!apiKey) return { success: false, error: 'POYO_API_KEY not configured' };
+
+    const isVideo = input.mediaType === 'video';
+    const poyoInput: any = { prompt: input.prompt };
+    if (isVideo) {
+        poyoInput.duration = 4;
+        poyoInput.aspect_ratio = '9:16';
+    } else if (input.model.startsWith('nano-banana')) {
+        poyoInput.size = '9:16';
+        poyoInput.resolution = '2K';
+        poyoInput.output_format = 'png';
+        poyoInput.enable_web_search = false;
+    } else {
+        poyoInput.size = '9:16';
+        poyoInput.resolution = '1K';
+        poyoInput.quality = 'low';
+    }
+
+    const callbackUrl = `${getPublicBaseUrl()}/api/media-api?action=generation-callback`;
+    const response = await fetch('https://api.poyo.ai/api/generate/submit', {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            model: input.model,
+            callback_url: callbackUrl,
+            input: poyoInput
+        })
+    });
+    const data = await response.json();
+    if (!response.ok || data.code !== 200) {
+        return { success: false, error: data.error?.message || 'PoYo generation failed', details: data };
+    }
+
+    const taskId = data.data?.task_id;
+    const shortCode = createShortCode();
+
+    await supabase.from('agent_runs').insert({
+        fb_id: input.fbId,
+        chat_id: input.chatId,
+        run_type: 'creative_generation',
+        status: 'queued',
+        input: { prompt: input.prompt, mediaType: input.mediaType, model: input.model },
+        output: { task_id: taskId, strategy: input.strategy }
+    });
+
+    await supabase.from('generation_tasks').insert({
+        task_id: taskId,
+        task_type: input.mediaType,
+        prompt: input.prompt,
+        model: input.model,
+        status: data.data?.status || 'not_started',
+        fb_id: input.fbId,
+        chat_id: input.chatId,
+        source: input.source,
+        approval_status: 'pending',
+        metadata: { strategy: input.strategy, callback_url: callbackUrl, input: poyoInput }
+    });
+
+    await supabase.from('generated_creatives').insert({
+        short_code: shortCode,
+        fb_id: input.fbId,
+        chat_id: input.chatId,
+        generation_task_id: taskId,
+        media_type: input.mediaType,
+        model: input.model,
+        prompt: input.prompt,
+        source: input.source,
+        strategy: input.strategy,
+        status: 'generating',
+        approval_status: 'pending'
+    });
+
+    return { success: true, taskId, shortCode };
+}
+
+async function handleCreativeApprovalCallback(callbackQuery: any, botToken: string, action: 'approved' | 'rejected', res: any) {
+    const chatId = callbackQuery.message.chat.id;
+    const shortCode = callbackQuery.data.replace(action === 'approved' ? 'appr_' : 'rej_', '');
+    const now = new Date().toISOString();
+
+    const { data: creative } = await supabase
+        .from('generated_creatives')
+        .select('*')
+        .eq('short_code', shortCode)
+        .maybeSingle();
+
+    if (!creative) {
+        await answerCallback(botToken, callbackQuery.id, 'Creative tidak dijumpai.');
+        return res.status(200).end();
+    }
+
+    await supabase
+        .from('generated_creatives')
+        .update({
+            approval_status: action,
+            approved_at: action === 'approved' ? now : creative.approved_at,
+            rejected_at: action === 'rejected' ? now : creative.rejected_at,
+            updated_at: now
+        })
+        .eq('id', creative.id);
+
+    await supabase
+        .from('generation_tasks')
+        .update({ approval_status: action, updated_at: now })
+        .eq('task_id', creative.generation_task_id);
+
+    await supabase.from('creative_approvals').insert({
+        creative_id: creative.id,
+        chat_id: String(chatId),
+        action
+    });
+
+    await answerCallback(botToken, callbackQuery.id, action === 'approved' ? 'Approved.' : 'Rejected.');
+    await sendTelegramMessage(botToken, chatId,
+        action === 'approved'
+            ? `✅ *Creative approved*\n\nTekan *Launch With Template* pada creative tadi, atau hantar \`/templates\` untuk pilih template.`
+            : `❌ *Creative rejected*\n\nHantar \`/creative image ...\` untuk generate variation baru.`);
+    return res.status(200).end();
+}
+
+async function handleCreativeLaunchTemplateList(callbackQuery: any, botToken: string, res: any) {
+    const chatId = callbackQuery.message.chat.id;
+    const shortCode = callbackQuery.data.replace('lcr_', '');
+
+    const { data: creative } = await supabase
+        .from('generated_creatives')
+        .select('*')
+        .eq('short_code', shortCode)
+        .maybeSingle();
+
+    if (!creative) {
+        await answerCallback(botToken, callbackQuery.id, 'Creative tidak dijumpai.');
+        return res.status(200).end();
+    }
+
+    if (creative.approval_status !== 'approved') {
+        await answerCallback(botToken, callbackQuery.id, 'Approve creative dulu.');
+        await sendTelegramMessage(botToken, chatId, '⚠️ Sila tekan *Approve* dulu sebelum launch.');
+        return res.status(200).end();
+    }
+
+    const { data: user } = await supabase
+        .from('telegram_users')
+        .select('fb_id')
+        .eq('telegram_chat_id', String(chatId))
+        .maybeSingle();
+
+    const { data: presets } = await supabase
+        .from('text_presets')
+        .select('ad_templates')
+        .eq('fb_id', user?.fb_id || creative.fb_id)
+        .maybeSingle();
+
+    const templates = presets?.ad_templates || [];
+    if (templates.length === 0) {
+        await answerCallback(botToken, callbackQuery.id, 'Tiada template.');
+        await sendTelegramMessage(botToken, chatId, '📁 *Tiada Ad Template*\n\nSimpan template dahulu di Rapid Campaign > Global Ad Preset > Ad Templates.');
+        return res.status(200).end();
+    }
+
+    const buttons = templates.slice(0, 10).map((t: any) => [{
+        text: `🚀 ${t.name}`,
+        callback_data: `crtpl_${shortCode}_${t.id}`
+    }]);
+
+    await answerCallback(botToken, callbackQuery.id, 'Pilih template.');
+    await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            chat_id: chatId,
+            text: '📋 *Pilih Ad Template untuk creative approved:*',
+            parse_mode: 'Markdown',
+            reply_markup: { inline_keyboard: buttons }
+        })
+    });
+    return res.status(200).end();
+}
+
+async function handleCreativeTemplateLaunch(callbackQuery: any, botToken: string, res: any) {
+    const chatId = callbackQuery.message.chat.id;
+    const parts = callbackQuery.data.split('_');
+    const shortCode = parts[1];
+    const templateId = parts.slice(2).join('_');
+
+    const { data: creative } = await supabase
+        .from('generated_creatives')
+        .select('*')
+        .eq('short_code', shortCode)
+        .maybeSingle();
+
+    if (!creative?.file_url) {
+        await answerCallback(botToken, callbackQuery.id, 'Creative URL tidak dijumpai.');
+        return res.status(200).end();
+    }
+
+    const { data: user } = await supabase
+        .from('telegram_users')
+        .select('fb_id, ad_account_id')
+        .eq('telegram_chat_id', String(chatId))
+        .maybeSingle();
+
+    if (!user) {
+        await sendTelegramMessage(botToken, chatId, '❌ User settings tidak dijumpai.');
+        return res.status(200).end();
+    }
+
+    const { data: presetsRow } = await supabase
+        .from('text_presets')
+        .select('ad_templates, primary_texts, primary_text_names, headlines, headline_names')
+        .eq('fb_id', user.fb_id)
+        .maybeSingle();
+
+    const template = (presetsRow?.ad_templates || []).find((t: any) => String(t.id) === String(templateId));
+    if (!template) {
+        await sendTelegramMessage(botToken, chatId, '❌ Template tidak dijumpai.');
+        return res.status(200).end();
+    }
+
+    const strategy = creative.strategy || {};
+    const parsedSettings = {
+        templateName: template.name,
+        campaignName: `${template.name} - AI Creative ${shortCode}`,
+        numberOfAds: 1,
+        primaryTextPresets: [],
+        headlinePresets: [],
+        dailyBudget: null,
+        _primaryTexts: presetsRow?.primary_texts || [],
+        _primaryTextNames: presetsRow?.primary_text_names || [],
+        _headlines: presetsRow?.headlines || [],
+        _headlineNames: presetsRow?.headline_names || [],
+        _agentStrategy: strategy
+    };
+
+    const { data: job, error } = await supabase
+        .from('telegram_campaign_jobs')
+        .insert({
+            chat_id: String(chatId),
+            fb_id: user.fb_id,
+            ad_account_id: user.ad_account_id,
+            command_text: `Launch approved creative ${shortCode} using template ${template.name}`,
+            parsed_settings: parsedSettings,
+            template_name: template.name,
+            template_data: template,
+            media_file_id: creative.telegram_file_id || '',
+            media_url: creative.file_url,
+            media_type: creative.media_type,
+            creative_id: creative.id,
+            launch_source: 'approved_ai_creative',
+            status: 'PENDING',
+            created_at: new Date().toISOString()
+        })
+        .select()
+        .single();
+
+    if (error) {
+        await sendTelegramMessage(botToken, chatId, `❌ Gagal create launch job: ${error.message}`);
+        return res.status(200).end();
+    }
+
+    await answerCallback(botToken, callbackQuery.id, 'Launch job created.');
+    await sendTelegramMessage(botToken, chatId,
+        `⏳ *Launching approved creative...*\n\nTemplate: ${template.name}\nCreative: \`${shortCode}\`\n\n_Sila tunggu 30-60 saat._`);
+
+    fetch('https://ads-rocket.vercel.app/api/telegram-launch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jobId: job.id })
+    }).catch(err => console.error('[Creative Launch] Trigger error:', err));
+
+    await supabase
+        .from('generated_creatives')
+        .update({ campaign_job_id: job.id, updated_at: new Date().toISOString() })
+        .eq('id', creative.id);
+
+    return res.status(200).json({ success: true, jobId: job.id });
+}
+
+async function answerCallback(botToken: string, callbackQueryId: string, text: string) {
+    return fetch(`https://api.telegram.org/bot${botToken}/answerCallbackQuery`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ callback_query_id: callbackQueryId, text })
+    });
 }
 
 // --- CAMPAIGN LAUNCH HELPERS ---
@@ -1166,11 +1805,30 @@ async function handlePromptGenerationCallback(callbackQuery: any, botToken: any,
     const chatId = callbackQuery.message.chat.id;
     const isNewFormat = callbackData.startsWith('p_');
     const parts = callbackData.split('_');
-    let adIndex = isNewFormat ? parseInt(parts[1], 10) : parseInt(parts[1], 10);
-    // ... Simplified version to keep it contextually correct but concise ...
-    // Rest of existing logic from media-api.ts for prompt generation should remain or be refactored
-    // For now, I'll keep the core structure but ensure it doesn't break.
-    return res.status(200).json({ success: true, action: 'prompt_logic_triggered' });
+    const adIndex = isNewFormat ? parseInt(parts[1], 10) : parseInt(parts[1], 10);
+
+    await answerCallback(botToken, callbackQuery.id, 'Generating new creative...');
+
+    const { data: cache } = await supabase
+        .from('ads_cache')
+        .select('ads_data')
+        .eq('chat_id', String(chatId))
+        .maybeSingle();
+
+    let ads: any[] = [];
+    try {
+        ads = typeof cache?.ads_data === 'string' ? JSON.parse(cache.ads_data) : (cache?.ads_data || []);
+    } catch { ads = []; }
+
+    const ad = ads[adIndex];
+    const adName = ad?.name || `Top ad ${adIndex + 1}`;
+
+    return handleCreativeGenerationCommand(
+        chatId,
+        `/creative image Generate a fresh Meta Ads creative inspired by winning ad "${adName}". Keep the same winning psychology, but create a new angle, new hook, and new visual concept. Use Malay market messaging.`,
+        botToken,
+        res
+    );
 }
 
 async function handleUpscaleCallback(callbackQuery: any, botToken: any, confirm: boolean, res: any) {
