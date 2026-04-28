@@ -914,6 +914,9 @@ const Dashboard: React.FC = () => {
     const totalRoas = totalSpend > 0 ? totalRevenue / totalSpend : 0;
     const totalResults = campaigns.reduce((acc, c) => acc + c.metrics.results, 0);
 
+    const baseCols = viewMode === 'TRAFFIC' ? 7 : 8;
+    const totalColumns = showDailyColumns ? baseCols + 4 : baseCols;
+
     return (
         <>
             <div className="space-y-6 relative">
@@ -1264,7 +1267,7 @@ const Dashboard: React.FC = () => {
                                                         {expandedCampaigns.has(camp.id) && (
                                                             <>
                                                                 {!adSetsData[camp.id] && (
-                                                                    <tr><td colSpan={showDailyColumns ? 12 : 8} className="text-center py-4 text-xs text-slate-400"><Loader2 className="animate-spin inline mr-2" size={14} /> Loading Ad Sets...</td></tr>
+                                                                    <tr><td colSpan={totalColumns} className="text-center py-4 text-xs text-slate-400"><Loader2 className="animate-spin inline mr-2" size={14} /> Loading Ad Sets...</td></tr>
                                                                 )}
 
                                                                 {adSetsToShow.map(adset => (
@@ -1300,7 +1303,7 @@ const Dashboard: React.FC = () => {
                                                                         {/* Level 3: Ads */}
                                                                         {expandedAdSets.has(adset.id) && (
                                                                             <tr className="bg-slate-50">
-                                                                                <td colSpan={showDailyColumns ? 12 : 8} className="p-0 border-b border-slate-100">
+                                                                                <td colSpan={totalColumns} className="p-0 border-b border-slate-100">
                                                                                     <div className="max-h-[350px] overflow-y-auto custom-scrollbar border-y border-slate-200 bg-slate-50/80">
                                                                                         <table className="w-full table-fixed">
                                                                                             {renderColGroup()}
@@ -1373,14 +1376,14 @@ const Dashboard: React.FC = () => {
                                                                                                         })
                                                                                                     ) : (
                                                                                                         <tr>
-                                                                                                            <td colSpan={showDailyColumns ? 12 : 8} className="text-center py-6 text-xs text-slate-400 italic">
+                                                                                                            <td colSpan={totalColumns} className="text-center py-6 text-xs text-slate-400 italic">
                                                                                                                 No active ads in this ad set.
                                                                                                             </td>
                                                                                                         </tr>
                                                                                                     )
                                                                                                 ) : (
                                                                                                     <tr>
-                                                                                                        <td colSpan={showDailyColumns ? 12 : 8} className="text-center py-6 text-xs text-slate-400">
+                                                                                                        <td colSpan={totalColumns} className="text-center py-6 text-xs text-slate-400">
                                                                                                             <Loader2 className="animate-spin inline mr-2 text-indigo-500" size={14} /> Loading Ads...
                                                                                                         </td>
                                                                                                     </tr>
@@ -1396,7 +1399,7 @@ const Dashboard: React.FC = () => {
 
                                                                 {secondaryAdSets.length > 0 && (
                                                                     <tr className="bg-slate-50/30">
-                                                                        <td colSpan={showDailyColumns ? 12 : 8} className="text-center py-2 border-b border-slate-100">
+                                                                        <td colSpan={totalColumns} className="text-center py-2 border-b border-slate-100">
                                                                             <button
                                                                                 onClick={() => toggleHiddenAdSetsForCampaign(camp.id)}
                                                                                 className="text-[10px] text-slate-400 hover:text-indigo-600 uppercase tracking-wide font-bold"
