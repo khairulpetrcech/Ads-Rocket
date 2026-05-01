@@ -64,6 +64,19 @@ export default async function handler(req: any, res: any) {
 
     const { action, uuid, page = '1' } = req.query;
 
+    if (action === 'telegram-commands') {
+        const botToken = process.env.TELEGRAM_BOT_TOKEN;
+        if (!botToken) {
+            return res.status(500).json({ error: 'TELEGRAM_BOT_TOKEN not configured' });
+        }
+        const result = await syncTelegramBotCommands(botToken);
+        return res.status(200).json({
+            success: Boolean(result?.ok),
+            note: 'Telegram Menu only supports /create_ads. Use /start to show the reply keyboard button.',
+            result
+        });
+    }
+
     // Handle POST requests
     if (req.method === 'POST') {
         if (action === 'generation-callback') {
@@ -77,14 +90,6 @@ export default async function handler(req: any, res: any) {
         // Fallback to action query param
         if (action === 'telegram-webhook') {
             return handleTelegramWebhook(req, res);
-        }
-        if (action === 'telegram-commands') {
-            const botToken = process.env.TELEGRAM_BOT_TOKEN;
-            if (!botToken) {
-                return res.status(500).json({ error: 'TELEGRAM_BOT_TOKEN not configured' });
-            }
-            const result = await syncTelegramBotCommands(botToken);
-            return res.status(200).json({ success: Boolean(result?.ok), result });
         }
         if (action === 'import') {
             return handleImport(req, res);
@@ -472,7 +477,7 @@ async function handleTelegramWebhook(req: any, res: any) {
             // B. Handling Text Commands or Instructions
             if (text) {
                 // Check for commands
-                if (text === '/start') {
+                if (text === '/start' || text.startsWith('/start@')) {
                     if (botToken) {
                         await syncTelegramBotCommands(botToken);
                     }
@@ -495,10 +500,12 @@ async function handleTelegramWebhook(req: any, res: any) {
                             parse_mode: 'Markdown',
                             reply_markup: {
                                 keyboard: [
-                                    [{ text: '/create-ads' }, { text: '/analisa' }],
+                                    [{ text: '/create_ads' }, { text: '/create-ads' }],
+                                    [{ text: '/analisa' }, { text: '/templates' }],
                                     [{ text: '/topads' }, { text: '/status' }]
                                 ],
-                                resize_keyboard: true
+                                resize_keyboard: true,
+                                is_persistent: true
                             }
                         })
                     });
