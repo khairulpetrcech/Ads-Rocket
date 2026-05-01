@@ -445,9 +445,30 @@ async function handleTelegramWebhook(req: any, res: any) {
                         '`/ads Nama Iklan` — analisa iklan tertentu\n' +
                         '`/topads` — tunjuk top ads terakhir\n\n' +
                         '*🚀 Launch Campaign:*\n' +
-                        'Hantar video/gambar → bagi arahan campaign';
-                    await sendTelegramMessage(botToken!, chatId, helpText);
+                        '`/create-ads` — pilih Ad Template untuk buat iklan\n' +
+                        '`/templates` — senarai Ad Template\n' +
+                        'Hantar video/gambar → pilih template atau bagi arahan campaign';
+                    await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            chat_id: chatId,
+                            text: helpText,
+                            parse_mode: 'Markdown',
+                            reply_markup: {
+                                keyboard: [
+                                    [{ text: '/create-ads' }, { text: '/analisa' }],
+                                    [{ text: '/topads' }, { text: '/status' }]
+                                ],
+                                resize_keyboard: true
+                            }
+                        })
+                    });
                     return res.status(200).end();
+                }
+
+                if (text === '/create-ads' || text === '/create_ads' || text.startsWith('/create-ads@') || text.startsWith('/create_ads@')) {
+                    return await listUserTemplates(chatId, botToken!, res, 'create-ads');
                 }
 
                 if (text === '/templates') {
@@ -1217,7 +1238,7 @@ Balas JSON sahaja, tiada teks lain:
     return res.status(200).json({ success: true, jobId: job.id });
 }
 
-async function listUserTemplates(chatId: any, botToken: string, res: any) {
+async function listUserTemplates(chatId: any, botToken: string, res: any, mode: 'templates' | 'create-ads' = 'templates') {
     const { data: user } = await supabase.from('telegram_users').select('fb_id').eq('telegram_chat_id', String(chatId)).single();
     if (!user) {
         await sendTelegramMessage(botToken, chatId, '❌ Login dahulu di website.');
@@ -1227,15 +1248,19 @@ async function listUserTemplates(chatId: any, botToken: string, res: any) {
     const templates = data?.ad_templates || [];
 
     if (templates.length === 0) {
-        await sendTelegramMessage(botToken, chatId, '📁 *Tiada Ad Template*');
+        await sendTelegramMessage(botToken, chatId, '📁 *Tiada Ad Template*\n\nSimpan template dahulu di Rapid Campaign > Global Ad Preset > Ad Templates.');
     } else {
         const buttons = templates.slice(0, 10).map((t: any) => [{ text: `🚀 ${t.name}`, callback_data: `tpl_${t.id}` }]);
+        const text = mode === 'create-ads'
+            ? '🚀 *Create Ads*\n\nPilih Ad Template untuk buat iklan.\n\n_Note: Kalau belum hantar media, hantar video/gambar dahulu sebelum pilih template._'
+            : '📋 *Pilih Ad Template:*';
         await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 chat_id: chatId,
-                text: '📋 *Pilih Ad Template:*',
+                text,
+                parse_mode: 'Markdown',
                 reply_markup: { inline_keyboard: buttons }
             })
         });
