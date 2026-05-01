@@ -25,6 +25,33 @@ const SUPABASE_URL = process.env.SUPABASE_URL || 'https://ztpedgagubjoiluagqzd.s
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || '';
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+const TELEGRAM_BOT_COMMANDS = [
+    { command: 'create_ads', description: 'Pilih Ad Template untuk buat iklan' },
+    { command: 'templates', description: 'Senarai Ad Template' },
+    { command: 'analisa', description: 'Analisa ads manager' },
+    { command: 'topads', description: 'Tunjuk top ads terakhir' },
+    { command: 'status', description: 'Status creative generation' },
+    { command: 'start', description: 'Buka menu Ads Rocket' }
+];
+
+async function syncTelegramBotCommands(botToken: string) {
+    try {
+        const response = await fetch(`https://api.telegram.org/bot${botToken}/setMyCommands`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ commands: TELEGRAM_BOT_COMMANDS })
+        });
+        const data = await response.json();
+        if (!data.ok) {
+            console.warn('[Telegram] setMyCommands failed:', data);
+        }
+        return data;
+    } catch (error) {
+        console.warn('[Telegram] setMyCommands error:', error);
+        return null;
+    }
+}
+
 export default async function handler(req: any, res: any) {
     // CORS headers
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -50,6 +77,14 @@ export default async function handler(req: any, res: any) {
         // Fallback to action query param
         if (action === 'telegram-webhook') {
             return handleTelegramWebhook(req, res);
+        }
+        if (action === 'telegram-commands') {
+            const botToken = process.env.TELEGRAM_BOT_TOKEN;
+            if (!botToken) {
+                return res.status(500).json({ error: 'TELEGRAM_BOT_TOKEN not configured' });
+            }
+            const result = await syncTelegramBotCommands(botToken);
+            return res.status(200).json({ success: Boolean(result?.ok), result });
         }
         if (action === 'import') {
             return handleImport(req, res);
@@ -438,6 +473,9 @@ async function handleTelegramWebhook(req: any, res: any) {
             if (text) {
                 // Check for commands
                 if (text === '/start') {
+                    if (botToken) {
+                        await syncTelegramBotCommands(botToken);
+                    }
                     const helpText = '👋 *Welcome to Ads Rocket!*\n\n' +
                         '*📊 Analisa:*\n' +
                         '`/analisa` — senarai semua ads manager\n' +
@@ -445,7 +483,7 @@ async function handleTelegramWebhook(req: any, res: any) {
                         '`/ads Nama Iklan` — analisa iklan tertentu\n' +
                         '`/topads` — tunjuk top ads terakhir\n\n' +
                         '*🚀 Launch Campaign:*\n' +
-                        '`/create-ads` — pilih Ad Template untuk buat iklan\n' +
+                        '`/create-ads` atau `/create_ads` — pilih Ad Template untuk buat iklan\n' +
                         '`/templates` — senarai Ad Template\n' +
                         'Hantar video/gambar → pilih template atau bagi arahan campaign';
                     await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
