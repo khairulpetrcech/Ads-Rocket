@@ -5,6 +5,90 @@ const SUPABASE_URL = 'https://ztpedgagubjoiluagqzd.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp0cGVkZ2FndWJqb2lsdWFncXpkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUwODgxNDgsImV4cCI6MjA4MDY2NDE0OH0.02A3J4zzTetBmLFUtEXngdkTV1NARHFczvHAg6IVFjQ';
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+function getAdMediaType(ad: any) {
+    if (ad.creative?.video_id || ad.creative?.effective_instagram_media_id) return 'video';
+    if (ad.creative?.image_url || ad.creative?.thumbnail_url) return 'image';
+    return null;
+}
+
+function getWinReason(ad: any) {
+    const reasons = [];
+    if (ad.purchases > 0) reasons.push(`${ad.purchases} purchases`);
+    if (ad.roas > 0) reasons.push(`${ad.roas.toFixed(2)}x ROAS`);
+    if (ad.cpa > 0) reasons.push(`RM${ad.cpa.toFixed(2)} CPA`);
+    return reasons.join(' | ') || 'Top ad by spend/performance ranking';
+}
+
+async function saveWinningAdsAnalysis(input: {
+    fbId?: string;
+    chatId: string;
+    telegramMessageId?: string;
+    adAccountId: string;
+    adAccountName: string;
+    reportWindow: string;
+    reportStartDate: string;
+    reportEndDate: string;
+    summaryText: string;
+    topAds: any[];
+    rawPayload?: any;
+}) {
+    try {
+        const { data: report, error: reportError } = await supabase
+            .from('winning_ads_analysis_reports')
+            .insert({
+                fb_id: input.fbId || null,
+                chat_id: String(input.chatId),
+                telegram_message_id: input.telegramMessageId || null,
+                ad_account_id: input.adAccountId,
+                ad_account_name: input.adAccountName,
+                source: 'telegram',
+                report_window: input.reportWindow,
+                report_start_date: input.reportStartDate,
+                report_end_date: input.reportEndDate,
+                analysis_date: input.reportEndDate,
+                summary_text: input.summaryText,
+                raw_payload: input.rawPayload || {}
+            })
+            .select('id')
+            .single();
+
+        if (reportError) throw reportError;
+
+        const rows = input.topAds.map((ad: any, index: number) => ({
+            report_id: report.id,
+            fb_id: input.fbId || null,
+            chat_id: String(input.chatId),
+            ad_account_id: input.adAccountId,
+            ad_account_name: input.adAccountName,
+            analysis_date: input.reportEndDate,
+            rank: index + 1,
+            ad_id: ad.id,
+            ad_name: ad.name,
+            spend: ad.spend || 0,
+            roas: ad.roas || 0,
+            purchases: ad.purchases || 0,
+            cpa: ad.cpa || 0,
+            ctr: ad.ctr || null,
+            media_type: getAdMediaType(ad),
+            video_id: ad.creative?.video_id || ad.creative?.effective_instagram_media_id || null,
+            image_url: ad.creative?.image_url || null,
+            thumbnail_url: ad.creative?.thumbnail_url || null,
+            creative_payload: ad.creative || {},
+            metrics_payload: ad,
+            win_reason: getWinReason(ad)
+        }));
+
+        const { error: itemError } = await supabase
+            .from('winning_ads_analysis_items')
+            .insert(rows);
+
+        if (itemError) throw itemError;
+        console.log(`[WinningAds] Saved report ${report.id} with ${rows.length} ads`);
+    } catch (err) {
+        console.error('[WinningAds] Failed to save history:', err);
+    }
+}
+
 /**
  * Consolidated Telegram API
  * Usage:
@@ -54,7 +138,7 @@ export default async function handler(req: any, res: any) {
 // Main AI Analysis Handler
 async function handleAnalysis(req: any, res: any) {
     try {
-        const { adAccountId, fbAccessToken, telegramChatId, telegramBotToken, dailyUsageCount } = req.body;
+        const { adAccountId, fbAccessToken, telegramChatId, telegramBotToken, dailyUsageCount, fbId } = req.body;
 
         if (!adAccountId || !fbAccessToken) {
             return res.status(400).json({ error: 'Missing Meta Ads credentials' });
@@ -306,6 +390,24 @@ async function handleAnalysis(req: any, res: any) {
                 telegramError: telegramData.description
             });
         }
+
+        await saveWinningAdsAnalysis({
+            fbId,
+            chatId: String(telegramChatId),
+            telegramMessageId: telegramData.result?.message_id ? String(telegramData.result.message_id) : undefined,
+            adAccountId: actId,
+            adAccountName: accountName,
+            reportWindow: 'last_4d',
+            reportStartDate: startDateStr,
+            reportEndDate: endDateStr,
+            summaryText: reportText,
+            topAds: topAds.slice(0, 3),
+            rawPayload: {
+                source: 'analyze-telegram',
+                accountName,
+                dateRange: { since: startDateStr, until: endDateStr }
+            }
+        });
 
         // --- STEP 5: Save Top Ads History for Upscale Tracking ---
         try {

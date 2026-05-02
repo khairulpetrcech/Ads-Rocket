@@ -1714,6 +1714,66 @@ async function sendTelegramMessage(botToken: string, chatId: any, text: string) 
         body: JSON.stringify({ chat_id: chatId, text, parse_mode: 'Markdown' })
     });
 }
+
+function extractAnalysisSection(text: string, label: string) {
+    const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const match = text.match(new RegExp(`\\*?${escaped}\\*?\\s*:?\\s*([\\s\\S]*?)(?=\\n\\*?[A-ZÀ-Úa-zà-ú ()0-9-]+\\*?\\s*:|$)`, 'i'));
+    return match?.[1]?.trim() || null;
+}
+
+async function saveCreativeBreakdown(input: {
+    chatId: string;
+    ad?: any;
+    adIndex: number;
+    mediaId: string;
+    mediaType: string | null;
+    analysisText: string;
+}) {
+    try {
+        const { data: latestItem } = await supabase
+            .from('winning_ads_analysis_items')
+            .select('id, fb_id, ad_account_id, ad_id, ad_name')
+            .eq('chat_id', String(input.chatId))
+            .eq('ad_id', input.ad?.id || '')
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+        const { error } = await supabase
+            .from('winning_ads_creative_breakdowns')
+            .insert({
+                winning_ad_item_id: latestItem?.id || null,
+                fb_id: latestItem?.fb_id || null,
+                chat_id: String(input.chatId),
+                ad_account_id: latestItem?.ad_account_id || null,
+                ad_id: input.ad?.id || latestItem?.ad_id || null,
+                ad_name: input.ad?.name || latestItem?.ad_name || `Ads ${input.adIndex + 1}`,
+                media_id: input.mediaId,
+                media_type: input.mediaType,
+                analysis_model: 'gemini-3-flash-preview',
+                hook: extractAnalysisSection(input.analysisText, 'Hook (0-3s)'),
+                visual_hook: extractAnalysisSection(input.analysisText, 'Visual Hook'),
+                storyline: extractAnalysisSection(input.analysisText, 'Storyline'),
+                emotion: extractAnalysisSection(input.analysisText, 'Emosi'),
+                cta: extractAnalysisSection(input.analysisText, 'CTA'),
+                strengths: (extractAnalysisSection(input.analysisText, 'Kekuatan') || '').split('\n').filter(Boolean),
+                weaknesses: (extractAnalysisSection(input.analysisText, 'Kelemahan') || '').split('\n').filter(Boolean),
+                winning_elements: {
+                    hook: extractAnalysisSection(input.analysisText, 'Hook (0-3s)') || extractAnalysisSection(input.analysisText, 'Visual Hook'),
+                    emotion: extractAnalysisSection(input.analysisText, 'Emosi'),
+                    cta: extractAnalysisSection(input.analysisText, 'CTA')
+                },
+                prompt_flow: extractAnalysisSection(input.analysisText, 'Storyline'),
+                analysis_text: input.analysisText,
+                raw_payload: { source: 'telegram-bedah', ad: input.ad || null }
+            });
+
+        if (error) throw error;
+        console.log('[WinningAds] Saved creative breakdown');
+    } catch (err) {
+        console.error('[WinningAds] Failed to save creative breakdown:', err);
+    }
+}
 // --- Bedah Creative (On-demand analysis via Telegram button) ---
 async function handleBedahCallback(callbackQuery: any, botToken: any, res: any) {
     const callbackData = callbackQuery.data;
@@ -1747,7 +1807,7 @@ async function handleBedahCallback(callbackQuery: any, botToken: any, res: any) 
         // Get FB token from Supabase cache
         const { data: cacheData } = await supabase
             .from('ads_cache')
-            .select('fb_access_token')
+            .select('fb_access_token, ads_data')
             .eq('chat_id', String(chatId))
             .single();
 
@@ -1756,6 +1816,12 @@ async function handleBedahCallback(callbackQuery: any, botToken: any, res: any) 
             await sendTelegramMessage(botToken, chatId, '❌ Session expired. Please run analisa again.');
             return res.status(200).end();
         }
+
+        let cachedAds: any[] = [];
+        try {
+            cachedAds = typeof cacheData?.ads_data === 'string' ? JSON.parse(cacheData.ads_data) : (cacheData?.ads_data || []);
+        } catch { cachedAds = []; }
+        const cachedAd = cachedAds[adIndex];
 
         // Initialize Gemini
         const { GoogleGenAI } = await import('@google/genai');
@@ -1855,6 +1921,14 @@ async function handleBedahCallback(callbackQuery: any, botToken: any, res: any) 
         }
 
         if (analysisText) {
+            await saveCreativeBreakdown({
+                chatId: String(chatId),
+                ad: cachedAd,
+                adIndex,
+                mediaId,
+                mediaType: mediaId.startsWith('v') || mediaId.startsWith('i') ? 'video' : mediaId.startsWith('x') ? 'image' : null,
+                analysisText
+            });
             await sendTelegramMessage(botToken, chatId, `🔍 *Bedah Creative: ${adName}*\n\n${analysisText}`);
         } else {
             await sendTelegramMessage(botToken, chatId, `❌ Tidak dapat analisa creative untuk *${adName}*. Creative mungkin tidak tersedia.`);
