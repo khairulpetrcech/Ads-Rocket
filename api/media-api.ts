@@ -24,6 +24,8 @@ export const config = {
 const SUPABASE_URL = process.env.SUPABASE_URL || 'https://ztpedgagubjoiluagqzd.supabase.co';
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || '';
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || '';
+const supabaseWrite = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY || SUPABASE_ANON_KEY);
 
 const TELEGRAM_BOT_COMMANDS = [
     { command: 'create_ads', description: 'Pilih Ad Template untuk buat iklan' },
@@ -1490,7 +1492,8 @@ async function runAnalysisForAccount(chatId: any, adAccountId: string, botToken:
                 fbAccessToken,
                 telegramChatId: String(chatId),
                 telegramBotToken: botToken,
-                fbName: 'telegram-user'
+                fbName: 'telegram-user',
+                fbId: schedule?.fb_id
             })
         });
         const data = await response.json();
@@ -1730,7 +1733,7 @@ async function saveCreativeBreakdown(input: {
     analysisText: string;
 }) {
     try {
-        const { data: latestItem } = await supabase
+        const { data: latestItem } = await supabaseWrite
             .from('winning_ads_analysis_items')
             .select('id, fb_id, ad_account_id, ad_id, ad_name')
             .eq('chat_id', String(input.chatId))
@@ -1739,7 +1742,7 @@ async function saveCreativeBreakdown(input: {
             .limit(1)
             .maybeSingle();
 
-        const { error } = await supabase
+        const { error } = await supabaseWrite
             .from('winning_ads_creative_breakdowns')
             .insert({
                 winning_ad_item_id: latestItem?.id || null,

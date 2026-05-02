@@ -14,6 +14,8 @@ if (!SUPABASE_ANON_KEY) {
 }
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || '';
+const supabaseWrite = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY || SUPABASE_ANON_KEY);
 
 function getAdMediaType(ad: any) {
     if (ad.creative?.video_id || ad.creative?.effective_instagram_media_id) return 'video';
@@ -43,7 +45,7 @@ async function saveWinningAdsAnalysis(input: {
     rawPayload?: any;
 }) {
     try {
-        const { data: report, error: reportError } = await supabase
+        const { data: report, error: reportError } = await supabaseWrite
             .from('winning_ads_analysis_reports')
             .insert({
                 fb_id: input.fbId || null,
@@ -88,14 +90,19 @@ async function saveWinningAdsAnalysis(input: {
             win_reason: getWinReason(ad)
         }));
 
-        const { error: itemError } = await supabase
+        const { error: itemError } = await supabaseWrite
             .from('winning_ads_analysis_items')
             .insert(rows);
 
         if (itemError) throw itemError;
         console.log(`[WinningAds] Saved report ${report.id} with ${rows.length} ads`);
+        return { success: true, reportId: report.id };
     } catch (err) {
         console.error('[WinningAds] Failed to save history:', err);
+        return {
+            success: false,
+            error: err instanceof Error ? err.message : JSON.stringify(err)
+        };
     }
 }
 
@@ -580,7 +587,7 @@ async function processScheduledAnalysis(schedule: any, geminiApiKey: string) {
 
     console.log(`[Cron] Sending report with buttons...`);
     const telegramData = await sendTelegramWithButtons(telegram_bot_token, telegram_chat_id, basicReport, [bedahButtons, promptButtons]);
-    await saveWinningAdsAnalysis({
+    const historySave = await saveWinningAdsAnalysis({
         fbId: fb_id,
         chatId: String(telegram_chat_id),
         telegramMessageId: telegramData?.result?.message_id ? String(telegramData.result.message_id) : undefined,
@@ -597,6 +604,13 @@ async function processScheduledAnalysis(schedule: any, geminiApiKey: string) {
             dateRange: { since: startDateStr, until: endDateStr }
         }
     });
+    if (!historySave.success) {
+        await sendTelegram(
+            telegram_bot_token,
+            telegram_chat_id,
+            `⚠️ *History save failed*\n\nReport dah dihantar, tapi data tak masuk Supabase history.\n\nError: \`${String(historySave.error || 'Unknown error').slice(0, 300)}\``
+        );
+    }
     console.log(`[Cron] ✅ Report sent!`);
 }
 

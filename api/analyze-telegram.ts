@@ -4,6 +4,8 @@ import { createClient } from '@supabase/supabase-js';
 const SUPABASE_URL = 'https://ztpedgagubjoiluagqzd.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp0cGVkZ2FndWJqb2lsdWFncXpkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUwODgxNDgsImV4cCI6MjA4MDY2NDE0OH0.02A3J4zzTetBmLFUtEXngdkTV1NARHFczvHAg6IVFjQ';
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || '';
+const supabaseWrite = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY || SUPABASE_ANON_KEY);
 
 function getAdMediaType(ad: any) {
     if (ad.creative?.video_id || ad.creative?.effective_instagram_media_id) return 'video';
@@ -33,7 +35,7 @@ async function saveWinningAdsAnalysis(input: {
     rawPayload?: any;
 }) {
     try {
-        const { data: report, error: reportError } = await supabase
+        const { data: report, error: reportError } = await supabaseWrite
             .from('winning_ads_analysis_reports')
             .insert({
                 fb_id: input.fbId || null,
@@ -78,14 +80,19 @@ async function saveWinningAdsAnalysis(input: {
             win_reason: getWinReason(ad)
         }));
 
-        const { error: itemError } = await supabase
+        const { error: itemError } = await supabaseWrite
             .from('winning_ads_analysis_items')
             .insert(rows);
 
         if (itemError) throw itemError;
         console.log(`[WinningAds] Saved report ${report.id} with ${rows.length} ads`);
+        return { success: true, reportId: report.id };
     } catch (err) {
         console.error('[WinningAds] Failed to save history:', err);
+        return {
+            success: false,
+            error: err instanceof Error ? err.message : JSON.stringify(err)
+        };
     }
 }
 
@@ -391,7 +398,7 @@ async function handleAnalysis(req: any, res: any) {
             });
         }
 
-        await saveWinningAdsAnalysis({
+        const historySave = await saveWinningAdsAnalysis({
             fbId,
             chatId: String(telegramChatId),
             telegramMessageId: telegramData.result?.message_id ? String(telegramData.result.message_id) : undefined,
@@ -408,6 +415,17 @@ async function handleAnalysis(req: any, res: any) {
                 dateRange: { since: startDateStr, until: endDateStr }
             }
         });
+        if (!historySave.success) {
+            await fetch(telegramUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    chat_id: telegramChatId,
+                    text: `⚠️ *History save failed*\n\nReport dah dihantar, tapi data tak masuk Supabase history.\n\nError: \`${String(historySave.error || 'Unknown error').slice(0, 300)}\``,
+                    parse_mode: 'Markdown'
+                })
+            });
+        }
 
         // --- STEP 5: Save Top Ads History for Upscale Tracking ---
         try {
@@ -510,7 +528,9 @@ async function handleAnalysis(req: any, res: any) {
         return res.status(200).json({
             success: true,
             message: 'Report dihantar ke Telegram!',
-            adsAnalyzed: topAds.length
+            adsAnalyzed: topAds.length,
+            historySaved: historySave.success,
+            historyError: historySave.success ? undefined : historySave.error
         });
 
     } catch (error: any) {
