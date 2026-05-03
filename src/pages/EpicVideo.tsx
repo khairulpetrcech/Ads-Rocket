@@ -268,6 +268,10 @@ const EpicVideo: React.FC = () => {
             const data = await response.json();
 
             if (!response.ok) {
+                if (data.results?.length) {
+                    setAnalysisResults(data.results);
+                    setAnalysisRemaining(typeof data.remaining === 'number' ? data.remaining : null);
+                }
                 throw new Error(data.error || 'Gagal menganalisis video');
             }
 
@@ -283,7 +287,11 @@ const EpicVideo: React.FC = () => {
                 window.setTimeout(() => window.open(link, '_blank'), index * 500);
             });
 
-            showToast(`${downloadLinks.length} video siap dianalisa. Download dibuka automatik.`, 'success');
+            if (downloadLinks.length) {
+                showToast(`${downloadLinks.length} video siap dianalisa. Download dibuka automatik.`, 'success');
+            } else {
+                setAnalysisError(data.error || 'Semua video gagal diproses.');
+            }
         } catch (e: any) {
             console.error("Analysis Error", e);
             setAnalysisError(e.message || "Ralat tidak dijangka berlaku semasa analisis.");

@@ -71,6 +71,29 @@ function parseFbUrl(url: string): { videoId?: string; pageId?: string; postId?: 
     return {};
 }
 
+async function resolveFacebookVideoId(url: string, token: string): Promise<string | null> {
+    const G = 'https://graph.facebook.com/v19.0';
+    const { videoId, pageId, postId } = parseFbUrl(url);
+    if (videoId) return videoId;
+
+    const idsToTry = [];
+    if (pageId && postId) idsToTry.push(`${pageId}_${postId}`, postId);
+
+    for (const id of idsToTry) {
+        const data = await gfetch(`${G}/${id}?fields=attachments{type,media{video{id}},subattachments{media{video{id}}}}&access_token=${token}`);
+        for (const att of (data?.attachments?.data || [])) {
+            const directVideoId = att?.media?.video?.id;
+            if (directVideoId) return directVideoId;
+            for (const sub of (att?.subattachments?.data || [])) {
+                const nestedVideoId = sub?.media?.video?.id;
+                if (nestedVideoId) return nestedVideoId;
+            }
+        }
+    }
+
+    return null;
+}
+
 /**
  * Extract video source using Facebook Graph API.
  * Strategy:
@@ -259,7 +282,7 @@ async function handleAnalyze(req: any, res: any) {
                 let apifyRunId: string | null = null;
 
                 if (sourceUrl.includes('facebook.com') || sourceUrl.includes('fb.watch')) {
-                    const apifyResult = await downloadFacebookVideoWithApify(sourceUrl, apifyToken);
+                    const apifyResult = await downloadFacebookVideoWithFallback(sourceUrl, apifyToken, fbAccessToken);
                     videoUrl = apifyResult.videoUrl;
                     apifyRunId = apifyResult.runId;
                 } else if (sourceUrl.includes('.mp4')) {
@@ -291,7 +314,7 @@ async function handleAnalyze(req: any, res: any) {
 
         const completed = results.filter((item) => item.success);
         if (!completed.length) {
-            return res.status(500).json({ error: 'Semua video gagal diproses.', results, remaining: usage.remainingAfterReserve, dailyLimit: DAILY_VIDEO_ANALYSIS_LIMIT });
+            return res.status(200).json({ success: false, error: 'Semua video gagal diproses.', results, remaining: usage.remainingAfterReserve, dailyLimit: DAILY_VIDEO_ANALYSIS_LIMIT });
         }
 
         return res.status(200).json({
@@ -382,6 +405,33 @@ async function updateUsageRecord(id: string | null, patch: Record<string, any>) 
         .update(patch)
         .eq('id', id);
     if (error) console.warn('[Video Analysis] Usage update failed:', error.message);
+}
+
+async function downloadFacebookVideoWithFallback(url: string, apifyToken: string, fbAccessToken?: string): Promise<{ videoUrl: string; runId: string | null }> {
+    try {
+        return await downloadFacebookVideoWithApify(url, apifyToken);
+    } catch (firstError: any) {
+        console.warn('[Video Analysis] Apify original URL failed:', firstError.message);
+
+        if (fbAccessToken) {
+            const videoId = await resolveFacebookVideoId(url, fbAccessToken);
+            if (videoId) {
+                try {
+                    return await downloadFacebookVideoWithApify(`https://www.facebook.com/watch/?v=${videoId}`, apifyToken);
+                } catch (secondError: any) {
+                    console.warn('[Video Analysis] Apify resolved watch URL failed:', secondError.message);
+                }
+            }
+
+            const graphVideoUrl = await extractViaGraphAPI(url, fbAccessToken);
+            if (graphVideoUrl) return { videoUrl: graphVideoUrl, runId: null };
+        }
+
+        const scrapedVideoUrl = await extractViaScraping(url);
+        if (scrapedVideoUrl) return { videoUrl: scrapedVideoUrl, runId: null };
+
+        throw firstError;
+    }
 }
 
 async function downloadFacebookVideoWithApify(url: string, token: string): Promise<{ videoUrl: string; runId: string | null }> {
