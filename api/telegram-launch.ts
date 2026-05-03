@@ -73,16 +73,25 @@ export default async function handler(req: any, res: any) {
         const botToken = user.telegram_bot_token || '';
         const chatId = job.chat_id;
 
-        // 3. Download Media from Telegram
-        console.log(`[Telegram Launch] Downloading ${job.media_type} from Telegram...`);
-        const telegramFile = await fetch(`https://api.telegram.org/bot${botToken}/getFile?file_id=${job.media_file_id}`);
-        const fileData = await telegramFile.json();
+        // 3. Download Media from approved AI creative URL or Telegram
+        let fileUrl = job.media_url;
+        if (fileUrl) {
+            console.log(`[Telegram Launch] Downloading ${job.media_type} from approved creative URL...`);
+        } else {
+            console.log(`[Telegram Launch] Downloading ${job.media_type} from Telegram...`);
+            const telegramFile = await fetch(`https://api.telegram.org/bot${botToken}/getFile?file_id=${job.media_file_id}`);
+            const fileData = await telegramFile.json();
 
-        if (!fileData.ok) throw new Error('Failed to get media file from Telegram');
+            if (!fileData.ok) throw new Error('Failed to get media file from Telegram');
 
-        const filePath = fileData.result.file_path;
-        const fileUrl = `https://api.telegram.org/file/bot${botToken}/${filePath}`;
+            const filePath = fileData.result.file_path;
+            fileUrl = `https://api.telegram.org/file/bot${botToken}/${filePath}`;
+        }
+
         const mediaResponse = await fetch(fileUrl);
+        if (!mediaResponse.ok) {
+            throw new Error(`Failed to download media: ${mediaResponse.status}`);
+        }
         const mediaBuffer = Buffer.from(await mediaResponse.arrayBuffer());
 
         // 4. Upload to Meta
@@ -231,6 +240,18 @@ export default async function handler(req: any, res: any) {
                 updated_at: new Date().toISOString()
             })
             .eq('id', jobId);
+
+        if (job.creative_id) {
+            await supabase
+                .from('generated_creatives')
+                .update({
+                    approval_status: 'launched',
+                    launched_at: new Date().toISOString(),
+                    campaign_job_id: jobId,
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', job.creative_id);
+        }
 
         // Send detailed success notification
         let successMsg = `✅ *Campaign Launched Successfully!*\n\n`;

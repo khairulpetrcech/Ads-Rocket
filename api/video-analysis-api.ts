@@ -1,4 +1,5 @@
 import { GoogleGenAI } from "@google/genai";
+import { createClient } from '@supabase/supabase-js';
 
 export const config = {
     api: {
@@ -7,6 +8,14 @@ export const config = {
         },
     },
 };
+
+const SUPABASE_URL = process.env.SUPABASE_URL || 'https://ztpedgagubjoiluagqzd.supabase.co';
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || '';
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || '';
+const supabaseWrite = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY || SUPABASE_ANON_KEY);
+
+const DAILY_VIDEO_ANALYSIS_LIMIT = 20;
+const FACEBOOK_DOWNLOADER_ACTOR = process.env.APIFY_FACEBOOK_VIDEO_DOWNLOADER_ACTOR || 'bytepulselabs/facebook-video-downloader';
 
 export default async function handler(req: any, res: any) {
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -216,66 +225,248 @@ async function extractViaScraping(url: string): Promise<string | null> {
 
 async function handleAnalyze(req: any, res: any) {
     try {
-        const { url, fbAccessToken } = req.body;
+        const { url, urls, fbAccessToken, userId, adAccountId } = req.body;
+        const requestedUrls = normalizeUrls(urls || url);
 
-        if (!url) return res.status(400).json({ error: 'URL is required' });
+        if (!requestedUrls.length) return res.status(400).json({ error: 'Sila masukkan sekurang-kurangnya 1 URL Facebook.' });
+        if (requestedUrls.length > DAILY_VIDEO_ANALYSIS_LIMIT) return res.status(400).json({ error: `Maksimum ${DAILY_VIDEO_ANALYSIS_LIMIT} video sekali proses.` });
 
         const geminiApiKey = process.env.VITE_GEMINI_3_API;
         if (!geminiApiKey) return res.status(500).json({ error: 'VITE_GEMINI_3_API not configured' });
 
-        console.log(`[Video Analysis] Processing: ${url}`);
+        const apifyToken = process.env.APIFY_TOKEN;
+        if (!apifyToken) return res.status(500).json({ error: 'APIFY_TOKEN not configured' });
 
-        let videoUrl = url;
-
-        if (url.includes('facebook.com') || url.includes('fb.watch')) {
-            let extracted: string | null = null;
-
-            // Method 1: Graph API (primary for authenticated users — most reliable for ad pages)
-            if (fbAccessToken) {
-                console.log('[Video Analysis] Trying Graph API...');
-                extracted = await extractViaGraphAPI(url, fbAccessToken);
-                if (extracted) console.log('[Video Analysis] ✅ Graph API success');
-            }
-
-            // Method 2: mbasic.facebook.com scraping (fallback)
-            if (!extracted) {
-                console.log('[Video Analysis] Trying mbasic scraping...');
-                extracted = await extractViaScraping(url);
-                if (extracted) console.log('[Video Analysis] ✅ mbasic scraping success');
-            }
-
-            if (!extracted) {
-                return res.status(400).json({
-                    error: 'Tidak dapat mengekstrak video dari link ini secara automatik.\n\nCara paling mudah:\n1. Buka video di Facebook\n2. Klik ikon (...) → "Copy link"\n3. Pergi ke fbdown.net, paste link tersebut\n4. Download & dapatkan direct .mp4 link\n5. Paste direct .mp4 link di sini untuk analisis',
-                });
-            }
-
-            videoUrl = extracted;
+        const userKey = normalizeUserKey(userId || adAccountId || req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'anonymous');
+        const usage = await reserveDailyUsage(userKey, requestedUrls);
+        if (!usage.allowed) {
+            return res.status(429).json({
+                error: `Limit harian cukup. Maksimum ${DAILY_VIDEO_ANALYSIS_LIMIT} video sehari. Baki hari ini: ${usage.remaining}.`,
+                remaining: usage.remaining,
+                usedToday: usage.usedToday,
+                dailyLimit: DAILY_VIDEO_ANALYSIS_LIMIT
+            });
         }
 
-        // Fetch video binary
-        const videoResponse = await fetch(videoUrl, {
-            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }
+        console.log(`[Video Analysis] Processing ${requestedUrls.length} URL(s) for ${userKey}`);
+        const results = [];
+
+        for (const item of usage.records) {
+            const sourceUrl = item.url;
+
+            try {
+                let videoUrl = sourceUrl;
+                let apifyRunId: string | null = null;
+
+                if (sourceUrl.includes('facebook.com') || sourceUrl.includes('fb.watch')) {
+                    const apifyResult = await downloadFacebookVideoWithApify(sourceUrl, apifyToken);
+                    videoUrl = apifyResult.videoUrl;
+                    apifyRunId = apifyResult.runId;
+                } else if (sourceUrl.includes('.mp4')) {
+                    videoUrl = sourceUrl;
+                } else if (fbAccessToken) {
+                    const extracted = await extractViaGraphAPI(sourceUrl, fbAccessToken);
+                    if (extracted) videoUrl = extracted;
+                }
+
+                const analysis = await analyzeVideoUrl(videoUrl, geminiApiKey);
+                await updateUsageRecord(item.id, {
+                    video_url: videoUrl,
+                    apify_run_id: apifyRunId,
+                    status: 'completed',
+                    analysis_text: analysis,
+                    analysis_model: 'gemini-3-flash-preview'
+                });
+
+                results.push({ url: sourceUrl, videoUrl, downloadUrl: videoUrl, analysis, success: true });
+            } catch (error: any) {
+                console.error(`[Video Analysis] Failed for ${sourceUrl}:`, error);
+                await updateUsageRecord(item.id, {
+                    status: 'failed',
+                    error_message: error.message || 'Unknown error'
+                });
+                results.push({ url: sourceUrl, error: error.message || 'Gagal proses video', success: false });
+            }
+        }
+
+        const completed = results.filter((item) => item.success);
+        if (!completed.length) {
+            return res.status(500).json({ error: 'Semua video gagal diproses.', results, remaining: usage.remainingAfterReserve, dailyLimit: DAILY_VIDEO_ANALYSIS_LIMIT });
+        }
+
+        return res.status(200).json({
+            success: true,
+            analysis: completed[0]?.analysis,
+            videoUrl: completed[0]?.videoUrl,
+            results,
+            remaining: usage.remainingAfterReserve,
+            dailyLimit: DAILY_VIDEO_ANALYSIS_LIMIT
         });
 
-        if (!videoResponse.ok) {
-            throw new Error(`Failed to fetch video (${videoResponse.status}): ${videoResponse.statusText}`);
+    } catch (error: any) {
+        console.error('[Video Analysis] Error:', error);
+        return res.status(500).json({ error: error.message || 'Internal server error', details: error.toString() });
+    }
+}
+
+function normalizeUrls(input: any): string[] {
+    const raw = Array.isArray(input) ? input.join('\n') : String(input || '');
+    const matches = raw.match(/https?:\/\/[^\s,]+/g) || [];
+    return Array.from(new Set(matches.map((item) => item.trim().replace(/[)\].,]+$/, ''))));
+}
+
+function normalizeUserKey(value: string): string {
+    return String(value || 'anonymous').trim().slice(0, 160) || 'anonymous';
+}
+
+function todayIsoStart(): string {
+    const now = new Date();
+    const malaysiaNow = new Date(now.getTime() + 8 * 60 * 60 * 1000);
+    malaysiaNow.setUTCHours(0, 0, 0, 0);
+    return new Date(malaysiaNow.getTime() - 8 * 60 * 60 * 1000).toISOString();
+}
+
+async function reserveDailyUsage(userKey: string, urls: string[]) {
+    const { count, error: countError } = await supabaseWrite
+        .from('video_analysis_usage')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_key', userKey)
+        .gte('created_at', todayIsoStart());
+
+    if (countError) {
+        console.warn('[Video Analysis] Usage count failed:', countError.message);
+    }
+
+    const usedToday = count || 0;
+    const remaining = Math.max(DAILY_VIDEO_ANALYSIS_LIMIT - usedToday, 0);
+    if (urls.length > remaining) {
+        return { allowed: false, usedToday, remaining, remainingAfterReserve: remaining, records: [] };
+    }
+
+    const rows = urls.map((item) => ({
+        user_key: userKey,
+        source_url: item,
+        source: 'epic_video_apify',
+        status: 'queued'
+    }));
+
+    const { data, error } = await supabaseWrite
+        .from('video_analysis_usage')
+        .insert(rows)
+        .select('id, source_url');
+
+    if (error) {
+        console.warn('[Video Analysis] Usage reserve failed:', error.message);
+        return {
+            allowed: true,
+            usedToday,
+            remaining,
+            remainingAfterReserve: Math.max(remaining - urls.length, 0),
+            records: urls.map((item) => ({ id: null, url: item }))
+        };
+    }
+
+    return {
+        allowed: true,
+        usedToday,
+        remaining,
+        remainingAfterReserve: Math.max(remaining - urls.length, 0),
+        records: (data || []).map((item: any) => ({ id: item.id, url: item.source_url }))
+    };
+}
+
+async function updateUsageRecord(id: string | null, patch: Record<string, any>) {
+    if (!id) return;
+    const { error } = await supabaseWrite
+        .from('video_analysis_usage')
+        .update(patch)
+        .eq('id', id);
+    if (error) console.warn('[Video Analysis] Usage update failed:', error.message);
+}
+
+async function downloadFacebookVideoWithApify(url: string, token: string): Promise<{ videoUrl: string; runId: string | null }> {
+    const actorId = FACEBOOK_DOWNLOADER_ACTOR.replace('/', '~');
+    const apiUrl = `https://api.apify.com/v2/acts/${actorId}/run-sync-get-dataset-items?token=${encodeURIComponent(token)}&clean=true&format=json&timeout=300`;
+    const input = {
+        urls: [{ url }],
+        quality: '480',
+        proxy: { useApifyProxy: false }
+    };
+
+    const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input)
+    });
+
+    const text = await response.text();
+    if (!response.ok) {
+        throw new Error(`Apify gagal (${response.status}): ${text.slice(0, 180)}`);
+    }
+
+    let data: any;
+    try {
+        data = JSON.parse(text);
+    } catch {
+        throw new Error('Apify response bukan JSON.');
+    }
+
+    const items = Array.isArray(data) ? data : [data];
+    const videoUrl = findVideoUrl(items);
+    if (!videoUrl) throw new Error('Apify siap, tapi tiada videoUrl dalam output.');
+
+    const runId = items.find((item: any) => item?.runId || item?.apifyRunId)?.runId || null;
+    return { videoUrl, runId };
+}
+
+function findVideoUrl(value: any): string | null {
+    if (!value) return null;
+    if (typeof value === 'string') {
+        return /^https?:\/\//.test(value) && (value.includes('.mp4') || value.includes('/records/')) ? value : null;
+    }
+    if (Array.isArray(value)) {
+        for (const item of value) {
+            const found = findVideoUrl(item);
+            if (found) return found;
         }
-
-        const contentType = videoResponse.headers.get('content-type') || '';
-        if (contentType.includes('text/html')) {
-            return res.status(400).json({ error: 'Extracted link tidak mengandungi video. Sila cuba direct .mp4 URL.' });
+        return null;
+    }
+    if (typeof value === 'object') {
+        const preferredKeys = ['videoUrl', 'downloadUrl', 'url', 'source', 'mediaUrl'];
+        for (const key of preferredKeys) {
+            const found = findVideoUrl(value[key]);
+            if (found) return found;
         }
+        for (const item of Object.values(value)) {
+            const found = findVideoUrl(item);
+            if (found) return found;
+        }
+    }
+    return null;
+}
 
-        const mimeType = contentType.split(';')[0].trim() || 'video/mp4';
-        const videoBuffer = await videoResponse.arrayBuffer();
-        const base64Video = Buffer.from(videoBuffer).toString('base64');
+async function analyzeVideoUrl(videoUrl: string, geminiApiKey: string): Promise<string> {
+    const videoResponse = await fetch(videoUrl, {
+        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }
+    });
 
-        console.log(`[Video Analysis] Fetched ${Math.round(videoBuffer.byteLength / 1024)}KB, type: ${mimeType}`);
+    if (!videoResponse.ok) {
+        throw new Error(`Failed to fetch video (${videoResponse.status}): ${videoResponse.statusText}`);
+    }
 
-        const genAI = new GoogleGenAI({ apiKey: geminiApiKey });
+    const contentType = videoResponse.headers.get('content-type') || '';
+    if (contentType.includes('text/html')) {
+        throw new Error('Download link tidak mengandungi video.');
+    }
 
-        const prompt = `Analisa video iklan ini secara mendalam untuk kegunaan Meta Ads.
+    const mimeType = contentType.split(';')[0].trim() || 'video/mp4';
+    const videoBuffer = await videoResponse.arrayBuffer();
+    const base64Video = Buffer.from(videoBuffer).toString('base64');
+
+    console.log(`[Video Analysis] Fetched ${Math.round(videoBuffer.byteLength / 1024)}KB, type: ${mimeType}`);
+
+    const genAI = new GoogleGenAI({ apiKey: geminiApiKey });
+    const prompt = `Analisa video iklan ini secara mendalam untuk kegunaan Meta Ads.
 Berikan maklumat berikut dalam Bahasa Malaysia:
 1. **Ringkasan Video**: Apa yang berlaku dalam video ini?
 2. **Hook Analisis**: Adakah permulaan video cukup kuat untuk cabut perhatian? Mengapa?
@@ -285,15 +476,10 @@ Berikan maklumat berikut dalam Bahasa Malaysia:
 
 Formatkan jawapan anda dengan kemas menggunakan Markdown. Keputusan mesti dalam Bahasa Malaysia.`;
 
-        const result = await (genAI as any).models.generateContent({
-            model: "gemini-3-flash-preview",
-            contents: [{ parts: [{ text: prompt }, { inlineData: { mimeType, data: base64Video } }] }]
-        });
+    const result = await (genAI as any).models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: [{ parts: [{ text: prompt }, { inlineData: { mimeType, data: base64Video } }] }]
+    });
 
-        return res.status(200).json({ success: true, analysis: result.text, videoUrl });
-
-    } catch (error: any) {
-        console.error('[Video Analysis] Error:', error);
-        return res.status(500).json({ error: error.message || 'Internal server error', details: error.toString() });
-    }
+    return result.text || '';
 }

@@ -14,6 +14,97 @@ if (!SUPABASE_ANON_KEY) {
 }
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || '';
+const supabaseWrite = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY || SUPABASE_ANON_KEY);
+
+function getAdMediaType(ad: any) {
+    if (ad.creative?.video_id || ad.creative?.effective_instagram_media_id) return 'video';
+    if (ad.creative?.image_url || ad.creative?.thumbnail_url) return 'image';
+    return null;
+}
+
+function getWinReason(ad: any) {
+    const reasons = [];
+    if (ad.purchases > 0) reasons.push(`${ad.purchases} purchases`);
+    if (ad.roas > 0) reasons.push(`${ad.roas.toFixed(2)}x ROAS`);
+    if (ad.cpa > 0) reasons.push(`RM${ad.cpa.toFixed(2)} CPA`);
+    return reasons.join(' | ') || 'Top ad by spend/performance ranking';
+}
+
+async function saveWinningAdsAnalysis(input: {
+    fbId?: string;
+    chatId: string;
+    telegramMessageId?: string;
+    adAccountId: string;
+    adAccountName: string;
+    reportWindow: string;
+    reportStartDate: string;
+    reportEndDate: string;
+    summaryText: string;
+    topAds: any[];
+    rawPayload?: any;
+}) {
+    try {
+        const { data: report, error: reportError } = await supabaseWrite
+            .from('winning_ads_analysis_reports')
+            .insert({
+                fb_id: input.fbId || null,
+                chat_id: String(input.chatId),
+                telegram_message_id: input.telegramMessageId || null,
+                ad_account_id: input.adAccountId,
+                ad_account_name: input.adAccountName,
+                source: 'telegram',
+                report_window: input.reportWindow,
+                report_start_date: input.reportStartDate,
+                report_end_date: input.reportEndDate,
+                analysis_date: input.reportEndDate,
+                summary_text: input.summaryText,
+                raw_payload: input.rawPayload || {}
+            })
+            .select('id')
+            .single();
+
+        if (reportError) throw reportError;
+
+        const rows = input.topAds.map((ad: any, index: number) => ({
+            report_id: report.id,
+            fb_id: input.fbId || null,
+            chat_id: String(input.chatId),
+            ad_account_id: input.adAccountId,
+            ad_account_name: input.adAccountName,
+            analysis_date: input.reportEndDate,
+            rank: index + 1,
+            ad_id: ad.id,
+            ad_name: ad.name,
+            spend: ad.spend || 0,
+            roas: ad.roas || 0,
+            purchases: ad.purchases || 0,
+            cpa: ad.cpa || 0,
+            ctr: ad.ctr || null,
+            media_type: getAdMediaType(ad),
+            video_id: ad.creative?.video_id || ad.creative?.effective_instagram_media_id || null,
+            image_url: ad.creative?.image_url || null,
+            thumbnail_url: ad.creative?.thumbnail_url || null,
+            creative_payload: ad.creative || {},
+            metrics_payload: ad,
+            win_reason: getWinReason(ad)
+        }));
+
+        const { error: itemError } = await supabaseWrite
+            .from('winning_ads_analysis_items')
+            .insert(rows);
+
+        if (itemError) throw itemError;
+        console.log(`[WinningAds] Saved report ${report.id} with ${rows.length} ads`);
+        return { success: true, reportId: report.id };
+    } catch (err) {
+        console.error('[WinningAds] Failed to save history:', err);
+        return {
+            success: false,
+            error: err instanceof Error ? err.message : JSON.stringify(err)
+        };
+    }
+}
 
 /**
  * Cron job endpoint - runs every hour, checks analysis_schedules for matching times
@@ -340,6 +431,8 @@ async function processScheduledAnalysis(schedule: any, geminiApiKey: string) {
         return `${day}/${month}/${year}`;
     };
 
+    const startDateStr = formatDate(sevenDaysAgo);
+    const endDateStr = formatDate(today);
     const startDateMY = formatDateMY(sevenDaysAgo);
     const endDateMY = formatDateMY(today);
 
@@ -355,8 +448,8 @@ async function processScheduledAnalysis(schedule: any, geminiApiKey: string) {
     }
 
     const timeRangeObj = JSON.stringify({
-        since: formatDate(sevenDaysAgo),
-        until: formatDate(today)
+        since: startDateStr,
+        until: endDateStr
     });
 
     const insightsQuery = `insights.time_range(${timeRangeObj}){spend,impressions,clicks,cpc,ctr,actions,action_values}`;
@@ -423,6 +516,24 @@ async function processScheduledAnalysis(schedule: any, geminiApiKey: string) {
         ad.cpa = ad.purchases > 0 ? ad.spend / ad.purchases : 0;
     });
 
+    await supabase.from('ads_cache').upsert({
+        chat_id: String(telegram_chat_id),
+        fb_access_token,
+        telegram_bot_token,
+        ads_data: JSON.stringify(topAds.slice(0, 3).map((ad: any) => ({
+            id: ad.id,
+            name: ad.name,
+            spend: ad.spend,
+            roas: ad.roas,
+            purchases: ad.purchases,
+            cpa: ad.cpa,
+            videoId: ad.creative?.video_id || null,
+            imageUrl: ad.creative?.image_url || null,
+            thumbnailUrl: ad.creative?.thumbnail_url || null
+        }))),
+        updated_at: new Date().toISOString()
+    }, { onConflict: 'chat_id' });
+
     const emojis = ['🥇', '🥈', '🥉'];
 
     // --- STEP 1: Send basic stats report FIRST (fast, always succeeds) ---
@@ -471,10 +582,35 @@ async function processScheduledAnalysis(schedule: any, geminiApiKey: string) {
     topAds.forEach((ad: any, i: number) => {
         basicReport += `${emojis[i]} ${ad.name}\n   ${ad.purchases} purch | ${ad.roas.toFixed(2)}x ROAS | RM${ad.cpa.toFixed(2)} CPA\n`;
     });
+    basicReport += `\n🧠 *Agent next move:* Klik *Prompt* untuk auto-generate creative baru daripada winning pattern, kemudian approve dan launch guna Ad Template.\n`;
     basicReport += `\n_Klik button untuk bedah creative atau generate prompt._`;
 
     console.log(`[Cron] Sending report with buttons...`);
-    await sendTelegramWithButtons(telegram_bot_token, telegram_chat_id, basicReport, [bedahButtons, promptButtons]);
+    const telegramData = await sendTelegramWithButtons(telegram_bot_token, telegram_chat_id, basicReport, [bedahButtons, promptButtons]);
+    const historySave = await saveWinningAdsAnalysis({
+        fbId: fb_id,
+        chatId: String(telegram_chat_id),
+        telegramMessageId: telegramData?.result?.message_id ? String(telegramData.result.message_id) : undefined,
+        adAccountId: actId,
+        adAccountName: accountName,
+        reportWindow: 'last_7d',
+        reportStartDate: startDateStr,
+        reportEndDate: endDateStr,
+        summaryText: basicReport,
+        topAds: topAds.slice(0, 3),
+        rawPayload: {
+            source: 'cron-telegram',
+            accountName,
+            dateRange: { since: startDateStr, until: endDateStr }
+        }
+    });
+    if (!historySave.success) {
+        await sendTelegram(
+            telegram_bot_token,
+            telegram_chat_id,
+            `⚠️ *History save failed*\n\nReport dah dihantar, tapi data tak masuk Supabase history.\n\nError: \`${String(historySave.error || 'Unknown error').slice(0, 300)}\``
+        );
+    }
     console.log(`[Cron] ✅ Report sent!`);
 }
 
@@ -518,4 +654,5 @@ async function sendTelegramWithButtons(botToken: string, chatId: string, text: s
         console.error('[Cron Telegram] Telegram send error:', data);
         throw new Error(data.description || 'Telegram send failed');
     }
+    return data;
 }

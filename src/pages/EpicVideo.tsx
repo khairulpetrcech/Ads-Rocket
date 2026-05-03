@@ -15,6 +15,15 @@ interface VideoHistoryItem {
     expiresAt: string;
 }
 
+interface VideoAnalysisResult {
+    url: string;
+    videoUrl?: string;
+    downloadUrl?: string;
+    analysis?: string;
+    error?: string;
+    success: boolean;
+}
+
 // No localStorage needed — history is server-side via Supabase
 
 const EpicVideo: React.FC = () => {
@@ -48,8 +57,9 @@ const EpicVideo: React.FC = () => {
     const [activeTab, setActiveTab] = useState<'generate' | 'analyze'>('generate');
     const [analysisUrl, setAnalysisUrl] = useState('');
     const [isAnalyzing, setIsAnalyzing] = useState(false);
-    const [analysisResult, setAnalysisResult] = useState<string | null>(null);
+    const [analysisResults, setAnalysisResults] = useState<VideoAnalysisResult[]>([]);
     const [analysisError, setAnalysisError] = useState('');
+    const [analysisRemaining, setAnalysisRemaining] = useState<number | null>(null);
 
     // Handler to add media to Rapid Campaign
     const handleAddToRapid = async (video: VideoHistoryItem) => {
@@ -234,17 +244,25 @@ const EpicVideo: React.FC = () => {
     };
 
     const handleAnalyzeVideo = async () => {
-        if (!analysisUrl.trim()) return setAnalysisError("Sila masukkan link video Facebook.");
+        const urls = parseBulkUrls(analysisUrl);
+        if (!urls.length) return setAnalysisError("Sila masukkan sekurang-kurangnya 1 link video Facebook.");
+        if (urls.length > 20) return setAnalysisError("Maksimum 20 video sehari boleh download/analisa.");
 
         setIsAnalyzing(true);
         setAnalysisError('');
-        setAnalysisResult(null);
+        setAnalysisResults([]);
+        setAnalysisRemaining(null);
 
         try {
             const response = await fetch('/api/video-analysis-api?action=analyze', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ url: analysisUrl, fbAccessToken: settings.fbAccessToken, adAccountId: settings.adAccountId })
+                body: JSON.stringify({
+                    urls,
+                    userId: settings.userId,
+                    fbAccessToken: settings.fbAccessToken,
+                    adAccountId: settings.adAccountId
+                })
             });
 
             const data = await response.json();
@@ -253,14 +271,30 @@ const EpicVideo: React.FC = () => {
                 throw new Error(data.error || 'Gagal menganalisis video');
             }
 
-            setAnalysisResult(data.analysis);
-            showToast('Analisis video berjaya! 📊', 'success');
+            const results = data.results || [];
+            setAnalysisResults(results);
+            setAnalysisRemaining(typeof data.remaining === 'number' ? data.remaining : null);
+
+            const downloadLinks = results
+                .filter((item: VideoAnalysisResult) => item.success && (item.downloadUrl || item.videoUrl))
+                .map((item: VideoAnalysisResult) => item.downloadUrl || item.videoUrl);
+
+            downloadLinks.forEach((link: string, index: number) => {
+                window.setTimeout(() => window.open(link, '_blank'), index * 500);
+            });
+
+            showToast(`${downloadLinks.length} video siap dianalisa. Download dibuka automatik.`, 'success');
         } catch (e: any) {
             console.error("Analysis Error", e);
             setAnalysisError(e.message || "Ralat tidak dijangka berlaku semasa analisis.");
         } finally {
             setIsAnalyzing(false);
         }
+    };
+
+    const parseBulkUrls = (value: string) => {
+        const matches = value.match(/https?:\/\/[^\s,]+/g) || [];
+        return Array.from(new Set(matches.map((item) => item.trim().replace(/[)\].,]+$/, ''))));
     };
 
     const handleDownload = async (url?: string) => {
@@ -605,7 +639,7 @@ const EpicVideo: React.FC = () => {
                     <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-sm">
                         <div className="mb-6">
                             <h2 className="text-xl font-bold text-slate-800 mb-2">Analisa Video Facebook</h2>
-                            <p className="text-sm text-slate-500">Paste link video Facebook untuk dapatkan insight mendalam guna Gemini 3 Flash.</p>
+                            <p className="text-sm text-slate-500">Paste link video Facebook. Boleh bulk banyak link, satu link satu baris. Limit 20 video sehari.</p>
                         </div>
 
                         {analysisError && (
@@ -615,22 +649,21 @@ const EpicVideo: React.FC = () => {
                             </div>
                         )}
 
-                        <div className="flex gap-3 mb-8">
-                            <input
-                                type="text"
+                        <div className="flex flex-col md:flex-row gap-3 mb-8">
+                            <textarea
                                 value={analysisUrl}
                                 onChange={(e) => setAnalysisUrl(e.target.value)}
-                                placeholder="https://www.facebook.com/share/v/..."
-                                className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-800 outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all"
+                                placeholder={'https://www.facebook.com/share/v/...\nhttps://www.facebook.com/watch/?v=...'}
+                                className="flex-1 min-h-[120px] bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-800 outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all resize-y"
                                 disabled={isAnalyzing}
                             />
                             <button
                                 onClick={handleAnalyzeVideo}
                                 disabled={isAnalyzing || !analysisUrl}
-                                className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold px-8 py-3 rounded-xl shadow-lg shadow-purple-200 disabled:opacity-50 flex items-center gap-2 transition-all"
+                                className="md:self-start bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold px-8 py-3 rounded-xl shadow-lg shadow-purple-200 disabled:opacity-50 flex items-center justify-center gap-2 transition-all"
                             >
                                 {isAnalyzing ? <Loader2 className="animate-spin" size={20} /> : <Sparkles size={20} />}
-                                <span>{isAnalyzing ? 'Menganalisis...' : 'Analisa'}</span>
+                                <span>{isAnalyzing ? 'Menganalisis...' : `Analisa ${parseBulkUrls(analysisUrl).length || ''}`}</span>
                             </button>
                         </div>
 
@@ -648,25 +681,53 @@ const EpicVideo: React.FC = () => {
                             </div>
                         )}
 
-                        {analysisResult && !isAnalyzing && (
-                            <div className="animate-slideUp">
+                        {analysisResults.length > 0 && !isAnalyzing && (
+                            <div className="animate-slideUp space-y-6">
                                 <div className="flex items-center gap-2 mb-6">
                                     <div className="p-2 bg-green-100 rounded-lg">
                                         <Rocket className="text-green-600" size={20} />
                                     </div>
-                                    <h3 className="text-lg font-bold text-slate-800">Keputusan Analisis AI</h3>
-                                </div>
-
-                                <div className="bg-slate-50 rounded-2xl p-6 border border-slate-200 prose prose-slate prose-purple max-w-none">
-                                    <div className="text-slate-700 whitespace-pre-wrap leading-relaxed">
-                                        {/* Simple formatting for the Markdown result */}
-                                        {analysisResult.split('\n').map((line, i) => (
-                                            <p key={i} className={line.startsWith('#') ? 'font-bold text-xl text-purple-700 mt-4 mb-2' : line.startsWith('**') ? 'font-bold text-slate-900 mt-2' : 'mb-1'}>
-                                                {line.replace(/\*\*/g, '')}
-                                            </p>
-                                        ))}
+                                    <div>
+                                        <h3 className="text-lg font-bold text-slate-800">Keputusan Analisis AI</h3>
+                                        {analysisRemaining !== null && (
+                                            <p className="text-xs text-slate-500">Baki limit hari ini: {analysisRemaining}/20</p>
+                                        )}
                                     </div>
                                 </div>
+
+                                {analysisResults.map((item, index) => (
+                                    <div key={`${item.url}-${index}`} className="bg-slate-50 rounded-2xl p-6 border border-slate-200">
+                                        <div className="flex items-start justify-between gap-4 mb-4">
+                                            <div className="min-w-0">
+                                                <p className="text-xs font-bold text-slate-400 uppercase">Video {index + 1}</p>
+                                                <p className="text-xs text-slate-500 truncate">{item.url}</p>
+                                            </div>
+                                            {(item.downloadUrl || item.videoUrl) && (
+                                                <button
+                                                    onClick={() => handleDownload(item.downloadUrl || item.videoUrl)}
+                                                    className="shrink-0 bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-2"
+                                                >
+                                                    <Download size={14} />
+                                                    Download
+                                                </button>
+                                            )}
+                                        </div>
+
+                                        {item.success && item.analysis ? (
+                                            <div className="text-slate-700 whitespace-pre-wrap leading-relaxed">
+                                                {item.analysis.split('\n').map((line, i) => (
+                                                    <p key={i} className={line.startsWith('#') ? 'font-bold text-xl text-purple-700 mt-4 mb-2' : line.startsWith('**') ? 'font-bold text-slate-900 mt-2' : 'mb-1'}>
+                                                        {line.replace(/\*\*/g, '')}
+                                                    </p>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <div className="bg-red-50 border border-red-100 text-red-600 text-sm font-medium rounded-xl p-4">
+                                                {item.error || 'Video gagal dianalisa.'}
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
 
                                 <div className="mt-8 p-4 bg-purple-50 border border-purple-100 rounded-xl flex items-center justify-between">
                                     <div className="flex items-center gap-3">
@@ -674,7 +735,7 @@ const EpicVideo: React.FC = () => {
                                         <p className="text-xs text-purple-800 font-medium">Analisis dijana secara automatik menggunakan Gemini 3 Flash Multimodal.</p>
                                     </div>
                                     <button
-                                        onClick={() => setAnalysisResult(null)}
+                                        onClick={() => setAnalysisResults([])}
                                         className="text-xs text-purple-600 hover:underline font-bold"
                                     >
                                         Padam Skrin

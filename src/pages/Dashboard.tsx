@@ -719,31 +719,60 @@ const Dashboard: React.FC = () => {
 
     // --- RENDER HELPERS ---
 
+    const renderColGroup = () => (
+        <colgroup>
+            {viewMode === 'TRAFFIC' ? (
+                <>
+                    <col style={{ width: '30%' }} />
+                    <col style={{ width: '11%' }} />
+                    <col style={{ width: '11%' }} />
+                    <col style={{ width: '11%' }} />
+                    <col style={{ width: '11%' }} />
+                    <col style={{ width: '11%' }} />
+                    <col style={{ width: '15%' }} />
+                    {showDailyColumns && (<><col style={{ width: '6%' }} /><col style={{ width: '6%' }} /><col style={{ width: '6%' }} /><col style={{ width: '5%' }} /></>)}
+                </>
+            ) : (
+                <>
+                    <col style={{ width: '32%' }} />
+                    <col style={{ width: '10%' }} />
+                    <col style={{ width: '9%' }} />
+                    <col style={{ width: '9%' }} />
+                    <col style={{ width: '8%' }} />
+                    <col style={{ width: '8%' }} />
+                    <col style={{ width: '12%' }} />
+                    <col style={{ width: '12%' }} />
+                    {showDailyColumns && (<><col style={{ width: '5%' }} /><col style={{ width: '5%' }} /><col style={{ width: '5%' }} /><col style={{ width: '5%' }} /></>)}
+                </>
+            )}
+        </colgroup>
+    );
+
     const renderTableHeader = () => {
         if (viewMode === 'TRAFFIC') {
             return (
                 <tr className="bg-slate-50 text-slate-500 text-xs uppercase border-b border-slate-200">
-                    <th className="p-4 w-[30%] font-semibold">Name</th>
-                    <th className="p-3 text-right w-[9%] font-semibold">Spend</th>
-                    <th className="p-3 text-right w-[9%] font-semibold">Lead</th>
-                    <th className="p-3 text-right w-[9%] font-semibold">Cost/Lead</th>
-                    <th className="p-3 text-right w-[9%] font-semibold">CTR (All)</th>
-                    <th className="p-3 text-right w-[9%] font-semibold">CTR (Link)</th>
-                    <th className="p-3 text-right w-[8%] font-semibold"></th>
+                    <th className="p-4 font-semibold">Name</th>
+                    <th className="p-3 text-right font-semibold">Spend</th>
+                    <th className="p-3 text-right font-semibold">Lead</th>
+                    <th className="p-3 text-right font-semibold">Cost/Lead</th>
+                    <th className="p-3 text-right font-semibold">CTR (All)</th>
+                    <th className="p-3 text-right font-semibold">CTR (Link)</th>
+                    <th className="p-3 text-right font-semibold"></th>
                     {showDailyColumns && (
                         <>
-                            <th className="p-3 text-right w-[6%] font-semibold text-amber-500">CPL L1</th>
-                            <th className="p-3 text-right w-[6%] font-semibold text-amber-500">CPL L2</th>
-                            <th className="p-3 text-right w-[6%] font-semibold text-amber-500">CPL L3</th>
-                            <th className="p-3 text-right w-[6%] font-semibold text-amber-500">CPL L4</th>
+                            <th className="p-3 text-right font-semibold text-amber-500">CPL L1</th>
+                            <th className="p-3 text-right font-semibold text-amber-500">CPL L2</th>
+                            <th className="p-3 text-right font-semibold text-amber-500">CPL L3</th>
+                            <th className="p-3 text-right font-semibold text-amber-500">CPL L4</th>
                         </>
                     )}
                 </tr>
             );
         }
-        const SortHeader = ({ field, label, width }: { field: SortOption; label: string; width: string }) => (
+        const SortHeader = ({ field, label }: { field: SortOption; label: string }) => (
             <th
-                className={`p-3 text-right font-semibold cursor-pointer hover:bg-slate-100 transition-colors select-none ${width}`}
+                className="p-3 text-right font-semibold cursor-pointer hover:bg-slate-100 transition-colors select-none"
                 onClick={() => {
                     if (sortBy === field) {
                         setSortDirection(prev => prev === 'desc' ? 'asc' : 'desc');
@@ -753,7 +782,7 @@ const Dashboard: React.FC = () => {
                     }
                 }}
             >
-                <span className="inline-flex items-center gap-1">
+                <span className="inline-flex items-center gap-1 justify-end w-full">
                     {label}
                     {sortBy === field && (
                         <span className="text-indigo-500">{sortDirection === 'desc' ? '↓' : '↑'}</span>
@@ -764,20 +793,20 @@ const Dashboard: React.FC = () => {
 
         return (
             <tr className="bg-slate-50 text-slate-500 text-xs uppercase border-b border-slate-200">
-                <th className="p-4 w-[32%] font-semibold">Name</th>
-                <SortHeader field="spend" label="Spend" width="w-[9%]" />
-                <SortHeader field="roas" label="ROAS" width="w-[6%]" />
-                <SortHeader field="cpa" label="CPA" width="w-[6%]" />
-                <SortHeader field="ctr" label="CTR" width="w-[5%]" />
-                <SortHeader field="frequency" label="Freq" width="w-[5%]" />
-                <SortHeader field="lpv" label="LPV/(CPLV)" width="w-[10%]" />
-                <SortHeader field="purchases" label="Purchases" width="w-[9%]" />
+                <th className="p-4 font-semibold">Name</th>
+                <SortHeader field="spend" label="Spend" />
+                <SortHeader field="roas" label="ROAS" />
+                <SortHeader field="cpa" label="CPA" />
+                <SortHeader field="ctr" label="CTR" />
+                <SortHeader field="frequency" label="Freq" />
+                <SortHeader field="lpv" label="LPV/(CPLV)" />
+                <SortHeader field="purchases" label="Purchases" />
                 {showDailyColumns && (
                     <>
-                        <th className="p-3 text-right w-[5%] font-semibold text-amber-500">ROAS L1</th>
-                        <th className="p-3 text-right w-[5%] font-semibold text-amber-500">ROAS L2</th>
-                        <th className="p-3 text-right w-[5%] font-semibold text-amber-500">ROAS L3</th>
-                        <th className="p-3 text-right w-[5%] font-semibold text-amber-500">ROAS L4</th>
+                        <th className="p-3 text-right font-semibold text-amber-500">ROAS L1</th>
+                        <th className="p-3 text-right font-semibold text-amber-500">ROAS L2</th>
+                        <th className="p-3 text-right font-semibold text-amber-500">ROAS L3</th>
+                        <th className="p-3 text-right font-semibold text-amber-500">ROAS L4</th>
                     </>
                 )}
             </tr>
@@ -884,6 +913,9 @@ const Dashboard: React.FC = () => {
     const totalRevenue = campaigns.reduce((acc, c) => acc + c.metrics.revenue, 0);
     const totalRoas = totalSpend > 0 ? totalRevenue / totalSpend : 0;
     const totalResults = campaigns.reduce((acc, c) => acc + c.metrics.results, 0);
+
+    const baseCols = viewMode === 'TRAFFIC' ? 7 : 8;
+    const totalColumns = showDailyColumns ? baseCols + 4 : baseCols;
 
     return (
         <>
@@ -1175,6 +1207,7 @@ const Dashboard: React.FC = () => {
                             <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
                                 <div className="overflow-x-auto">
                                     <table className="w-full min-w-[1000px] text-left border-collapse table-fixed">
+                                        {renderColGroup()}
                                         <thead>
                                             {renderTableHeader()}
                                         </thead>
@@ -1191,7 +1224,7 @@ const Dashboard: React.FC = () => {
                                                     <React.Fragment key={camp.id}>
                                                         {/* Level 1: Campaign */}
                                                         <tr className="bg-white hover:bg-slate-50 text-sm transition-colors group">
-                                                            <td className="p-4 w-[45%]">
+                                                            <td className="p-4">
                                                                 <div className="flex items-center gap-3">
                                                                     <button
                                                                         onClick={() => toggleExpandCampaign(camp.id)}
@@ -1234,13 +1267,13 @@ const Dashboard: React.FC = () => {
                                                         {expandedCampaigns.has(camp.id) && (
                                                             <>
                                                                 {!adSetsData[camp.id] && (
-                                                                    <tr><td colSpan={showDailyColumns ? 12 : 8} className="text-center py-4 text-xs text-slate-400"><Loader2 className="animate-spin inline mr-2" size={14} /> Loading Ad Sets...</td></tr>
+                                                                    <tr><td colSpan={totalColumns} className="text-center py-4 text-xs text-slate-400"><Loader2 className="animate-spin inline mr-2" size={14} /> Loading Ad Sets...</td></tr>
                                                                 )}
 
                                                                 {adSetsToShow.map(adset => (
                                                                     <React.Fragment key={adset.id}>
                                                                         <tr className="bg-slate-50/50 text-sm hover:bg-slate-50 border-l-4 border-indigo-500/0 hover:border-indigo-500 transition-all">
-                                                                            <td className="p-3 pl-12 w-[35%]">
+                                                                            <td className="p-3 pl-12">
                                                                                 <div className="flex items-center gap-3">
                                                                                     <button
                                                                                         onClick={() => toggleExpandAdSet(adset.id)}
@@ -1269,129 +1302,93 @@ const Dashboard: React.FC = () => {
 
                                                                         {/* Level 3: Ads */}
                                                                         {expandedAdSets.has(adset.id) && (
-                                                                            <tr className="bg-slate-50">
-                                                                                <td colSpan={showDailyColumns ? 12 : 8} className="p-0 border-b border-slate-100">
-                                                                                    <div className="max-h-[350px] overflow-y-auto custom-scrollbar border-y border-slate-200 bg-slate-50/80">
-                                                                                        <table className="w-full table-fixed">
-                                                                                            <colgroup>
-                                                                                                {viewMode === 'TRAFFIC' ? (
-                                                                                                    <>
-                                                                                                        <col style={{ width: '30%' }} />
-                                                                                                        <col style={{ width: '9%' }} />
-                                                                                                        <col style={{ width: '9%' }} />
-                                                                                                        <col style={{ width: '9%' }} />
-                                                                                                        <col style={{ width: '9%' }} />
-                                                                                                        <col style={{ width: '9%' }} />
-                                                                                                        <col style={{ width: '8%' }} />
-                                                                                                        {showDailyColumns && (<><col style={{ width: '6%' }} /><col style={{ width: '6%' }} /><col style={{ width: '6%' }} /><col style={{ width: '5%' }} /></>)}
-                                                                                                    </>
-                                                                                                ) : (
-                                                                                                    <>
-                                                                                                        <col style={{ width: '32%' }} />
-                                                                                                        <col style={{ width: '9%' }} />
-                                                                                                        <col style={{ width: '6%' }} />
-                                                                                                        <col style={{ width: '6%' }} />
-                                                                                                        <col style={{ width: '5%' }} />
-                                                                                                        <col style={{ width: '5%' }} />
-                                                                                                        <col style={{ width: '10%' }} />
-                                                                                                        <col style={{ width: '9%' }} />
-                                                                                                        {showDailyColumns && (<><col style={{ width: '5%' }} /><col style={{ width: '5%' }} /><col style={{ width: '5%' }} /><col style={{ width: '3%' }} /></>)}
-                                                                                                    </>
-                                                                                                )}
-                                                                                            </colgroup>
-                                                                                            <tbody>
-                                                                                                {adsData[adset.id] ? (
-                                                                                                    adsData[adset.id].length > 0 ? (
-                                                                                                        adsData[adset.id].map(ad => {
-                                                                                                            const commentCount = publishedComments.get(ad.id) || 0;
-                                                                                                            // Color states: 0=default, 1=green, 2=blue, 3+=red
-                                                                                                            const getCommentButtonStyle = (count: number) => {
-                                                                                                                if (count >= 3) return "bg-red-100 text-red-600 border-red-200 hover:bg-red-200";
-                                                                                                                if (count === 2) return "bg-green-100 text-green-600 border-green-200 hover:bg-green-200";
-                                                                                                                if (count === 1) return "bg-blue-100 text-blue-600 border-blue-200 hover:bg-blue-200";
-                                                                                                                return "bg-white text-indigo-600 border-indigo-200 hover:bg-indigo-600 hover:text-white hover:border-indigo-600";
-                                                                                                            };
-                                                                                                            return (
-                                                                                                                <tr key={ad.id} className="text-xs hover:bg-white border-b border-slate-100 last:border-0 group/ad transition-colors">
-                                                                                                                    <td className="p-3 pl-16">
-                                                                                                                        <div className="flex items-center gap-3">
-                                                                                                                            <div className="w-10 h-10 bg-white rounded overflow-hidden flex-shrink-0 border border-slate-200 shadow-sm">
-                                                                                                                                {ad.creative.thumbnail_url || ad.creative.image_url ? (
-                                                                                                                                    <img src={ad.creative.thumbnail_url || ad.creative.image_url} className="w-full h-full object-cover" alt="" />
-                                                                                                                                ) : (
-                                                                                                                                    <div className="w-full h-full flex items-center justify-center text-slate-300"><ImageIcon size={14} /></div>
-                                                                                                                                )}
-                                                                                                                            </div>
-                                                                                                                            <div className="min-w-0 flex-1">
-                                                                                                                                <div className="flex flex-col mb-1">
-                                                                                                                                    <div className="flex items-center gap-2">
-                                                                                                                                        <StatusToggle
-                                                                                                                                            status={ad.status}
-                                                                                                                                            loading={actionLoading === ad.id}
-                                                                                                                                            onToggle={() => handleStatusToggle(ad.id, ad.status, 'ad')}
-                                                                                                                                        />
-                                                                                                                                        <span className="text-slate-600 font-medium truncate max-w-[150px]" title={ad.name}>{ad.name}</span>
-                                                                                                                                    </div>
+                                                                            adsData[adset.id] ? (
+                                                                                adsData[adset.id].length > 0 ? (
+                                                                                    adsData[adset.id].map(ad => {
+                                                                                        const commentCount = publishedComments.get(ad.id) || 0;
+                                                                                        // Color states: 0=default, 1=green, 2=blue, 3+=red
+                                                                                        const getCommentButtonStyle = (count: number) => {
+                                                                                            if (count >= 3) return "bg-red-100 text-red-600 border-red-200 hover:bg-red-200";
+                                                                                            if (count === 2) return "bg-green-100 text-green-600 border-green-200 hover:bg-green-200";
+                                                                                            if (count === 1) return "bg-blue-100 text-blue-600 border-blue-200 hover:bg-blue-200";
+                                                                                            return "bg-white text-indigo-600 border-indigo-200 hover:bg-indigo-600 hover:text-white hover:border-indigo-600";
+                                                                                        };
+                                                                                        return (
+                                                                                            <tr key={ad.id} className="bg-slate-50/80 text-xs hover:bg-white border-b border-slate-100 last:border-0 group/ad transition-colors">
+                                                                                                <td className="p-3 pl-16">
+                                                                                                    <div className="flex items-center gap-3">
+                                                                                                        <div className="w-10 h-10 bg-white rounded overflow-hidden flex-shrink-0 border border-slate-200 shadow-sm">
+                                                                                                            {ad.creative.thumbnail_url || ad.creative.image_url ? (
+                                                                                                                <img src={ad.creative.thumbnail_url || ad.creative.image_url} className="w-full h-full object-cover" alt="" />
+                                                                                                            ) : (
+                                                                                                                <div className="w-full h-full flex items-center justify-center text-slate-300"><ImageIcon size={14} /></div>
+                                                                                                            )}
+                                                                                                        </div>
+                                                                                                        <div className="min-w-0 flex-1">
+                                                                                                            <div className="flex flex-col mb-1">
+                                                                                                                <div className="flex items-center gap-2">
+                                                                                                                    <StatusToggle
+                                                                                                                        status={ad.status}
+                                                                                                                        loading={actionLoading === ad.id}
+                                                                                                                        onToggle={() => handleStatusToggle(ad.id, ad.status, 'ad')}
+                                                                                                                    />
+                                                                                                                    <span className="text-slate-600 font-medium truncate max-w-[150px]" title={ad.name}>{ad.name}</span>
+                                                                                                                </div>
 
-                                                                                                                                    <div className="flex items-center gap-3 mt-1">
-                                                                                                                                        {ad.creative.effective_object_story_id && (
-                                                                                                                                            <a
-                                                                                                                                                href={getPostLink(ad.creative.effective_object_story_id)}
-                                                                                                                                                target="_blank"
-                                                                                                                                                rel="noopener noreferrer"
-                                                                                                                                                className="text-[10px] text-indigo-500 hover:text-indigo-700 flex items-center gap-1 font-medium"
-                                                                                                                                            >
-                                                                                                                                                View Post <ExternalLink size={8} />
-                                                                                                                                            </a>
-                                                                                                                                        )}
+                                                                                                                <div className="flex items-center gap-3 mt-1">
+                                                                                                                    {ad.creative.effective_object_story_id && (
+                                                                                                                        <a
+                                                                                                                            href={getPostLink(ad.creative.effective_object_story_id)}
+                                                                                                                            target="_blank"
+                                                                                                                            rel="noopener noreferrer"
+                                                                                                                            className="text-[10px] text-indigo-500 hover:text-indigo-700 flex items-center gap-1 font-medium"
+                                                                                                                        >
+                                                                                                                            View Post <ExternalLink size={8} />
+                                                                                                                        </a>
+                                                                                                                    )}
 
-                                                                                                                                        {/* COMPACT 'C' COMMENT BUTTON - 3 STATE COLORS */}
-                                                                                                                                        {ad.creative.effective_object_story_id && (
-                                                                                                                                            <div className="relative group/tooltip">
-                                                                                                                                                <button
-                                                                                                                                                    onClick={() => openCommentModal(ad)}
-                                                                                                                                                    title={`Launch Comment (${commentCount}x initiated)`}
-                                                                                                                                                    className={`w-5 h-5 flex items-center justify-center rounded-full text-[10px] font-bold border transition-colors ${getCommentButtonStyle(commentCount)}`}
-                                                                                                                                                >
-                                                                                                                                                    {commentCount > 0 ? commentCount : "C"}
-                                                                                                                                                </button>
-                                                                                                                                            </div>
-                                                                                                                                        )}
-                                                                                                                                    </div>
-                                                                                                                                </div>
-                                                                                                                            </div>
+                                                                                                                    {/* COMPACT 'C' COMMENT BUTTON - 3 STATE COLORS */}
+                                                                                                                    {ad.creative.effective_object_story_id && (
+                                                                                                                        <div className="relative group/tooltip">
+                                                                                                                            <button
+                                                                                                                                onClick={() => openCommentModal(ad)}
+                                                                                                                                title={`Launch Comment (${commentCount}x initiated)`}
+                                                                                                                                className={`w-5 h-5 flex items-center justify-center rounded-full text-[10px] font-bold border transition-colors ${getCommentButtonStyle(commentCount)}`}
+                                                                                                                            >
+                                                                                                                                {commentCount > 0 ? commentCount : "C"}
+                                                                                                                            </button>
                                                                                                                         </div>
-                                                                                                                    </td>
-                                                                                                                    {renderMetrics(ad.metrics, ad.id)}
-                                                                                                                </tr>
-                                                                                                            )
-                                                                                                        })
-                                                                                                    ) : (
-                                                                                                        <tr>
-                                                                                                            <td colSpan={showDailyColumns ? 12 : 8} className="text-center py-6 text-xs text-slate-400 italic">
-                                                                                                                No active ads in this ad set.
-                                                                                                            </td>
-                                                                                                        </tr>
-                                                                                                    )
-                                                                                                ) : (
-                                                                                                    <tr>
-                                                                                                        <td colSpan={showDailyColumns ? 12 : 8} className="text-center py-6 text-xs text-slate-400">
-                                                                                                            <Loader2 className="animate-spin inline mr-2 text-indigo-500" size={14} /> Loading Ads...
-                                                                                                        </td>
-                                                                                                    </tr>
-                                                                                                )}
-                                                                                            </tbody>
-                                                                                        </table>
-                                                                                    </div>
-                                                                                </td>
-                                                                            </tr>
+                                                                                                                    )}
+                                                                                                                </div>
+                                                                                                            </div>
+                                                                                                        </div>
+                                                                                                    </div>
+                                                                                                </td>
+                                                                                                {renderMetrics(ad.metrics, ad.id)}
+                                                                                            </tr>
+                                                                                        )
+                                                                                    })
+                                                                                ) : (
+                                                                                    <tr className="bg-slate-50/80">
+                                                                                        <td colSpan={totalColumns} className="text-center py-6 text-xs text-slate-400 italic">
+                                                                                            No active ads in this ad set.
+                                                                                        </td>
+                                                                                    </tr>
+                                                                                )
+                                                                            ) : (
+                                                                                <tr className="bg-slate-50/80">
+                                                                                    <td colSpan={totalColumns} className="text-center py-6 text-xs text-slate-400">
+                                                                                        <Loader2 className="animate-spin inline mr-2 text-indigo-500" size={14} /> Loading Ads...
+                                                                                    </td>
+                                                                                </tr>
+                                                                            )
                                                                         )}
                                                                     </React.Fragment>
                                                                 ))}
 
                                                                 {secondaryAdSets.length > 0 && (
                                                                     <tr className="bg-slate-50/30">
-                                                                        <td colSpan={showDailyColumns ? 12 : 8} className="text-center py-2 border-b border-slate-100">
+                                                                        <td colSpan={totalColumns} className="text-center py-2 border-b border-slate-100">
                                                                             <button
                                                                                 onClick={() => toggleHiddenAdSetsForCampaign(camp.id)}
                                                                                 className="text-[10px] text-slate-400 hover:text-indigo-600 uppercase tracking-wide font-bold"
