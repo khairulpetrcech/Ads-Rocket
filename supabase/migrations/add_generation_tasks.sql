@@ -306,3 +306,49 @@ BEGIN
   WHERE created_at < NOW() - make_interval(days => retention_days);
 END;
 $$;
+
+-- RLS policies for winning ads tables
+-- Allow anon/authenticated to INSERT and SELECT so serverless API can persist analysis data.
+
+ALTER TABLE winning_ads_analysis_reports ENABLE ROW LEVEL SECURITY;
+ALTER TABLE winning_ads_analysis_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE winning_ads_creative_breakdowns ENABLE ROW LEVEL SECURITY;
+
+-- winning_ads_analysis_reports
+DROP POLICY IF EXISTS "Allow insert winning_ads_analysis_reports" ON winning_ads_analysis_reports;
+CREATE POLICY "Allow insert winning_ads_analysis_reports"
+  ON winning_ads_analysis_reports FOR INSERT
+  TO anon, authenticated
+  WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow select winning_ads_analysis_reports" ON winning_ads_analysis_reports;
+CREATE POLICY "Allow select winning_ads_analysis_reports"
+  ON winning_ads_analysis_reports FOR SELECT
+  TO anon, authenticated
+  USING (true);
+
+-- winning_ads_analysis_items
+DROP POLICY IF EXISTS "Allow insert winning_ads_analysis_items" ON winning_ads_analysis_items;
+CREATE POLICY "Allow insert winning_ads_analysis_items"
+  ON winning_ads_analysis_items FOR INSERT
+  TO anon, authenticated
+  WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow select winning_ads_analysis_items" ON winning_ads_analysis_items;
+CREATE POLICY "Allow select winning_ads_analysis_items"
+  ON winning_ads_analysis_items FOR SELECT
+  TO anon, authenticated
+  USING (true);
+
+-- winning_ads_creative_breakdowns
+DROP POLICY IF EXISTS "Allow insert winning_ads_creative_breakdowns" ON winning_ads_creative_breakdowns;
+CREATE POLICY "Allow insert winning_ads_creative_breakdowns"
+  ON winning_ads_creative_breakdowns FOR INSERT
+  TO anon, authenticated
+  WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow select winning_ads_creative_breakdowns" ON winning_ads_creative_breakdowns;
+CREATE POLICY "Allow select winning_ads_creative_breakdowns"
+  ON winning_ads_creative_breakdowns FOR SELECT
+  TO anon, authenticated
+  USING (true);
