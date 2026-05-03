@@ -1,0 +1,230 @@
+import { createClient } from '@supabase/supabase-js';
+
+const SUPABASE_URL = process.env.SUPABASE_URL || 'https://ztpedgagubjoiluagqzd.supabase.co';
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || '';
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || '';
+const supabaseWrite = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY || SUPABASE_ANON_KEY);
+
+const APIFY_ACTOR_ID = 'bytepulselabs~facebook-video-downloader';
+const DAILY_DOWNLOAD_LIMIT = 20;
+const STORAGE_BUCKET = 'rapid-creatives';
+
+export const config = {
+    api: {
+        bodyParser: {
+            sizeLimit: '2mb',
+        },
+    },
+};
+
+export default async function handler(req: any, res: any) {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+    if (req.method === 'OPTIONS') return res.status(200).end();
+    if (req.method !== 'POST') return res.status(405).json({ success: false, error: 'Method not allowed' });
+
+    try {
+        const { url, userId, adAccountId } = req.body || {};
+        const token = process.env.APIFY_TOKEN;
+
+        if (!token) return res.status(500).json({ success: false, error: 'Missing APIFY_TOKEN' });
+        if (!SUPABASE_SERVICE_KEY) return res.status(500).json({ success: false, error: 'Missing SUPABASE_SERVICE_KEY' });
+        if (!url) return res.status(400).json({ success: false, error: 'Facebook URL is required' });
+
+        const videoId = extractFacebookVideoId(url);
+        const normalizedUrl = `https://www.facebook.com/facebook/videos/${videoId}`;
+        const userKey = normalizeUserKey(userId || adAccountId || req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'anonymous');
+
+        const usage = await reserveDailyDownload(userKey, url);
+        if (!usage.allowed) {
+            return res.status(429).json({
+                success: false,
+                error: `Limit harian cukup. Maksimum ${DAILY_DOWNLOAD_LIMIT} video sehari.`,
+                remaining: usage.remaining,
+                dailyLimit: DAILY_DOWNLOAD_LIMIT
+            });
+        }
+
+        try {
+            const run = await runApifyFacebookDownloader(token, normalizedUrl);
+            if (run.status !== 'SUCCEEDED') {
+                const error = run.statusMessage || 'Facebook video download failed';
+                await releaseUsageRecord(usage.recordId);
+                return res.status(400).json({ success: false, error, apifyRunId: run.id });
+            }
+
+            const items = await fetchApifyDatasetItems(token, run.defaultDatasetId);
+            const apifyVideoUrl = items?.[0]?.videoUrl;
+            if (!apifyVideoUrl) throw new Error('No video URL returned by Apify');
+
+            const stored = await downloadAndStoreMp4(apifyVideoUrl, videoId);
+
+            await updateUsageRecord(usage.recordId, {
+                video_url: stored.publicUrl,
+                apify_run_id: run.id,
+                status: 'completed'
+            });
+
+            return res.status(200).json({
+                success: true,
+                videoUrl: stored.publicUrl,
+                fileName: stored.fileName,
+                apifyRunId: run.id,
+                costUsd: run.usageTotalUsd || 0,
+                remaining: usage.remainingAfterReserve,
+                normalizedUrl
+            });
+        } catch (error: any) {
+            await releaseUsageRecord(usage.recordId);
+            return res.status(400).json({ success: false, error: error.message || 'Facebook video download failed' });
+        }
+    } catch (error: any) {
+        return res.status(400).json({ success: false, error: error.message || 'Invalid request' });
+    }
+}
+
+function extractFacebookVideoId(rawUrl: string): string {
+    let parsed: URL;
+    try {
+        parsed = new URL(rawUrl);
+    } catch {
+        throw new Error('Invalid Facebook URL');
+    }
+
+    if (!parsed.hostname.includes('facebook.com')) {
+        throw new Error('Invalid Facebook URL');
+    }
+
+    const reelMatch = parsed.pathname.match(/\/reel\/(\d+)/);
+    if (reelMatch) return reelMatch[1];
+
+    const videosMatch = parsed.pathname.match(/\/videos\/(\d+)/);
+    if (videosMatch) return videosMatch[1];
+
+    const nestedVideosMatch = parsed.pathname.match(/\/videos\/[^/]+\/(\d+)/);
+    if (nestedVideosMatch) return nestedVideosMatch[1];
+
+    const watchId = parsed.searchParams.get('v');
+    if (watchId && /^\d+$/.test(watchId)) return watchId;
+
+    throw new Error('Cannot extract Facebook video ID. Paste a Reel, Watch, or /videos/ URL.');
+}
+
+function normalizeUserKey(value: string): string {
+    return String(value || 'anonymous').trim().slice(0, 160) || 'anonymous';
+}
+
+function todayMalaysiaIsoStart(): string {
+    const now = new Date();
+    const malaysiaNow = new Date(now.getTime() + 8 * 60 * 60 * 1000);
+    malaysiaNow.setUTCHours(0, 0, 0, 0);
+    return new Date(malaysiaNow.getTime() - 8 * 60 * 60 * 1000).toISOString();
+}
+
+async function reserveDailyDownload(userKey: string, sourceUrl: string) {
+    const { count } = await supabaseWrite
+        .from('video_analysis_usage')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_key', userKey)
+        .eq('source', 'facebook_download_apify')
+        .gte('created_at', todayMalaysiaIsoStart());
+
+    const usedToday = count || 0;
+    const remaining = Math.max(DAILY_DOWNLOAD_LIMIT - usedToday, 0);
+    if (remaining <= 0) {
+        return { allowed: false, remaining, remainingAfterReserve: remaining, recordId: null };
+    }
+
+    const { data, error } = await supabaseWrite
+        .from('video_analysis_usage')
+        .insert({
+            user_key: userKey,
+            source_url: sourceUrl,
+            source: 'facebook_download_apify',
+            status: 'queued'
+        })
+        .select('id')
+        .single();
+
+    if (error) throw new Error(`Rate limit save failed: ${error.message}`);
+
+    return {
+        allowed: true,
+        remaining,
+        remainingAfterReserve: Math.max(remaining - 1, 0),
+        recordId: data?.id || null
+    };
+}
+
+async function updateUsageRecord(id: string | null, patch: Record<string, any>) {
+    if (!id) return;
+    await supabaseWrite.from('video_analysis_usage').update(patch).eq('id', id);
+}
+
+async function releaseUsageRecord(id: string | null) {
+    if (!id) return;
+    await supabaseWrite.from('video_analysis_usage').delete().eq('id', id).eq('status', 'queued');
+}
+
+async function runApifyFacebookDownloader(token: string, normalizedUrl: string) {
+    const response = await fetch(
+        `https://api.apify.com/v2/acts/${APIFY_ACTOR_ID}/runs?waitForFinish=300`,
+        {
+            method: 'POST',
+            headers: {
+                Authorization: `Bearer ${token}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                urls: [{ url: normalizedUrl }],
+                quality: '1080',
+                proxy: { useApifyProxy: false },
+            }),
+        }
+    );
+
+    const json = await response.json();
+    if (!response.ok) {
+        throw new Error(json.error?.message || 'Apify failed');
+    }
+
+    return json.data;
+}
+
+async function fetchApifyDatasetItems(token: string, datasetId: string) {
+    if (!datasetId) throw new Error('Apify did not return a dataset ID');
+
+    const response = await fetch(
+        `https://api.apify.com/v2/datasets/${datasetId}/items?clean=true`,
+        { headers: { Authorization: `Bearer ${token}` } }
+    );
+
+    if (!response.ok) throw new Error(`Failed to read Apify dataset (${response.status})`);
+    return response.json();
+}
+
+async function downloadAndStoreMp4(videoUrl: string, videoId: string) {
+    const mediaResponse = await fetch(videoUrl);
+    if (!mediaResponse.ok) throw new Error(`Failed to download MP4 from Apify (${mediaResponse.status})`);
+
+    const contentType = mediaResponse.headers.get('content-type') || 'video/mp4';
+    const buffer = await mediaResponse.arrayBuffer();
+    const uint8Array = new Uint8Array(buffer);
+    const fileName = `facebook-video-${videoId}-${Date.now()}.mp4`;
+    const filePath = `facebook-downloads/${fileName}`;
+
+    const supabaseService = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+    const { error } = await supabaseService.storage
+        .from(STORAGE_BUCKET)
+        .upload(filePath, uint8Array, {
+            contentType,
+            upsert: false
+        });
+
+    if (error) throw new Error(`Failed to store MP4: ${error.message}`);
+
+    const { data } = supabaseService.storage.from(STORAGE_BUCKET).getPublicUrl(filePath);
+    return { publicUrl: data.publicUrl, fileName };
+}

@@ -22,6 +22,9 @@ interface VideoAnalysisResult {
     analysis?: string;
     error?: string;
     success: boolean;
+    fileName?: string;
+    apifyRunId?: string;
+    costUsd?: number;
 }
 
 // No localStorage needed — history is server-side via Supabase
@@ -245,8 +248,8 @@ const EpicVideo: React.FC = () => {
 
     const handleAnalyzeVideo = async () => {
         const urls = parseBulkUrls(analysisUrl);
-        if (!urls.length) return setAnalysisError("Sila masukkan sekurang-kurangnya 1 link video Facebook.");
-        if (urls.length > 20) return setAnalysisError("Maksimum 20 video sehari boleh download/analisa.");
+        if (!urls.length) return setAnalysisError("Sila masukkan link video Facebook.");
+        if (urls.length > 1) return setAnalysisError("Download Facebook video buat masa ini satu link sekali.");
 
         setIsAnalyzing(true);
         setAnalysisError('');
@@ -254,13 +257,12 @@ const EpicVideo: React.FC = () => {
         setAnalysisRemaining(null);
 
         try {
-            const response = await fetch('/api/video-analysis-api?action=analyze', {
+            const response = await fetch('/api/facebook-download', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    urls,
+                    url: urls[0],
                     userId: settings.userId,
-                    fbAccessToken: settings.fbAccessToken,
                     adAccountId: settings.adAccountId
                 })
             });
@@ -275,26 +277,23 @@ const EpicVideo: React.FC = () => {
                 throw new Error(data.error || 'Gagal menganalisis video');
             }
 
-            const results = data.results || [];
+            const results: VideoAnalysisResult[] = [{
+                url: urls[0],
+                videoUrl: data.videoUrl,
+                downloadUrl: data.videoUrl,
+                fileName: data.fileName,
+                apifyRunId: data.apifyRunId,
+                costUsd: data.costUsd,
+                success: true
+            }];
             setAnalysisResults(results);
             setAnalysisRemaining(typeof data.remaining === 'number' ? data.remaining : null);
 
-            const downloadLinks = results
-                .filter((item: VideoAnalysisResult) => item.success && (item.downloadUrl || item.videoUrl))
-                .map((item: VideoAnalysisResult) => item.downloadUrl || item.videoUrl);
-
-            downloadLinks.forEach((link: string, index: number) => {
-                window.setTimeout(() => window.open(link, '_blank'), index * 500);
-            });
-
-            if (downloadLinks.length) {
-                showToast(`${downloadLinks.length} video siap dianalisa. Download dibuka automatik.`, 'success');
-            } else {
-                setAnalysisError(data.error || 'Semua video gagal diproses.');
-            }
+            await triggerVideoDownload(data.videoUrl, data.fileName || 'facebook-video.mp4');
+            showToast('Video siap. Download dibuka automatik.', 'success');
         } catch (e: any) {
             console.error("Analysis Error", e);
-            setAnalysisError(e.message || "Ralat tidak dijangka berlaku semasa analisis.");
+            setAnalysisError(e.message || "Ralat tidak dijangka berlaku semasa download video.");
         } finally {
             setIsAnalyzing(false);
         }
@@ -303,6 +302,23 @@ const EpicVideo: React.FC = () => {
     const parseBulkUrls = (value: string) => {
         const matches = value.match(/https?:\/\/[^\s,]+/g) || [];
         return Array.from(new Set(matches.map((item) => item.trim().replace(/[)\].,]+$/, ''))));
+    };
+
+    const triggerVideoDownload = async (url: string, fileName: string) => {
+        try {
+            const response = await fetch(url);
+            const blob = await response.blob();
+            const objectUrl = URL.createObjectURL(blob);
+            const anchor = document.createElement('a');
+            anchor.href = objectUrl;
+            anchor.download = fileName;
+            document.body.appendChild(anchor);
+            anchor.click();
+            anchor.remove();
+            URL.revokeObjectURL(objectUrl);
+        } catch {
+            window.open(url, '_blank');
+        }
     };
 
     const handleDownload = async (url?: string) => {
@@ -344,7 +360,7 @@ const EpicVideo: React.FC = () => {
                     onClick={() => setActiveTab('analyze')}
                     className={`pb-3 px-1 text-sm font-bold transition-all relative ${activeTab === 'analyze' ? 'text-purple-600' : 'text-slate-400 hover:text-slate-600'}`}
                 >
-                    Analisa Video (Direct Link)
+                    Download Facebook
                     {activeTab === 'analyze' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-purple-600 rounded-full" />}
                 </button>
             </div>
@@ -646,8 +662,8 @@ const EpicVideo: React.FC = () => {
                 <div className="animate-fadeIn max-w-4xl mx-auto">
                     <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-sm">
                         <div className="mb-6">
-                            <h2 className="text-xl font-bold text-slate-800 mb-2">Analisa Video Facebook</h2>
-                            <p className="text-sm text-slate-500">Paste link video Facebook. Boleh bulk banyak link, satu link satu baris. Limit 20 video sehari.</p>
+                            <h2 className="text-xl font-bold text-slate-800 mb-2">Download Video Facebook</h2>
+                            <p className="text-sm text-slate-500">Paste link Reel, Watch, atau video Facebook. Sistem akan download MP4 guna Apify.</p>
                         </div>
 
                         {analysisError && (
@@ -661,7 +677,7 @@ const EpicVideo: React.FC = () => {
                             <textarea
                                 value={analysisUrl}
                                 onChange={(e) => setAnalysisUrl(e.target.value)}
-                                placeholder={'https://www.facebook.com/share/v/...\nhttps://www.facebook.com/watch/?v=...'}
+                                placeholder={'https://www.facebook.com/reel/966753982370315\nhttps://www.facebook.com/watch/?v=966753982370315'}
                                 className="flex-1 min-h-[120px] bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-800 outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all resize-y"
                                 disabled={isAnalyzing}
                             />
@@ -671,7 +687,7 @@ const EpicVideo: React.FC = () => {
                                 className="md:self-start bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold px-8 py-3 rounded-xl shadow-lg shadow-purple-200 disabled:opacity-50 flex items-center justify-center gap-2 transition-all"
                             >
                                 {isAnalyzing ? <Loader2 className="animate-spin" size={20} /> : <Sparkles size={20} />}
-                                <span>{isAnalyzing ? 'Menganalisis...' : `Analisa ${parseBulkUrls(analysisUrl).length || ''}`}</span>
+                                <span>{isAnalyzing ? 'Downloading...' : 'Download'}</span>
                             </button>
                         </div>
 
@@ -684,8 +700,8 @@ const EpicVideo: React.FC = () => {
                                         <Video className="text-purple-600" size={32} />
                                     </div>
                                 </div>
-                                <h3 className="text-lg font-bold text-slate-800 mb-2">Proses Analisis Sedang Berjalan</h3>
-                                <p className="text-slate-500 max-w-sm">Sistem sedang mendownload video dan menghantar data ke Gemini 3 Flash untuk diproses. Sila tunggu sebentar...</p>
+                                <h3 className="text-lg font-bold text-slate-800 mb-2">Download Sedang Berjalan</h3>
+                                <p className="text-slate-500 max-w-sm">Sistem sedang menjalankan Apify, simpan MP4, dan sediakan fail download. Sila tunggu sebentar...</p>
                             </div>
                         )}
 
@@ -696,7 +712,7 @@ const EpicVideo: React.FC = () => {
                                         <Rocket className="text-green-600" size={20} />
                                     </div>
                                     <div>
-                                        <h3 className="text-lg font-bold text-slate-800">Keputusan Analisis AI</h3>
+                                        <h3 className="text-lg font-bold text-slate-800">Video Siap Download</h3>
                                         {analysisRemaining !== null && (
                                             <p className="text-xs text-slate-500">Baki limit hari ini: {analysisRemaining}/20</p>
                                         )}
@@ -712,7 +728,7 @@ const EpicVideo: React.FC = () => {
                                             </div>
                                             {(item.downloadUrl || item.videoUrl) && (
                                                 <button
-                                                    onClick={() => handleDownload(item.downloadUrl || item.videoUrl)}
+                                                    onClick={() => triggerVideoDownload(item.downloadUrl || item.videoUrl || '', item.fileName || 'facebook-video.mp4')}
                                                     className="shrink-0 bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-2"
                                                 >
                                                     <Download size={14} />
@@ -721,17 +737,21 @@ const EpicVideo: React.FC = () => {
                                             )}
                                         </div>
 
-                                        {item.success && item.analysis ? (
-                                            <div className="text-slate-700 whitespace-pre-wrap leading-relaxed">
-                                                {item.analysis.split('\n').map((line, i) => (
-                                                    <p key={i} className={line.startsWith('#') ? 'font-bold text-xl text-purple-700 mt-4 mb-2' : line.startsWith('**') ? 'font-bold text-slate-900 mt-2' : 'mb-1'}>
-                                                        {line.replace(/\*\*/g, '')}
-                                                    </p>
-                                                ))}
+                                        {item.success && item.videoUrl ? (
+                                            <div className="space-y-4">
+                                                <video
+                                                    src={item.videoUrl}
+                                                    controls
+                                                    className="w-full max-h-[520px] rounded-xl bg-black"
+                                                />
+                                                <div className="text-xs text-slate-500 space-y-1">
+                                                    {item.apifyRunId && <p>Apify Run: {item.apifyRunId}</p>}
+                                                    {typeof item.costUsd === 'number' && <p>Cost: ${item.costUsd.toFixed(4)}</p>}
+                                                </div>
                                             </div>
                                         ) : (
                                             <div className="bg-red-50 border border-red-100 text-red-600 text-sm font-medium rounded-xl p-4">
-                                                {item.error || 'Video gagal dianalisa.'}
+                                                {item.error || 'Video gagal didownload.'}
                                             </div>
                                         )}
                                     </div>
@@ -740,7 +760,7 @@ const EpicVideo: React.FC = () => {
                                 <div className="mt-8 p-4 bg-purple-50 border border-purple-100 rounded-xl flex items-center justify-between">
                                     <div className="flex items-center gap-3">
                                         <Sparkles className="text-purple-600" size={20} />
-                                        <p className="text-xs text-purple-800 font-medium">Analisis dijana secara automatik menggunakan Gemini 3 Flash Multimodal.</p>
+                                        <p className="text-xs text-purple-800 font-medium">Video disimpan dalam storage app dan download akan dibuka automatik.</p>
                                     </div>
                                     <button
                                         onClick={() => setAnalysisResults([])}
