@@ -33,8 +33,8 @@ export default async function handler(req: any, res: any) {
         if (!SUPABASE_SERVICE_KEY) return res.status(500).json({ success: false, error: 'Missing SUPABASE_SERVICE_KEY' });
         if (!url) return res.status(400).json({ success: false, error: 'Facebook URL is required' });
 
-        const videoId = extractFacebookVideoId(url);
-        const normalizedUrl = `https://www.facebook.com/facebook/videos/${videoId}`;
+        validateFacebookUrl(url);
+        const candidateIds = await resolveFacebookVideoCandidates(url);
         const userKey = normalizeUserKey(userId || adAccountId || req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'anonymous');
 
         const usage = await reserveDailyDownload(userKey, url);
@@ -48,22 +48,12 @@ export default async function handler(req: any, res: any) {
         }
 
         try {
-            const run = await runApifyFacebookDownloader(token, normalizedUrl);
-            if (run.status !== 'SUCCEEDED') {
-                const error = run.statusMessage || 'Facebook video download failed';
-                await releaseUsageRecord(usage.recordId);
-                return res.status(400).json({ success: false, error, apifyRunId: run.id });
-            }
-
-            const items = await fetchApifyDatasetItems(token, run.defaultDatasetId);
-            const apifyVideoUrl = items?.[0]?.videoUrl;
-            if (!apifyVideoUrl) throw new Error('No video URL returned by Apify');
-
-            const stored = await downloadAndStoreMp4(apifyVideoUrl, videoId);
+            const downloaded = await downloadFirstWorkingCandidate(token, candidateIds);
+            const stored = await downloadAndStoreMp4(downloaded.videoUrl, downloaded.videoId);
 
             await updateUsageRecord(usage.recordId, {
                 video_url: stored.publicUrl,
-                apify_run_id: run.id,
+                apify_run_id: downloaded.run.id,
                 status: 'completed'
             });
 
@@ -71,10 +61,11 @@ export default async function handler(req: any, res: any) {
                 success: true,
                 videoUrl: stored.publicUrl,
                 fileName: stored.fileName,
-                apifyRunId: run.id,
-                costUsd: run.usageTotalUsd || 0,
+                apifyRunId: downloaded.run.id,
+                costUsd: downloaded.run.usageTotalUsd || 0,
                 remaining: usage.remainingAfterReserve,
-                normalizedUrl
+                normalizedUrl: downloaded.normalizedUrl,
+                candidateIds
             });
         } catch (error: any) {
             await releaseUsageRecord(usage.recordId);
@@ -85,18 +76,37 @@ export default async function handler(req: any, res: any) {
     }
 }
 
-function extractFacebookVideoId(rawUrl: string): string {
-    let parsed: URL;
-    try {
-        parsed = new URL(rawUrl);
-    } catch {
-        throw new Error('Invalid Facebook URL');
-    }
-
+function validateFacebookUrl(rawUrl: string): URL {
+    const parsed = parseUrl(rawUrl);
     if (!parsed.hostname.includes('facebook.com')) {
         throw new Error('Invalid Facebook URL');
     }
+    return parsed;
+}
 
+function parseUrl(rawUrl: string): URL {
+    try {
+        return new URL(rawUrl);
+    } catch {
+        throw new Error('Invalid Facebook URL');
+    }
+}
+
+async function resolveFacebookVideoCandidates(rawUrl: string): Promise<string[]> {
+    const parsed = validateFacebookUrl(rawUrl);
+    const directId = extractDirectFacebookVideoId(parsed);
+    if (directId) return [directId];
+
+    if (parsed.pathname.match(/\/posts\/\d+/)) {
+        const html = await fetchFacebookHtml(rawUrl);
+        const candidates = extractVideoIdsFromHtml(html);
+        if (candidates.length) return candidates;
+    }
+
+    throw new Error('Cannot extract Facebook video ID. Paste a Reel, Watch, /videos/, or public post URL with attached video.');
+}
+
+function extractDirectFacebookVideoId(parsed: URL): string | null {
     const reelMatch = parsed.pathname.match(/\/reel\/(\d+)/);
     if (reelMatch) return reelMatch[1];
 
@@ -109,7 +119,65 @@ function extractFacebookVideoId(rawUrl: string): string {
     const watchId = parsed.searchParams.get('v');
     if (watchId && /^\d+$/.test(watchId)) return watchId;
 
-    throw new Error('Cannot extract Facebook video ID. Paste a Reel, Watch, or /videos/ URL.');
+    return null;
+}
+
+async function fetchFacebookHtml(url: string): Promise<string> {
+    const response = await fetch(url, {
+        headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.9',
+        }
+    });
+
+    if (!response.ok) throw new Error(`Failed to fetch Facebook post HTML (${response.status})`);
+    return response.text();
+}
+
+function extractVideoIdsFromHtml(html: string): string[] {
+    const candidates: string[] = [];
+    const add = (value?: string | null) => {
+        if (value && /^\d{8,}$/.test(value) && !candidates.includes(value)) candidates.push(value);
+    };
+
+    for (const pattern of [
+        /"videoID"\s*:\s*"(\d+)"/g,
+        /"videoID"\s*:\s*(\d+)/g,
+        /"video_id"\s*:\s*"(\d+)"/g,
+        /"video_id"\s*:\s*(\d+)/g,
+        /\/videos\/(\d+)/g,
+        /\/watch\/?\?v=(\d+)/g,
+    ]) {
+        for (const match of html.matchAll(pattern)) add(match[1]);
+    }
+
+    for (const pattern of [
+        /<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/gi,
+        /<meta[^>]+name=["']twitter:image["'][^>]+content=["']([^"']+)["']/gi,
+        /<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/gi,
+        /<meta[^>]+content=["']([^"']+)["'][^>]+name=["']twitter:image["']/gi,
+    ]) {
+        for (const match of html.matchAll(pattern)) {
+            const imageUrl = decodeHtml(match[1] || '');
+            for (const numberMatch of imageUrl.matchAll(/(?:^|[_/-])(\d{12,})(?:[_./-]|$)/g)) add(numberMatch[1]);
+        }
+    }
+
+    const videoContextPattern = /(?:video|thumbnail|t15\.5256-10)[\s\S]{0,600}?(\d{12,})/gi;
+    for (const match of html.matchAll(videoContextPattern)) add(match[1]);
+
+    return candidates.slice(0, 8);
+}
+
+function decodeHtml(value: string): string {
+    return value
+        .replace(/&amp;/g, '&')
+        .replace(/&quot;/g, '"')
+        .replace(/&#039;/g, "'")
+        .replace(/\\\//g, '/')
+        .replace(/\\u0025/g, '%')
+        .replace(/\\u0026/g, '&');
 }
 
 function normalizeUserKey(value: string): string {
@@ -166,6 +234,28 @@ async function updateUsageRecord(id: string | null, patch: Record<string, any>) 
 async function releaseUsageRecord(id: string | null) {
     if (!id) return;
     await supabaseWrite.from('video_analysis_usage').delete().eq('id', id).eq('status', 'queued');
+}
+
+async function downloadFirstWorkingCandidate(token: string, candidateIds: string[]) {
+    let lastError = 'Facebook video download failed';
+
+    for (const videoId of candidateIds) {
+        const normalizedUrl = `https://www.facebook.com/facebook/videos/${videoId}`;
+        const run = await runApifyFacebookDownloader(token, normalizedUrl);
+
+        if (run.status !== 'SUCCEEDED') {
+            lastError = run.statusMessage || `Apify run failed for video ${videoId}`;
+            continue;
+        }
+
+        const items = await fetchApifyDatasetItems(token, run.defaultDatasetId);
+        const videoUrl = items?.[0]?.videoUrl;
+        if (videoUrl) return { videoId, normalizedUrl, videoUrl, run };
+
+        lastError = `Apify run succeeded but returned no videoUrl for candidate ${videoId}`;
+    }
+
+    throw new Error(lastError);
 }
 
 async function runApifyFacebookDownloader(token: string, normalizedUrl: string) {
