@@ -123,16 +123,52 @@ function extractDirectFacebookVideoId(parsed: URL): string | null {
 }
 
 async function fetchFacebookHtml(url: string): Promise<string> {
-    const response = await fetch(url, {
-        headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-            'Accept-Language': 'en-US,en;q=0.9',
-        }
-    });
+    const urls = buildFacebookHtmlUrls(url);
+    let lastStatus = 0;
 
-    if (!response.ok) throw new Error(`Failed to fetch Facebook post HTML (${response.status})`);
-    return response.text();
+    for (const targetUrl of urls) {
+        const response = await fetch(targetUrl, {
+            redirect: 'follow',
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Cache-Control': 'no-cache',
+                'Pragma': 'no-cache',
+            }
+        });
+
+        lastStatus = response.status;
+        const html = await response.text();
+        if (response.ok && html.length > 500) return html;
+    }
+
+    throw new Error(`Failed to fetch Facebook post HTML (${lastStatus || 'no response'})`);
+}
+
+function buildFacebookHtmlUrls(rawUrl: string): string[] {
+    const parsed = validateFacebookUrl(rawUrl);
+    const urls = [rawUrl];
+    const hostVariants = ['www.facebook.com', 'm.facebook.com', 'mbasic.facebook.com'];
+
+    for (const host of hostVariants) {
+        const next = new URL(rawUrl);
+        next.hostname = host;
+        urls.push(next.toString());
+    }
+
+    const postMatch = parsed.pathname.match(/^\/([^/]+)\/posts\/(\d+)\/?$/);
+    if (postMatch) {
+        const pageId = postMatch[1];
+        const postId = postMatch[2];
+        for (const host of hostVariants) {
+            urls.push(`https://${host}/${pageId}/posts/${postId}/`);
+            urls.push(`https://${host}/story.php?story_fbid=${postId}&id=${pageId}`);
+            urls.push(`https://${host}/permalink.php?story_fbid=${postId}&id=${pageId}`);
+        }
+    }
+
+    return Array.from(new Set(urls));
 }
 
 function extractVideoIdsFromHtml(html: string): string[] {
