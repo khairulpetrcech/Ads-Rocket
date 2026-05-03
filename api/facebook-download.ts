@@ -149,6 +149,7 @@ function buildPostUrlCandidates(rawUrl: string): FacebookDownloadCandidate[] {
     const candidates: FacebookDownloadCandidate[] = [];
 
     const add = (url: string, videoId = postId) => candidates.push({ videoId, normalizedUrl: url });
+    candidates.push(...buildDirectVideoCandidates(postId));
     add(rawUrl);
 
     for (const host of hostVariants) {
