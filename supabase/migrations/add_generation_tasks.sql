@@ -243,6 +243,26 @@ CREATE INDEX IF NOT EXISTS idx_winning_ads_breakdowns_ad_created
 CREATE INDEX IF NOT EXISTS idx_winning_ads_breakdowns_item
   ON winning_ads_creative_breakdowns (winning_ad_item_id);
 
+CREATE TABLE IF NOT EXISTS video_analysis_usage (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_key TEXT NOT NULL,
+  source TEXT NOT NULL DEFAULT 'epic_video_apify',
+  source_url TEXT NOT NULL,
+  video_url TEXT,
+  apify_run_id TEXT,
+  status TEXT NOT NULL DEFAULT 'queued',
+  analysis_model TEXT DEFAULT 'gemini-3-flash-preview',
+  analysis_text TEXT,
+  error_message TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_video_analysis_usage_user_created
+  ON video_analysis_usage (user_key, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_video_analysis_usage_status
+  ON video_analysis_usage (status, created_at DESC);
+
 CREATE OR REPLACE VIEW winning_ads_last_30_days AS
 SELECT
   item.*,
