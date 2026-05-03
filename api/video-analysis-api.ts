@@ -94,6 +94,24 @@ async function resolveFacebookVideoId(url: string, token: string): Promise<strin
     return null;
 }
 
+function getFacebookVideoUrlCandidates(url: string): string[] {
+    const { videoId, pageId, postId } = parseFbUrl(url);
+    const candidates = [url];
+
+    if (pageId && postId) {
+        candidates.push(`https://www.facebook.com/${pageId}/videos/${postId}`);
+        candidates.push(`https://www.facebook.com/${pageId}/videos/${postId}/`);
+    }
+
+    if (videoId) {
+        candidates.push(`https://www.facebook.com/facebook/videos/${videoId}`);
+        candidates.push(`https://www.facebook.com/watch/?v=${videoId}`);
+        candidates.push(`https://www.facebook.com/video.php?v=${videoId}`);
+    }
+
+    return Array.from(new Set(candidates));
+}
+
 /**
  * Extract video source using Facebook Graph API.
  * Strategy:
@@ -308,6 +326,7 @@ async function handleAnalyze(req: any, res: any) {
                     status: 'failed',
                     error_message: error.message || 'Unknown error'
                 });
+                await releaseFailedUsageRecord(item.id);
                 results.push({ url: sourceUrl, error: error.message || 'Gagal proses video', success: false });
             }
         }
@@ -407,19 +426,43 @@ async function updateUsageRecord(id: string | null, patch: Record<string, any>) 
     if (error) console.warn('[Video Analysis] Usage update failed:', error.message);
 }
 
+async function releaseFailedUsageRecord(id: string | null) {
+    if (!id) return;
+    const { error } = await supabaseWrite
+        .from('video_analysis_usage')
+        .delete()
+        .eq('id', id)
+        .eq('status', 'failed');
+    if (error) console.warn('[Video Analysis] Usage release failed:', error.message);
+}
+
 async function downloadFacebookVideoWithFallback(url: string, apifyToken: string, fbAccessToken?: string): Promise<{ videoUrl: string; runId: string | null }> {
+    let lastError: any = null;
+
+    for (const candidateUrl of getFacebookVideoUrlCandidates(url)) {
+        try {
+            return await downloadFacebookVideoWithApify(candidateUrl, apifyToken);
+        } catch (error: any) {
+            lastError = error;
+            console.warn('[Video Analysis] Apify URL failed:', candidateUrl, error.message);
+        }
+    }
+
     try {
         return await downloadFacebookVideoWithApify(url, apifyToken);
     } catch (firstError: any) {
-        console.warn('[Video Analysis] Apify original URL failed:', firstError.message);
+        lastError = firstError;
 
         if (fbAccessToken) {
             const videoId = await resolveFacebookVideoId(url, fbAccessToken);
             if (videoId) {
-                try {
-                    return await downloadFacebookVideoWithApify(`https://www.facebook.com/watch/?v=${videoId}`, apifyToken);
-                } catch (secondError: any) {
-                    console.warn('[Video Analysis] Apify resolved watch URL failed:', secondError.message);
+                for (const candidateUrl of getFacebookVideoUrlCandidates(`https://www.facebook.com/facebook/videos/${videoId}`)) {
+                    try {
+                        return await downloadFacebookVideoWithApify(candidateUrl, apifyToken);
+                    } catch (secondError: any) {
+                        lastError = secondError;
+                        console.warn('[Video Analysis] Apify resolved URL failed:', candidateUrl, secondError.message);
+                    }
                 }
             }
 
@@ -430,8 +473,16 @@ async function downloadFacebookVideoWithFallback(url: string, apifyToken: string
         const scrapedVideoUrl = await extractViaScraping(url);
         if (scrapedVideoUrl) return { videoUrl: scrapedVideoUrl, runId: null };
 
-        throw firstError;
+        throw new Error(buildFacebookDownloadError(lastError || firstError));
     }
+}
+
+function buildFacebookDownloadError(error: any): string {
+    const raw = error?.message || String(error || '');
+    if (raw.includes('Please provide a valid Facebook video URL')) {
+        return 'Apify reject link ini sebab ia bukan public Facebook video URL. Buka video asal > Copy video link, pastikan format macam /videos/{id}.';
+    }
+    return raw;
 }
 
 async function downloadFacebookVideoWithApify(url: string, token: string): Promise<{ videoUrl: string; runId: string | null }> {
