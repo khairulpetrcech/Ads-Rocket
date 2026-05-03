@@ -293,12 +293,24 @@ function todayMalaysiaIsoStart(): string {
 }
 
 async function reserveDailyDownload(userKey: string, sourceUrl: string) {
-    const { count } = await supabaseWrite
+    const { count, error: countError } = await supabaseWrite
         .from('video_analysis_usage')
         .select('id', { count: 'exact', head: true })
         .eq('user_key', userKey)
         .eq('source', 'facebook_download_apify')
         .gte('created_at', todayMalaysiaIsoStart());
+
+    if (isMissingUsageTableError(countError)) {
+        console.warn('[Facebook Download] video_analysis_usage table missing; skipping daily limit.');
+        return {
+            allowed: true,
+            remaining: DAILY_DOWNLOAD_LIMIT,
+            remainingAfterReserve: DAILY_DOWNLOAD_LIMIT,
+            recordId: null
+        };
+    }
+
+    if (countError) throw new Error(`Rate limit check failed: ${countError.message}`);
 
     const usedToday = count || 0;
     const remaining = Math.max(DAILY_DOWNLOAD_LIMIT - usedToday, 0);
@@ -316,6 +328,16 @@ async function reserveDailyDownload(userKey: string, sourceUrl: string) {
         })
         .select('id')
         .single();
+
+    if (isMissingUsageTableError(error)) {
+        console.warn('[Facebook Download] video_analysis_usage table missing; download will continue without usage tracking.');
+        return {
+            allowed: true,
+            remaining,
+            remainingAfterReserve: remaining,
+            recordId: null
+        };
+    }
 
     if (error) throw new Error(`Rate limit save failed: ${error.message}`);
 
@@ -335,6 +357,11 @@ async function updateUsageRecord(id: string | null, patch: Record<string, any>) 
 async function releaseUsageRecord(id: string | null) {
     if (!id) return;
     await supabaseWrite.from('video_analysis_usage').delete().eq('id', id).eq('status', 'queued');
+}
+
+function isMissingUsageTableError(error: any): boolean {
+    const message = String(error?.message || '');
+    return error?.code === 'PGRST205' || message.includes("Could not find the table 'public.video_analysis_usage'");
 }
 
 async function downloadFirstWorkingCandidate(token: string, candidates: FacebookDownloadCandidate[]) {
