@@ -76,7 +76,7 @@ export default async function handler(req: any, res: any) {
         } catch (firstError: any) {
             console.warn('[Facebook Download] Initial candidates failed:', firstError.message);
 
-            // === GRAPH API FALLBACK ===
+            // === FALLBACK 1: GRAPH API ===
             // If user has FB access token, try to resolve the actual video ID from the post
             if (fbAccessToken) {
                 try {
@@ -105,8 +105,47 @@ export default async function handler(req: any, res: any) {
                         });
                     }
                 } catch (graphError: any) {
-                    console.warn('[Facebook Download] Graph API fallback also failed:', graphError.message);
+                    console.warn('[Facebook Download] Graph API fallback failed:', graphError.message);
                 }
+            }
+
+            // === FALLBACK 2: APIFY SCRAPER ===
+            // Use Apify to scrape the Facebook post HTML (Apify proxies bypass FB IP blocks)
+            // then extract video IDs and retry download
+            try {
+                const scrapedVideoIds = await scrapeVideoIdsViaApify(token, url);
+                if (scrapedVideoIds.length > 0) {
+                    console.log(`[Facebook Download] Apify scraper found ${scrapedVideoIds.length} video IDs: ${scrapedVideoIds.join(', ')}`);
+                    const scrapedCandidates: FacebookDownloadCandidate[] = [];
+                    for (const vid of scrapedVideoIds) {
+                        scrapedCandidates.push(...buildDirectVideoCandidates(vid));
+                    }
+                    try {
+                        const downloaded = await downloadFirstWorkingCandidate(token, scrapedCandidates);
+                        const stored = await downloadAndStoreMp4(downloaded.videoUrl, downloaded.videoId);
+
+                        await updateUsageRecord(usage.recordId, {
+                            video_url: stored.publicUrl,
+                            apify_run_id: downloaded.run.id,
+                            status: 'completed'
+                        });
+
+                        return res.status(200).json({
+                            success: true,
+                            videoUrl: stored.publicUrl,
+                            fileName: stored.fileName,
+                            apifyRunId: downloaded.run.id,
+                            costUsd: downloaded.run.usageTotalUsd || 0,
+                            remaining: usage.remainingAfterReserve,
+                            resolvedVia: 'apify_scraper',
+                            resolvedVideoIds: scrapedVideoIds
+                        });
+                    } catch (retryError: any) {
+                        console.warn('[Facebook Download] Apify scraper candidates also failed:', retryError.message);
+                    }
+                }
+            } catch (scrapeError: any) {
+                console.warn('[Facebook Download] Apify scraper fallback failed:', scrapeError.message);
             }
 
             await releaseUsageRecord(usage.recordId);
@@ -472,6 +511,80 @@ async function resolveFacebookVideoIdViaGraph(url: string, fbToken: string): Pro
     }
 
     return null;
+}
+
+// ============================================================
+// APIFY SCRAPER FALLBACK — Scrape Facebook post HTML via Apify
+// ============================================================
+
+async function scrapeVideoIdsViaApify(apifyToken: string, postUrl: string): Promise<string[]> {
+    // Build multiple URL variants to maximize chance of getting video content
+    const { pageId, postId } = parseFbUrl(postUrl);
+    const urlsToScrape = [postUrl];
+    if (pageId && postId) {
+        urlsToScrape.push(
+            `https://mbasic.facebook.com/${pageId}/posts/${postId}/`,
+            `https://mbasic.facebook.com/story.php?story_fbid=${postId}&id=${pageId}`,
+            `https://m.facebook.com/${pageId}/posts/${postId}/`
+        );
+    }
+
+    // Use Apify's cheerio-scraper to fetch HTML from Facebook (with proxy)
+    const actorId = 'apify~cheerio-scraper';
+    const apiUrl = `https://api.apify.com/v2/acts/${actorId}/run-sync-get-dataset-items?token=${encodeURIComponent(apifyToken)}&clean=true&format=json&timeout=120`;
+
+    const input = {
+        startUrls: urlsToScrape.slice(0, 3).map((u) => ({ url: u })),
+        maxRequestsPerCrawl: 3,
+        maxConcurrency: 3,
+        requestHandlerTimeoutSecs: 30,
+        proxyConfiguration: { useApifyProxy: true, apifyProxyGroups: ['RESIDENTIAL'] },
+        pageFunction: `async function pageFunction(context) {
+            const { $, request } = context;
+            return {
+                url: request.url,
+                html: $.html(),
+                title: $('title').text()
+            };
+        }`
+    };
+
+    console.log(`[Facebook Download] Scraping ${urlsToScrape.length} URL variants via Apify cheerio-scraper`);
+
+    const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input)
+    });
+
+    if (!response.ok) {
+        const text = await response.text();
+        console.warn(`[Facebook Download] Apify scraper HTTP ${response.status}: ${text.slice(0, 200)}`);
+        return [];
+    }
+
+    let results: any[];
+    try {
+        results = await response.json();
+        if (!Array.isArray(results)) results = [results];
+    } catch {
+        return [];
+    }
+
+    // Extract video IDs from all scraped HTML
+    const allVideoIds: string[] = [];
+    for (const result of results) {
+        const html = result?.html || result?.body || '';
+        if (typeof html === 'string' && html.length > 100) {
+            const ids = extractVideoIdsFromHtml(html);
+            for (const id of ids) {
+                if (!allVideoIds.includes(id)) allVideoIds.push(id);
+            }
+        }
+    }
+
+    console.log(`[Facebook Download] Apify scraper extracted ${allVideoIds.length} video IDs`);
+    return allVideoIds;
 }
 
 async function downloadFirstWorkingCandidate(token: string, candidates: FacebookDownloadCandidate[]) {

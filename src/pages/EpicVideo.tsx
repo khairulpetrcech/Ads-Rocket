@@ -270,17 +270,6 @@ const EpicVideo: React.FC = () => {
         if (!urls.length) return setAnalysisError('Sila masukkan link video Facebook.');
         if (urls.length > 1) return setAnalysisError('Download Facebook video buat masa ini satu link sekali.');
 
-        // Early client-side check: warn if it's a plain /posts/ URL with no video indicators
-        if (isPlainPostUrl(urls[0])) {
-            setAnalysisError(
-                'Link "/posts/" mungkin tidak disokong. Sila guna URL video terus:\n' +
-                '\u2022 Reel: facebook.com/reel/{id}\n' +
-                '\u2022 Watch: facebook.com/watch/?v={id}\n' +
-                '\u2022 Video: facebook.com/{page}/videos/{id}'
-            );
-            // Allow the request to proceed anyway — the post might embed a video
-        }
-
         setIsAnalyzing(true);
         setAnalysisError('');
         setAnalysisResults([]);
