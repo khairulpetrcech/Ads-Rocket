@@ -75,7 +75,7 @@ export default async function handler(req: any, res: any) {
             });
         } catch (error: any) {
             await releaseUsageRecord(usage.recordId);
-            return res.status(400).json({ success: false, error: error.message || 'Facebook video download failed' });
+            return res.status(400).json({ success: false, error: buildFriendlyError(error) });
         }
     } catch (error: any) {
         return res.status(400).json({ success: false, error: error.message || 'Invalid request' });
@@ -363,6 +363,28 @@ async function releaseUsageRecord(id: string | null) {
 function isMissingUsageTableError(error: any): boolean {
     const message = String(error?.message || '');
     return error?.code === 'PGRST205' || message.includes("Could not find the table 'public.video_analysis_usage'");
+}
+
+function buildFriendlyError(error: any): string {
+    const raw = String(error?.message || error || '');
+    if (
+        raw.toLowerCase().includes('please provide a valid facebook video url') ||
+        raw.toLowerCase().includes('invalid facebook video url') ||
+        raw.toLowerCase().includes('not a valid facebook')
+    ) {
+        return 'Apify tidak dapat download link ini. Sila gunakan URL video terus:\n' +
+            '\u2022 Reel: facebook.com/reel/{id}\n' +
+            '\u2022 Watch: facebook.com/watch/?v={id}\n' +
+            '\u2022 Video: facebook.com/{page}/videos/{id}\n\n' +
+            'Link jenis "/posts/" tidak disokong melainkan ada video ID yang boleh diekstrak.';
+    }
+    if (raw.includes('Apify run failed') || raw.includes('SUCCEEDED')) {
+        return 'Apify gagal menjalankan download. Video mungkin private, dikunci geografi, atau URL tidak sah.';
+    }
+    if (raw.includes('no videoUrl') || raw.includes('tiada videoUrl')) {
+        return 'Apify berjaya run tetapi tidak jumpa URL video. Cuba link video/reel yang lain.';
+    }
+    return raw || 'Facebook video download gagal. Cuba semula dengan URL video yang betul.';
 }
 
 async function downloadFirstWorkingCandidate(token: string, candidates: FacebookDownloadCandidate[]) {

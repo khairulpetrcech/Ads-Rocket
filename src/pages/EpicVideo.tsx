@@ -246,10 +246,40 @@ const EpicVideo: React.FC = () => {
         }
     };
 
+    const parseBulkUrls = (value: string) => {
+        const matches = value.match(/https?:\/\/[^\s,]+/g) || [];
+        return Array.from(new Set(matches.map((item) => item.trim().replace(/[)\].,]+$/, ''))));
+    };
+
+    // Returns true if the URL looks like a plain post (not a video/reel/watch link)
+    const isPlainPostUrl = (url: string): boolean => {
+        try {
+            const parsed = new URL(url);
+            if (!parsed.hostname.includes('facebook.com') && !parsed.hostname.includes('fb.watch')) return false;
+            const hasVideoPath = /\/(reel|videos|video\.php|watch)/.test(parsed.pathname);
+            const hasVideoParam = parsed.searchParams.has('v');
+            const isPostUrl = /\/posts\//.test(parsed.pathname);
+            return isPostUrl && !hasVideoPath && !hasVideoParam;
+        } catch {
+            return false;
+        }
+    };
+
     const handleAnalyzeVideo = async () => {
         const urls = parseBulkUrls(analysisUrl);
-        if (!urls.length) return setAnalysisError("Sila masukkan link video Facebook.");
-        if (urls.length > 1) return setAnalysisError("Download Facebook video buat masa ini satu link sekali.");
+        if (!urls.length) return setAnalysisError('Sila masukkan link video Facebook.');
+        if (urls.length > 1) return setAnalysisError('Download Facebook video buat masa ini satu link sekali.');
+
+        // Early client-side check: warn if it's a plain /posts/ URL with no video indicators
+        if (isPlainPostUrl(urls[0])) {
+            setAnalysisError(
+                'Link "/posts/" mungkin tidak disokong. Sila guna URL video terus:\n' +
+                '\u2022 Reel: facebook.com/reel/{id}\n' +
+                '\u2022 Watch: facebook.com/watch/?v={id}\n' +
+                '\u2022 Video: facebook.com/{page}/videos/{id}'
+            );
+            // Allow the request to proceed anyway — the post might embed a video
+        }
 
         setIsAnalyzing(true);
         setAnalysisError('');
@@ -297,11 +327,6 @@ const EpicVideo: React.FC = () => {
         } finally {
             setIsAnalyzing(false);
         }
-    };
-
-    const parseBulkUrls = (value: string) => {
-        const matches = value.match(/https?:\/\/[^\s,]+/g) || [];
-        return Array.from(new Set(matches.map((item) => item.trim().replace(/[)\].,]+$/, ''))));
     };
 
     const triggerVideoDownload = async (url: string, fileName: string) => {
@@ -668,8 +693,8 @@ const EpicVideo: React.FC = () => {
 
                         {analysisError && (
                             <div className="bg-red-50 border border-red-200 p-4 rounded-xl mb-6 flex items-start gap-3">
-                                <AlertTriangle className="text-red-600 shrink-0" size={20} />
-                                <p className="text-sm text-red-600 font-medium">{analysisError}</p>
+                                <AlertTriangle className="text-red-600 shrink-0 mt-0.5" size={20} />
+                                <p className="text-sm text-red-600 font-medium whitespace-pre-line">{analysisError}</p>
                             </div>
                         )}
 
