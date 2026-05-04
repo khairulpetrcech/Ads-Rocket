@@ -293,7 +293,8 @@ const EpicVideo: React.FC = () => {
                 body: JSON.stringify({
                     url: urls[0],
                     userId: settings.userId,
-                    adAccountId: settings.adAccountId
+                    adAccountId: settings.adAccountId,
+                    fbAccessToken: settings.fbAccessToken
                 })
             });
 

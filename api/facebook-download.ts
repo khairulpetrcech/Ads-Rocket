@@ -31,7 +31,7 @@ export default async function handler(req: any, res: any) {
     if (req.method !== 'POST') return res.status(405).json({ success: false, error: 'Method not allowed' });
 
     try {
-        const { url, userId, adAccountId } = req.body || {};
+        const { url, userId, adAccountId, fbAccessToken } = req.body || {};
         const token = process.env.APIFY_TOKEN;
 
         if (!token) return res.status(500).json({ success: false, error: 'Missing APIFY_TOKEN' });
@@ -73,9 +73,44 @@ export default async function handler(req: any, res: any) {
                 candidateIds: candidates.map((candidate) => candidate.videoId),
                 candidateUrls: candidates.map((candidate) => candidate.normalizedUrl)
             });
-        } catch (error: any) {
+        } catch (firstError: any) {
+            console.warn('[Facebook Download] Initial candidates failed:', firstError.message);
+
+            // === GRAPH API FALLBACK ===
+            // If user has FB access token, try to resolve the actual video ID from the post
+            if (fbAccessToken) {
+                try {
+                    const resolvedVideoId = await resolveFacebookVideoIdViaGraph(url, fbAccessToken);
+                    if (resolvedVideoId) {
+                        console.log(`[Facebook Download] Graph API resolved video ID: ${resolvedVideoId}`);
+                        const graphCandidates = buildDirectVideoCandidates(resolvedVideoId);
+                        const downloaded = await downloadFirstWorkingCandidate(token, graphCandidates);
+                        const stored = await downloadAndStoreMp4(downloaded.videoUrl, downloaded.videoId);
+
+                        await updateUsageRecord(usage.recordId, {
+                            video_url: stored.publicUrl,
+                            apify_run_id: downloaded.run.id,
+                            status: 'completed'
+                        });
+
+                        return res.status(200).json({
+                            success: true,
+                            videoUrl: stored.publicUrl,
+                            fileName: stored.fileName,
+                            apifyRunId: downloaded.run.id,
+                            costUsd: downloaded.run.usageTotalUsd || 0,
+                            remaining: usage.remainingAfterReserve,
+                            resolvedVia: 'graph_api',
+                            resolvedVideoId
+                        });
+                    }
+                } catch (graphError: any) {
+                    console.warn('[Facebook Download] Graph API fallback also failed:', graphError.message);
+                }
+            }
+
             await releaseUsageRecord(usage.recordId);
-            return res.status(400).json({ success: false, error: buildFriendlyError(error) });
+            return res.status(400).json({ success: false, error: buildFriendlyError(firstError) });
         }
     } catch (error: any) {
         return res.status(400).json({ success: false, error: error.message || 'Invalid request' });
@@ -385,6 +420,58 @@ function buildFriendlyError(error: any): string {
         return 'Apify berjaya run tetapi tidak jumpa URL video. Cuba link video/reel yang lain.';
     }
     return raw || 'Facebook video download gagal. Cuba semula dengan URL video yang betul.';
+}
+
+// ============================================================
+// GRAPH API FALLBACK — Resolve /posts/ URL → actual video ID
+// ============================================================
+
+async function gfetch(url: string) {
+    try { return await (await fetch(url)).json(); }
+    catch { return {}; }
+}
+
+function parseFbUrl(url: string): { videoId?: string; pageId?: string; postId?: string } {
+    const videoMatch = url.match(/\/videos\/(\d+)/);
+    if (videoMatch) return { videoId: videoMatch[1] };
+
+    const reelMatch = url.match(/\/reel\/(\d+)/);
+    if (reelMatch) return { videoId: reelMatch[1] };
+
+    const phpMatch = url.match(/[?&]v=(\d+)/) || url.match(/story_fbid=(\d+)/);
+    if (phpMatch) return { videoId: phpMatch[1] };
+
+    const postMatch = url.match(/(\d+)\/posts\/(\d+)/);
+    if (postMatch) return { pageId: postMatch[1], postId: postMatch[2] };
+
+    const permalinkMatch = url.match(/story_fbid=(\d+).*?[?&]id=(\d+)/) ||
+        url.match(/[?&]id=(\d+).*?story_fbid=(\d+)/);
+    if (permalinkMatch) return { pageId: permalinkMatch[2], postId: permalinkMatch[1] };
+
+    return {};
+}
+
+async function resolveFacebookVideoIdViaGraph(url: string, fbToken: string): Promise<string | null> {
+    const G = 'https://graph.facebook.com/v19.0';
+    const { videoId, pageId, postId } = parseFbUrl(url);
+    if (videoId) return videoId;
+
+    const idsToTry: string[] = [];
+    if (pageId && postId) idsToTry.push(`${pageId}_${postId}`, postId);
+
+    for (const id of idsToTry) {
+        const data = await gfetch(`${G}/${id}?fields=attachments{type,media{video{id}},subattachments{media{video{id}}}}&access_token=${fbToken}`);
+        for (const att of (data?.attachments?.data || [])) {
+            const directVideoId = att?.media?.video?.id;
+            if (directVideoId) return directVideoId;
+            for (const sub of (att?.subattachments?.data || [])) {
+                const nestedVideoId = sub?.media?.video?.id;
+                if (nestedVideoId) return nestedVideoId;
+            }
+        }
+    }
+
+    return null;
 }
 
 async function downloadFirstWorkingCandidate(token: string, candidates: FacebookDownloadCandidate[]) {
