@@ -82,7 +82,7 @@ const LoginPage: React.FC = () => {
 
     setAltLoading(true);
     try {
-      const response = await fetch('/api/alt-login', {
+      const response = await fetch('/api/auth-api?action=alt-login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ code: altCode.trim() })

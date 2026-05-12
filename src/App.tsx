@@ -157,7 +157,7 @@ const App: React.FC = () => {
           // 3. Sync with Cloud if possible
           const fbId = parsed.userId || parsed.adAccountId;
           if (fbId) {
-            fetch(`/api/presets-api?fbId=${fbId}`)
+            fetch(`/api/settings-api?action=presets&fbId=${fbId}`)
               .then(res => res.json())
               .then(data => {
                 if (!data.error) {

@@ -551,7 +551,7 @@ const Dashboard: React.FC = () => {
 
             if (fbId) {
                 try {
-                    const res = await fetch(`/api/comment-templates-api?fbId=${fbId}`);
+                    const res = await fetch(`/api/settings-api?action=comment-templates&fbId=${fbId}`);
                     const data = await res.json();
                     if (data.templates && data.templates.length > 0) {
                         setTemplates(data.templates);

@@ -50,7 +50,7 @@ const TextPresetsDialog: React.FC<TextPresetsDialogProps> = ({ isOpen, onClose, 
             const loadPresetsWithId = (fbId: string) => {
                 console.log('[TextPresets] Loading from cloud with fbId:', fbId);
                 setLoading(true);
-                fetch(`/api/presets-api?fbId=${fbId}`)
+                fetch(`/api/settings-api?action=presets&fbId=${fbId}`)
                     .then(res => res.json())
                     .then(data => {
                         console.log('[TextPresets] API response:', data);
@@ -217,7 +217,7 @@ const TextPresetsDialog: React.FC<TextPresetsDialogProps> = ({ isOpen, onClose, 
             console.log('[TextPresets] Saving to cloud with fbId:', fbId);
             setSaving(true);
             try {
-                const res = await fetch('/api/presets-api', {
+                const res = await fetch('/api/settings-api?action=presets', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -281,7 +281,7 @@ const TextPresetsDialog: React.FC<TextPresetsDialogProps> = ({ isOpen, onClose, 
         let fbId = settings.userId || settings.adAccountId;
         if (fbId) {
             try {
-                const res = await fetch('/api/presets-api', {
+                const res = await fetch('/api/settings-api?action=presets', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -318,7 +318,7 @@ const TextPresetsDialog: React.FC<TextPresetsDialogProps> = ({ isOpen, onClose, 
         // Save to cloud if possible
         let fbId = settings.userId || settings.adAccountId;
         if (fbId) {
-            fetch('/api/presets-api', {
+            fetch('/api/settings-api?action=presets', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({

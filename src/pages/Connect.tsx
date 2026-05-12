@@ -58,7 +58,7 @@ const ConnectPage: React.FC = () => {
         console.log("Exchanging for long-lived token...");
         console.log("Short-lived token length:", shortLivedToken?.length);
 
-        const exchangeResponse = await fetch('/api/exchange-token', {
+        const exchangeResponse = await fetch('/api/auth-api?action=exchange-token', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ shortLivedToken })

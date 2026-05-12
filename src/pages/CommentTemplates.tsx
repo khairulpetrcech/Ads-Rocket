@@ -50,7 +50,7 @@ const CommentTemplates: React.FC = () => {
 
         setLoading(true);
         try {
-            const res = await fetch(`/api/comment-templates-api?fbId=${fbId}`);
+            const res = await fetch(`/api/settings-api?action=comment-templates&fbId=${fbId}`);
             const data = await res.json();
 
             if (data.templates && data.templates.length > 0) {
@@ -89,7 +89,7 @@ const CommentTemplates: React.FC = () => {
 
         for (const template of localTemplates) {
             try {
-                const res = await fetch(`/api/comment-templates-api`, {
+                const res = await fetch(`/api/settings-api?action=comment-templates`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -226,7 +226,7 @@ const CommentTemplates: React.FC = () => {
         if (fbId) {
             // Save to Supabase
             try {
-                const res = await fetch(`/api/comment-templates-api`, {
+                const res = await fetch(`/api/settings-api?action=comment-templates`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -318,7 +318,7 @@ const CommentTemplates: React.FC = () => {
                     continue;
                 }
 
-                const res = await fetch(`/api/comment-templates-api`, {
+                const res = await fetch(`/api/settings-api?action=comment-templates`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -372,7 +372,7 @@ const CommentTemplates: React.FC = () => {
 
         if (fbId) {
             try {
-                const res = await fetch(`/api/comment-templates-api?fbId=${fbId}&templateId=${id}`, {
+                const res = await fetch(`/api/settings-api?action=comment-templates&fbId=${fbId}&templateId=${id}`, {
                     method: 'DELETE'
                 });
                 const data = await res.json();
