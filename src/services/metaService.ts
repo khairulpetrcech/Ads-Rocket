@@ -8,6 +8,71 @@ declare global {
     }
 }
 
+// --- SERVER-SIDE PROXY HELPERS ---
+// All Meta Graph API calls go through /api/meta-proxy to keep token server-side
+
+const getFbId = (): string => {
+    try {
+        const raw = localStorage.getItem('ar_settings');
+        if (raw) {
+            const s = JSON.parse(raw);
+            if (s.userId) return s.userId;
+        }
+    } catch {}
+    return '';
+};
+
+/** GET request through proxy */
+const proxyGet = async (graphPath: string, params: Record<string, string> = {}): Promise<any> => {
+    const fbId = getFbId();
+    if (!fbId) throw new Error('SESSION_EXPIRED');
+    const qs = new URLSearchParams({ fbId, graphPath, ...params });
+    const res = await fetch(`/api/meta-proxy?${qs.toString()}`);
+    const data = await res.json();
+    if (data.error) handleApiError(data);
+    return data;
+};
+
+/** POST JSON request through proxy */
+const proxyPost = async (graphPath: string, params: Record<string, any> = {}, opts?: { isVideoUpload?: boolean }): Promise<any> => {
+    const fbId = getFbId();
+    if (!fbId) throw new Error('SESSION_EXPIRED');
+    const res = await fetch('/api/meta-proxy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fbId, graphPath, method: 'POST', params, isVideoUpload: opts?.isVideoUpload })
+    });
+    const data = await res.json();
+    if (data.error) handleApiError(data);
+    return data;
+};
+
+/** POST FormData through proxy (file uploads) */
+const proxyPostForm = async (graphPath: string, params: Record<string, any>, opts?: { isVideoUpload?: boolean }): Promise<any> => {
+    const fbId = getFbId();
+    if (!fbId) throw new Error('SESSION_EXPIRED');
+    const res = await fetch('/api/meta-proxy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fbId, graphPath, method: 'POST', params, isFormData: true, isVideoUpload: opts?.isVideoUpload })
+    });
+    const data = await res.json();
+    if (data.error) handleApiError(data);
+    return data;
+};
+
+/** Batch request through proxy */
+const proxyBatch = async (batch: any[]): Promise<any[]> => {
+    const fbId = getFbId();
+    if (!fbId) throw new Error('SESSION_EXPIRED');
+    const res = await fetch('/api/meta-proxy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fbId, graphPath: '', isBatchRequest: true, params: { batch } })
+    });
+    return await res.json();
+};
+
 // --- SMART CACHING SYSTEM ---
 const CACHE_TTL = 5 * 60 * 1000;
 const apiCache: Record<string, { timestamp: number, data: any }> = {};
@@ -243,15 +308,23 @@ export const loginWithFacebook = (): Promise<string> => {
 };
 
 export const getAdAccounts = async (accessToken: string): Promise<MetaAdAccount[]> => {
-    const cacheKey = `adaccounts-${accessToken.substring(0, 10)}`;
+    const cacheKey = `adaccounts-${getFbId() || accessToken.substring(0, 10)}`;
     const cached = getCachedData(cacheKey);
     if (cached) return cached;
 
     try {
-        const response = await fetch(`https://graph.facebook.com/v19.0/me/adaccounts?fields=name,account_id,currency&access_token=${accessToken}`);
-        const data = await response.json();
-        handleApiError(data);
-        const accounts = data.data || [];
+        // If we have fbId, use proxy; otherwise direct call (bootstrap in Connect page)
+        const fbId = getFbId();
+        let accounts: MetaAdAccount[];
+        if (fbId) {
+            const data = await proxyGet('me/adaccounts', { fields: 'name,account_id,currency' });
+            accounts = data.data || [];
+        } else {
+            const response = await fetch(`https://graph.facebook.com/v19.0/me/adaccounts?fields=name,account_id,currency&access_token=${accessToken}`);
+            const data = await response.json();
+            handleApiError(data);
+            accounts = data.data || [];
+        }
         setCachedData(cacheKey, accounts);
         return accounts;
     } catch (error) {
@@ -287,12 +360,11 @@ export const getReportDailySpend = async (
         if (cached) { allRows.push(...cached); return; }
 
         try {
-            let url = `https://graph.facebook.com/v19.0/${accountId}/insights?fields=spend,actions,action_values&time_increment=1&action_breakdowns=action_type&limit=90&access_token=${accessToken}`;
-            if (time_range) url += `&time_range=${encodeURIComponent(time_range)}`;
-            else if (date_preset) url += `&date_preset=${date_preset}`;
+            const params: Record<string, string> = { fields: 'spend,actions,action_values', time_increment: '1', action_breakdowns: 'action_type', limit: '90' };
+            if (time_range) params.time_range = time_range;
+            else if (date_preset) params.date_preset = date_preset;
 
-            const res = await fetch(url);
-            const data = await res.json();
+            const data = await proxyGet(`${accountId}/insights`, params).catch((e: any) => ({ error: { message: e.message } }));
             if (data.error) { console.warn(`[ReportSpend] ${accountId}:`, data.error.message); return; }
 
             const rows: DailySpendRow[] = (data.data || []).map((row: any) => {
@@ -403,17 +475,18 @@ export const getWhatsAppPhoneNumbersForPage = async (
 
     try {
         const numbers: WhatsAppPhoneNumber[] = [];
-        const tokenForPageRead = pageAccessToken || accessToken;
 
-        // Step 1: Read page fields without requesting unsupported fields
-        const pageInfoRes = await fetch(`https://graph.facebook.com/v19.0/${pageId}?fields=id,name,whatsapp_number,phone,about,website&access_token=${tokenForPageRead}`);
-        const pageInfoData = await pageInfoRes.json();
+        // Step 1: Read page fields via proxy
+        let pageInfoData: any;
+        try {
+            pageInfoData = await proxyGet(`${pageId}`, { fields: 'id,name,whatsapp_number,phone,about,website' });
+        } catch { pageInfoData = { error: true }; }
 
         if (pageInfoData.error) {
             console.warn('[WhatsApp][Page Info] Graph API error:', pageInfoData.error);
-            // Retry with user token as fallback if page token fails
-            const retryRes = await fetch(`https://graph.facebook.com/v19.0/${pageId}?fields=id,name,whatsapp_number,phone,about,website&access_token=${accessToken}`);
-            const retryData = await retryRes.json();
+            // Retry via proxy
+            let retryData: any;
+            try { retryData = await proxyGet(`${pageId}`, { fields: 'id,name,whatsapp_number,phone,about,website' }); } catch { retryData = { error: true }; }
             if (retryData.error) {
                 console.warn('[WhatsApp][Page Info Retry] Graph API error:', retryData.error);
             } else {
@@ -480,9 +553,9 @@ export const getWhatsAppPhoneNumbers = async (accessToken: string): Promise<What
     if (cached) return cached;
 
     try {
-        // Step 1: Get businesses the user has access to
-        const businessesRes = await fetch(`https://graph.facebook.com/v19.0/me/businesses?access_token=${accessToken}`);
-        const businessesData = await businessesRes.json();
+        // Step 1: Get businesses via proxy
+        let businessesData: any;
+        try { businessesData = await proxyGet('me/businesses'); } catch { businessesData = { error: true }; }
 
         if (businessesData.error) {
             console.log('No businesses found or no permission:', businessesData.error);
@@ -497,16 +570,14 @@ export const getWhatsAppPhoneNumbers = async (accessToken: string): Promise<What
         // Step 2: For each business, get WhatsApp Business Accounts
         for (const business of businesses) {
             try {
-                const wabaRes = await fetch(`https://graph.facebook.com/v19.0/${business.id}/owned_whatsapp_business_accounts?access_token=${accessToken}`);
-                const wabaData = await wabaRes.json();
+                const wabaData = await proxyGet(`${business.id}/owned_whatsapp_business_accounts`);
 
                 if (wabaData.error || !wabaData.data) continue;
 
                 // Step 3: For each WABA, get phone numbers
                 for (const waba of wabaData.data) {
                     try {
-                        const phonesRes = await fetch(`https://graph.facebook.com/v19.0/${waba.id}/phone_numbers?fields=display_phone_number,verified_name,quality_rating&access_token=${accessToken}`);
-                        const phonesData = await phonesRes.json();
+                        const phonesData = await proxyGet(`${waba.id}/phone_numbers`, { fields: 'display_phone_number,verified_name,quality_rating' });
 
                         if (phonesData.error || !phonesData.data) continue;
 
@@ -648,9 +719,7 @@ export const getRealCampaigns = async (adAccountId: string, accessToken: string,
     const filtering = `[{field:"effective_status",operator:"IN",value:["ACTIVE","PAUSED","IN_PROCESS","WITH_ISSUES","CAMPAIGN_PAUSED"]}]`;
 
     try {
-        const url = `https://graph.facebook.com/v19.0/${accountId}/campaigns?fields=${fields}&access_token=${accessToken}&limit=200&filtering=${filtering}`;
-        const response = await fetch(url);
-        const data = await response.json();
+        const data = await proxyGet(`${accountId}/campaigns`, { fields, limit: '200', filtering });
         handleApiError(data);
 
         const result = data.data.map((camp: any) => ({
@@ -687,9 +756,7 @@ export const getAdSets = async (campaignId: string, accessToken: string, datePre
 
     try {
         // Fetch more adsets — filtering ensures ALL adsets with spend show up, not just Meta's default subset
-        const url = `https://graph.facebook.com/v19.0/${campaignId}/adsets?fields=${fields}&access_token=${accessToken}&limit=200&filtering=${adsetFiltering}`;
-        const response = await fetch(url);
-        const data = await response.json();
+        const data = await proxyGet(`${campaignId}/adsets`, { fields, limit: '200', filtering: adsetFiltering });
         handleApiError(data);
         const result = data.data.map((adset: any) => ({
             id: adset.id,
@@ -721,9 +788,7 @@ export const getAds = async (adSetId: string, accessToken: string, datePreset: s
 
     try {
         // Filtering ensures ALL ads show up including those in review or with issues
-        const url = `https://graph.facebook.com/v19.0/${adSetId}/ads?fields=${fields}&access_token=${accessToken}&limit=200&filtering=${adFiltering}`;
-        const response = await fetch(url);
-        const data = await response.json();
+        const data = await proxyGet(`${adSetId}/ads`, { fields, limit: '200', filtering: adFiltering });
         handleApiError(data);
         const result = data.data.map((ad: any) => ({
             id: ad.id,
@@ -842,13 +907,7 @@ export const getDailyBreakdownMetrics = async (
         }));
 
         try {
-            const formData = new URLSearchParams();
-            formData.append('batch', JSON.stringify(batch));
-            const response = await fetch(`https://graph.facebook.com/v19.0/?access_token=${accessToken}`, {
-                method: 'POST',
-                body: formData
-            });
-            const batchResult = await response.json();
+            const batchResult = await proxyBatch(batch);
             if (!Array.isArray(batchResult)) continue;
 
             batchResult.forEach((item: any, idx: number) => {
@@ -910,15 +969,11 @@ export const getHourlyPurchaseData = async (
     const purchases = new Array(24).fill(0);
 
     try {
-        let url = `https://graph.facebook.com/v19.0/${accountId}/insights?fields=actions,action_values&breakdowns=hourly_stats_aggregated_by_advertiser_time_zone&action_breakdowns=action_type&limit=100&access_token=${accessToken}`;
-        if (time_range) {
-            url += `&time_range=${encodeURIComponent(time_range)}`;
-        } else if (date_preset) {
-            url += `&date_preset=${date_preset}`;
-        }
+        const params: Record<string, string> = { fields: 'actions,action_values', breakdowns: 'hourly_stats_aggregated_by_advertiser_time_zone', action_breakdowns: 'action_type', limit: '100' };
+        if (time_range) params.time_range = time_range;
+        else if (date_preset) params.date_preset = date_preset;
 
-        const response = await fetch(url);
-        const data = await response.json();
+        const data = await proxyGet(`${accountId}/insights`, params).catch(() => ({ error: { message: 'Proxy error' } }));
 
         if (data.error) {
             console.warn('[HourlyPurchase] API error:', data.error.message);
@@ -967,9 +1022,7 @@ export const getTopAdsForAccount = async (adAccountId: string, accessToken: stri
     const fields = ['id', 'name', 'status', 'effective_status', 'adset_id', 'creative{thumbnail_url,image_url}', insightsQuery].join(',');
     const filtering = `[{field:"effective_status",operator:"IN",value:["ACTIVE"]}]`;
     try {
-        const url = `https://graph.facebook.com/v19.0/${accountId}/ads?fields=${fields}&access_token=${accessToken}&limit=100&filtering=${filtering}`;
-        const response = await fetch(url);
-        const data = await response.json();
+        const data = await proxyGet(`${accountId}/ads`, { fields, limit: '100', filtering });
         handleApiError(data);
         let ads: Ad[] = (data.data || []).map((ad: any) => ({
             id: ad.id,
@@ -990,6 +1043,12 @@ export const getTopAdsForAccount = async (adAccountId: string, accessToken: stri
 // --- CREATION UTILS ---
 
 export const getPages = async (accessToken: string) => {
+    const fbId = getFbId();
+    if (fbId) {
+        const data = await proxyGet('me/accounts', { fields: 'name,id,access_token', limit: '100' });
+        return data.data || [];
+    }
+    // Fallback for bootstrap (Connect page)
     const response = await fetch(`https://graph.facebook.com/v19.0/me/accounts?fields=name,id,access_token&access_token=${accessToken}&limit=100`);
     const data = await response.json();
     handleApiError(data);
@@ -998,33 +1057,21 @@ export const getPages = async (accessToken: string) => {
 
 export const getPixels = async (adAccountId: string, accessToken: string) => {
     const actId = adAccountId.startsWith('act_') ? adAccountId : `act_${adAccountId}`;
-    const response = await fetch(`https://graph.facebook.com/v19.0/${actId}/adspixels?fields=name,id&access_token=${accessToken}`);
-    const data = await response.json();
-    handleApiError(data);
+    const data = await proxyGet(`${actId}/adspixels`, { fields: 'name,id' });
     return data.data || [];
 };
 
 // --- CAMPAIGN CREATION ---
 
-const tryCreateCampaign = async (url: string, body: any) => {
-    const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-    const data = await response.json();
-    handleApiError(data);
+const tryCreateCampaign = async (graphPath: string, body: any) => {
+    const { access_token, ...params } = body;
+    const data = await proxyPost(graphPath, params);
     return data;
 };
 
 export const createMetaCampaign = async (accountId: string, name: string, objective: string, accessToken: string) => {
     const actId = accountId.startsWith('act_') ? accountId : `act_${accountId}`;
-    const url = `https://graph.facebook.com/v19.0/${actId}/campaigns`;
-
-    // DEBUG: Check token for hidden issues
-    console.log(`[createMetaCampaign] Token length: ${accessToken?.length}`);
-    console.log(`[createMetaCampaign] Token has whitespace: ${accessToken !== accessToken?.trim()}`);
-    console.log(`[createMetaCampaign] Token first20: ${accessToken?.substring(0, 20)}`);
-    console.log(`[createMetaCampaign] Token last20: ${accessToken?.substring(accessToken.length - 20)}`);
-
-    // CRITICAL: Trim the token just in case
-    const cleanToken = accessToken?.trim();
+    const graphPath = `${actId}/campaigns`;
 
     const cleanName = sanitizeInput(name);
 
@@ -1036,9 +1083,8 @@ export const createMetaCampaign = async (accountId: string, name: string, object
             special_ad_categories: [],
             buying_type: "AUCTION",
             is_adset_budget_sharing_enabled: false,
-            access_token: cleanToken
         };
-        const data = await tryCreateCampaign(url, body1);
+        const data = await tryCreateCampaign(graphPath, body1);
         invalidateCache();
         return data;
     } catch (error: any) {
@@ -1051,9 +1097,8 @@ export const createMetaCampaign = async (accountId: string, name: string, object
                 special_ad_categories: [],
                 buying_type: "AUCTION",
                 advantage_plus_create: { enabled: false },
-                access_token: accessToken
             };
-            const data = await tryCreateCampaign(url, body2);
+            const data = await tryCreateCampaign(graphPath, body2);
             invalidateCache();
             return data;
         }
@@ -1074,7 +1119,6 @@ export const createMetaAdSet = async (
     startTime?: string
 ) => {
     const actId = accountId.startsWith('act_') ? accountId : `act_${accountId}`;
-    const url = `https://graph.facebook.com/v19.0/${actId}/adsets`;
 
     const targeting = {
         geo_locations: { countries: ['MY'] },
@@ -1094,7 +1138,6 @@ export const createMetaAdSet = async (
         targeting: targeting,
         status: 'ACTIVE',
         start_time: finalStartTime,
-        access_token: accessToken,
         optimization_goal: optimizationGoal,
         bid_strategy: 'LOWEST_COST_WITHOUT_CAP',
         billing_event: 'IMPRESSIONS'
@@ -1109,7 +1152,6 @@ export const createMetaAdSet = async (
         };
         body.billing_event = 'IMPRESSIONS';
     } else if (optimizationGoal === 'CONVERSATIONS' && pageId) {
-        // Engagement -> WhatsApp CTA only if whatsappNumber is provided
         if (whatsappNumber) {
             body.destination_type = "WHATSAPP";
         }
@@ -1117,9 +1159,7 @@ export const createMetaAdSet = async (
         body.billing_event = 'IMPRESSIONS';
     }
 
-    const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-    const data = await response.json();
-    handleApiError(data);
+    const data = await proxyPost(`${actId}/adsets`, body);
     invalidateCache();
     return data;
 };
@@ -1128,13 +1168,15 @@ export const createMetaAdSet = async (
 
 export const uploadAdImage = async (accountId: string, file: File, accessToken: string) => {
     const actId = accountId.startsWith('act_') ? accountId : `act_${accountId}`;
-    const url = `https://graph.facebook.com/v19.0/${actId}/adimages`;
-    const formData = new FormData();
-    formData.append('access_token', accessToken);
-    formData.append('filename', file);
-    const response = await fetch(url, { method: 'POST', body: formData });
-    const data = await response.json();
-    handleApiError(data);
+    // Convert file to base64 for proxy upload
+    const buffer = await file.arrayBuffer();
+    const base64 = btoa(String.fromCharCode(...new Uint8Array(buffer)));
+    const data = await proxyPostForm(`${actId}/adimages`, {
+        fileBase64: base64,
+        filename: file.name || 'image.jpg',
+        mimeType: file.type || 'image/jpeg',
+        fileField: 'filename'
+    });
     const images = data.images || {};
     const firstKey = Object.keys(images)[0];
     if (firstKey && images[firstKey].hash) { return images[firstKey].hash; }
@@ -1144,13 +1186,14 @@ export const uploadAdImage = async (accountId: string, file: File, accessToken: 
 // Upload image from Blob (for video thumbnails)
 export const uploadAdImageBlob = async (accountId: string, blob: Blob, accessToken: string) => {
     const actId = accountId.startsWith('act_') ? accountId : `act_${accountId}`;
-    const url = `https://graph.facebook.com/v19.0/${actId}/adimages`;
-    const formData = new FormData();
-    formData.append('access_token', accessToken);
-    formData.append('filename', blob, 'thumbnail.jpg');
-    const response = await fetch(url, { method: 'POST', body: formData });
-    const data = await response.json();
-    handleApiError(data);
+    const buffer = await blob.arrayBuffer();
+    const base64 = btoa(String.fromCharCode(...new Uint8Array(buffer)));
+    const data = await proxyPostForm(`${actId}/adimages`, {
+        fileBase64: base64,
+        filename: 'thumbnail.jpg',
+        mimeType: 'image/jpeg',
+        fileField: 'filename'
+    });
     const images = data.images || {};
     const firstKey = Object.keys(images)[0];
     if (firstKey && images[firstKey].hash) { return images[firstKey].hash; }
@@ -1212,21 +1255,15 @@ export const uploadAdVideo = async (
     onProgress?: (percent: number) => void
 ) => {
     const actId = accountId.startsWith('act_') ? accountId : `act_${accountId}`;
-    const url = `https://graph-video.facebook.com/v19.0/${actId}/advideos`;
+    const graphPath = `${actId}/advideos`;
 
-    // DEBUG: Log token being used for upload
-    console.log(`[Upload] Token length: ${accessToken?.length}, first10: ${accessToken?.substring(0, 10)}...`);
     console.debug(`[Upload] Starting upload for ${file.name} (${file.size} bytes)`);
 
     // 1. START SESSION
-    const startForm = new FormData();
-    startForm.append('access_token', accessToken);
-    startForm.append('upload_phase', 'start');
-    startForm.append('file_size', file.size.toString()); // STEP: Ensure exact bytes as string
-
-    const startRes = await fetch(url, { method: 'POST', body: startForm });
-    const startData = await startRes.json();
-    handleApiError(startData);
+    const startData = await proxyPostForm(graphPath, {
+        upload_phase: 'start',
+        file_size: file.size.toString()
+    }, { isVideoUpload: true });
 
     const { upload_session_id, video_id } = startData;
     let { start_offset, end_offset } = startData;
@@ -1235,25 +1272,26 @@ export const uploadAdVideo = async (
     while (parseInt(start_offset) < parseInt(end_offset)) {
         const chunk = file.slice(parseInt(start_offset), parseInt(end_offset));
 
-        // DEBUG STEP: Log every chunk details
         console.debug(`[Upload] Transfer: start=${start_offset}, end=${end_offset}, chunk_size=${chunk.size}`);
 
-        const transferForm = new FormData();
-        transferForm.append('access_token', accessToken);
-        transferForm.append('upload_phase', 'transfer');
-        transferForm.append('upload_session_id', upload_session_id);
-        transferForm.append('start_offset', start_offset);
-        transferForm.append('video_file_chunk', chunk);
+        // Convert chunk to base64 for proxy
+        const chunkBuffer = await chunk.arrayBuffer();
+        const chunkBase64 = btoa(String.fromCharCode(...new Uint8Array(chunkBuffer)));
 
         let retries = 3;
         let transData = null;
 
         while (retries > 0) {
             try {
-                // STEP: No AbortController to prevent "Receiving end does not exist" in Chrome
-                const transRes = await fetch(url, { method: 'POST', body: transferForm });
-                transData = await transRes.json();
-                handleApiError(transData);
+                transData = await proxyPostForm(graphPath, {
+                    upload_phase: 'transfer',
+                    upload_session_id,
+                    start_offset,
+                    fileBase64: chunkBase64,
+                    filename: 'video.mp4',
+                    mimeType: 'video/mp4',
+                    fileField: 'video_file_chunk'
+                }, { isVideoUpload: true });
                 break; // Success
             } catch (e) {
                 retries--;
@@ -1275,20 +1313,16 @@ export const uploadAdVideo = async (
         if (start_offset === end_offset) break; // Finished
     }
 
-    // 3. FINISH SESSION
     console.debug(`[Upload] Finishing session ${upload_session_id}`);
-    const finishForm = new FormData();
-    finishForm.append('access_token', accessToken);
-    finishForm.append('upload_phase', 'finish');
-    finishForm.append('upload_session_id', upload_session_id);
 
     let finishRetries = 3;
-    let finishData = null;
+    let finishData: any = null;
     while (finishRetries > 0) {
         try {
-            const finishRes = await fetch(url, { method: 'POST', body: finishForm });
-            finishData = await finishRes.json();
-            handleApiError(finishData);
+            finishData = await proxyPostForm(graphPath, {
+                upload_phase: 'finish',
+                upload_session_id
+            }, { isVideoUpload: true });
             break;
         } catch (e) {
             finishRetries--;
@@ -1312,14 +1346,11 @@ export const waitForVideoReady = async (
     onProgressUpdate?: (status: string) => void,
     retries = 120
 ): Promise<boolean> => {
-    // FIX: Only request 'status'. 'processing_progress' is typically inside the status object
-    // or not available as a top-level field on generic Video nodes in v19.0.
-    const url = `https://graph.facebook.com/v19.0/${videoId}?fields=status&access_token=${accessToken}`;
 
     for (let i = 0; i < retries; i++) {
         try {
-            const res = await fetch(url);
-            const data = await res.json();
+            // Use proxy for video status polling
+            const data = await proxyGet(videoId, { fields: 'status' });
 
             if (data.error) {
                 console.error("Video Polling API Error:", data.error);
@@ -1383,15 +1414,9 @@ export const createMetaCreative = async (
     thumbnailHash?: string // For video ads - required thumbnail image hash
 ) => {
     const actId = accountId.startsWith('act_') ? accountId : `act_${accountId}`;
-    const url = `https://graph.facebook.com/v19.0/${actId}/adcreatives`;
-
-    // DEBUG + TRIM token
-    console.log(`[createMetaCreative] Token length: ${accessToken?.length}, first10: ${accessToken?.substring(0, 10)}`);
-    const cleanToken = accessToken?.trim();
 
     const body: any = {
         name: sanitizeInput(name) + " Creative",
-        access_token: cleanToken,
         published: false,
     };
 
@@ -1399,23 +1424,18 @@ export const createMetaCreative = async (
     // As of API v22.0, standard_enhancements bundle is DEPRECATED.
     // Must set individual features for both image and video ads.
     if (advantagePlusConfig && !advantagePlusConfig.enabled) {
-        // OPT OUT of ALL Advantage+ Creative features when disabled
         body.degrees_of_freedom_spec = {
             creative_features_spec: {
-                // Image features
                 image_touchups: { enroll_status: 'OPT_OUT' },
                 image_templates: { enroll_status: 'OPT_OUT' },
-                // Video features
                 video_auto_crop: { enroll_status: 'OPT_OUT' },
                 enhance_cta: { enroll_status: 'OPT_OUT' },
-                video_filtering: { enroll_status: 'OPT_OUT' }, // "Add video effects"
-                // Text features
+                video_filtering: { enroll_status: 'OPT_OUT' },
                 text_optimizations: { enroll_status: 'OPT_OUT' },
                 inline_comment: { enroll_status: 'OPT_OUT' }
             }
         };
     }
-    // If enabled or not specified, Meta defaults to OPT_IN automatically
 
     if (mediaType === 'image') {
         body.object_story_spec = {
@@ -1438,63 +1458,45 @@ export const createMetaCreative = async (
                 title: sanitizeInput(headline),
                 link_description: sanitizeInput(description),
                 call_to_action: { type: callToAction, value: { link: link } },
-                image_hash: thumbnailHash // Required thumbnail for video ads
+                image_hash: thumbnailHash
             }
         };
     }
 
-    const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-    const data = await response.json();
-    handleApiError(data);
+    const data = await proxyPost(`${actId}/adcreatives`, body);
     return data.id;
 };
 
 export const createMetaAd = async (accountId: string, adSetId: string, name: string, creativeId: string, accessToken: string) => {
     const actId = accountId.startsWith('act_') ? accountId : `act_${accountId}`;
-    const url = `https://graph.facebook.com/v19.0/${actId}/ads`;
-
-    // DEBUG + TRIM token
-    console.log(`[createMetaAd] Token length: ${accessToken?.length}, first10: ${accessToken?.substring(0, 10)}`);
-    const cleanToken = accessToken?.trim();
 
     const body = {
         name: sanitizeInput(name),
         adset_id: adSetId,
         creative: { creative_id: creativeId },
         status: 'ACTIVE',
-        access_token: cleanToken
     };
-    const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-    const data = await response.json();
-    handleApiError(data);
+    const data = await proxyPost(`${actId}/ads`, body);
     invalidateCache();
     return data;
 };
 
 export const updateEntityStatus = async (id: string, status: 'ACTIVE' | 'PAUSED', accessToken: string) => {
-    const url = `https://graph.facebook.com/v19.0/${id}`;
-    const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: status, access_token: accessToken }) });
-    const data = await response.json();
-    handleApiError(data);
+    const data = await proxyPost(id, { status });
     if (data.success) { invalidateCache(); return true; }
     return false;
 };
 
 export const updateEntityBudget = async (id: string, dailyBudget: number, accessToken: string) => {
     const amountInCents = Math.floor(dailyBudget * 100);
-    const url = `https://graph.facebook.com/v19.0/${id}`;
-    const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ daily_budget: amountInCents, access_token: accessToken }) });
-    const data = await response.json();
-    handleApiError(data);
+    const data = await proxyPost(id, { daily_budget: amountInCents });
     if (data.success) { invalidateCache(); return true; }
     return false;
 };
 
-// --- COMMENTING ---
 const getPageAccessToken = async (pageId: string, userAccessToken: string) => {
     try {
-        const response = await fetch(`https://graph.facebook.com/v19.0/${pageId}?fields=access_token&access_token=${userAccessToken}`);
-        const data = await response.json();
+        const data = await proxyGet(pageId, { fields: 'access_token' });
         if (data.error) throw new Error(data.error.message);
         return data.access_token;
     } catch (e) {
@@ -1516,46 +1518,30 @@ export const publishComment = async (
     const pageAccessToken = await getPageAccessToken(pageId, userAccessToken);
     if (!pageAccessToken) throw new Error("Failed to authenticate as Page.");
 
-    const url = `https://graph.facebook.com/v19.0/${effectiveObjectStoryId}/comments`;
-
     if (imageBase64) {
-        const formData = new FormData();
-        formData.append('access_token', pageAccessToken);
-        formData.append('message', message);
         try {
-            const byteString = atob(imageBase64.split(',')[1]);
-            const mimeString = imageBase64.split(',')[0].split(':')[1].split(';')[0];
-            const ab = new ArrayBuffer(byteString.length);
-            const ia = new Uint8Array(ab);
-            for (let i = 0; i < byteString.length; i++) {
-                ia[i] = byteString.charCodeAt(i);
-            }
-            const blob = new Blob([ab], { type: mimeString });
-            formData.append('source', blob, 'comment_image.png');
-
-            const response = await fetch(url, { method: 'POST', body: formData });
-            const data = await response.json();
-
+            // Extract raw base64 data
+            const rawBase64 = imageBase64.includes(',') ? imageBase64.split(',')[1] : imageBase64;
+            const data = await proxyPostForm(`${effectiveObjectStoryId}/comments`, {
+                message,
+                fileBase64: rawBase64,
+                filename: 'comment_image.png',
+                mimeType: 'image/png',
+                fileField: 'source'
+            });
             if (data.error && data.error.code === 200) {
                 throw new Error("Permission Error: Your App needs 'pages_manage_engagement' to post comments.");
             }
-            handleApiError(data);
             return data.id;
         } catch (e: any) {
-            console.error("Image conversion failed", e);
+            console.error("Image comment failed", e);
             throw new Error(e.message || "Failed to process image for comment.");
         }
     } else {
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message: message, access_token: pageAccessToken })
-        });
-        const data = await response.json();
+        const data = await proxyPost(`${effectiveObjectStoryId}/comments`, { message });
         if (data.error && data.error.code === 200) {
             throw new Error("Permission Error: Your App needs 'pages_manage_engagement' to post comments.");
         }
-        handleApiError(data);
         return data.id;
     }
 };
