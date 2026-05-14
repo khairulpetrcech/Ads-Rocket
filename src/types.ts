@@ -199,6 +199,7 @@ export interface TrackedUser {
   adAccountName: string;
   lastActive: string;
   campaignCount?: number;
+  isAllowed?: boolean;
 }
 
 export interface TrackedCampaign {

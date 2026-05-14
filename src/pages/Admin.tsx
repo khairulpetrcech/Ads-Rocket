@@ -5,7 +5,7 @@ import { TrackedUser, TrackedCampaign } from '../types';
 import {
     Users, Activity, Calendar, Image, Video, RefreshCw,
     LogOut, ChevronDown, ChevronUp, ArrowLeft, Loader2,
-    Clock, Target, Briefcase
+    Clock, Target, Briefcase, ShieldCheck, CheckCircle, XCircle
 } from 'lucide-react';
 
 const ADMIN_PASSWORD = 'rocket@admin2024';
@@ -46,6 +46,7 @@ const AdminPage: React.FC = () => {
     const [error, setError] = useState('');
     const [activeTab, setActiveTab] = useState<'users' | 'campaigns'>('users');
     const [expandedUser, setExpandedUser] = useState<string | null>(null);
+    const [togglingId, setTogglingId] = useState<string | null>(null);
 
     const fetchData = async () => {
         setLoading(true);
@@ -81,6 +82,33 @@ const AdminPage: React.FC = () => {
             setError(err.message || 'Failed to load data');
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleToggleAllowed = async (user: TrackedUser) => {
+        const action = user.isAllowed !== false ? 'disallow-user' : 'allow-user';
+        setTogglingId(user.fbId);
+        try {
+            const res = await fetch(`/api/admin-api?action=${action}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${ADMIN_PASSWORD}`
+                },
+                body: JSON.stringify({ fbId: user.fbId })
+            });
+            const data = await res.json();
+            if (data.success) {
+                setUsers(prev =>
+                    prev.map(u => u.fbId === user.fbId ? { ...u, isAllowed: data.is_allowed } : u)
+                );
+            } else {
+                setError(data.error || 'Failed to update user.');
+            }
+        } catch (e: any) {
+            setError('Network error toggling user access.');
+        } finally {
+            setTogglingId(null);
         }
     };
 
@@ -256,6 +284,33 @@ const AdminPage: React.FC = () => {
                                                     Last active: {formatRelativeTime(user.lastActive)}
                                                 </p>
                                             </div>
+
+                                            {/* Access Status Badge */}
+                                            <div className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full ${
+                                                user.isAllowed !== false
+                                                    ? 'bg-green-50 text-green-600 border border-green-200'
+                                                    : 'bg-red-50 text-red-600 border border-red-200'
+                                            }`}>
+                                                {user.isAllowed !== false ? <CheckCircle size={12} /> : <XCircle size={12} />}
+                                                {user.isAllowed !== false ? 'Allowed' : 'Blocked'}
+                                            </div>
+
+                                            {/* Toggle Allow/Block Button */}
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); handleToggleAllowed(user); }}
+                                                disabled={togglingId === user.fbId}
+                                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                                                    user.isAllowed !== false
+                                                        ? 'bg-red-50 hover:bg-red-100 text-red-600 border border-red-200'
+                                                        : 'bg-green-50 hover:bg-green-100 text-green-600 border border-green-200'
+                                                } disabled:opacity-50 disabled:cursor-not-allowed`}
+                                            >
+                                                {togglingId === user.fbId
+                                                    ? <Loader2 size={12} className="animate-spin" />
+                                                    : user.isAllowed !== false ? <XCircle size={12} /> : <CheckCircle size={12} />
+                                                }
+                                                {user.isAllowed !== false ? 'Block' : 'Allow'}
+                                            </button>
 
                                             {/* Expand Icon */}
                                             <div className="text-slate-400">

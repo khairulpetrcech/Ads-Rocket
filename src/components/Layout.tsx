@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Settings, LogOut, Rocket, Loader2, ChevronDown, ChevronUp, Play, PlusCircle, MessageSquareText, Menu, X, Minimize2, Maximize2, CheckCircle, Image, Activity, Search, HelpCircle, Bell, Users, FileText, Video, Bot, BarChart2, Workflow } from 'lucide-react';
+import { LayoutDashboard, Settings, LogOut, Rocket, Loader2, ChevronDown, ChevronUp, Play, PlusCircle, MessageSquareText, Menu, X, Minimize2, Maximize2, CheckCircle, Image, Activity, Search, HelpCircle, Bell, Users, FileText, Video, Bot, BarChart2, Workflow, ShieldCheck } from 'lucide-react';
 import { useSettings } from '../App';
 import { getTopAdsForAccount, publishComment } from '../services/metaService';
 import { analyzeAccountPerformance } from '../services/aiService';
@@ -313,6 +313,9 @@ const Layout: React.FC = () => {
                             <NavLink to="/settings" className={navLinkClass}>
                                 <Settings size={18} /><span>Configuration</span>
                             </NavLink>
+                            <NavLink to="/admin" className={navLinkClass}>
+                                <ShieldCheck size={18} /><span>Admin</span>
+                            </NavLink>
                             <NavLink to="/log" className={navLinkClass}>
                                 <FileText size={18} /><span>Log</span>
                             </NavLink>
@@ -437,6 +440,9 @@ const Layout: React.FC = () => {
                                 <div className="space-y-1">
                                     <NavLink to="/settings" onClick={() => setIsMobileMenuOpen(false)} className={mobileNavLinkClass}>
                                         <Settings size={20} /><span>Configuration</span>
+                                    </NavLink>
+                                    <NavLink to="/admin" onClick={() => setIsMobileMenuOpen(false)} className={mobileNavLinkClass}>
+                                        <ShieldCheck size={20} /><span>Admin</span>
                                     </NavLink>
                                     <NavLink to="/log" onClick={() => setIsMobileMenuOpen(false)} className={mobileNavLinkClass}>
                                         <FileText size={20} /><span>Log</span>
