@@ -130,8 +130,15 @@ export default async function handler(req: any, res: any) {
             .eq('fb_id', fbId)
             .maybeSingle();
 
-        if (userRecord && userRecord.is_allowed === false) {
-            return res.status(403).json({ error: 'Not allowed to use Ads Rocket API. Please contact admin.' });
+        // BLOCK if:
+        // 1. User doesn't exist in our DB (Never connected/registered)
+        // 2. User exists but is explicitly blocked (is_allowed === false)
+        if (!userRecord || userRecord.is_allowed === false) {
+            return res.status(403).json({ 
+                error: !userRecord 
+                    ? 'User not registered with Ads Rocket. Please connect your account first.' 
+                    : 'Not allowed to use Ads Rocket API. Please contact admin.' 
+            });
         }
 
         // Get token

@@ -5,10 +5,10 @@ import { TrackedUser, TrackedCampaign } from '../types';
 import {
     Users, Activity, Calendar, Image, Video, RefreshCw,
     LogOut, ChevronDown, ChevronUp, ArrowLeft, Loader2,
-    Clock, Target, Briefcase, ShieldCheck, CheckCircle, XCircle
+    Clock, Target, Briefcase, ShieldCheck, CheckCircle, XCircle, AlertTriangle
 } from 'lucide-react';
 
-const ADMIN_PASSWORD = 'rocket@admin2024';
+const ADMIN_PASSWORD_KEY = 'ar_admin_password';
 
 // Format date to readable string
 const formatDate = (isoString: string) => {
@@ -40,6 +40,9 @@ const formatRelativeTime = (isoString: string) => {
 
 const AdminPage: React.FC = () => {
     const navigate = useNavigate();
+    const [password, setPassword] = useState(() => localStorage.getItem(ADMIN_PASSWORD_KEY) || '');
+    const [authed, setAuthed] = useState(false);
+    const [authError, setAuthError] = useState('');
     const [users, setUsers] = useState<TrackedUser[]>([]);
     const [campaigns, setCampaigns] = useState<TrackedCampaign[]>([]);
     const [loading, setLoading] = useState(true);
@@ -55,8 +58,14 @@ const AdminPage: React.FC = () => {
         try {
             // Fetch users
             const usersRes = await fetch('/api/admin-api?action=users', {
-                headers: { 'Authorization': `Bearer ${ADMIN_PASSWORD}` }
+                headers: { 'Authorization': `Bearer ${password}` }
             });
+
+            if (usersRes.status === 401) {
+                setAuthed(false);
+                setAuthError('Wrong password.');
+                return;
+            }
 
             if (!usersRes.ok) {
                 throw new Error('Failed to fetch users');
@@ -64,10 +73,12 @@ const AdminPage: React.FC = () => {
 
             const usersData = await usersRes.json();
             setUsers(usersData.users || []);
+            setAuthed(true);
+            localStorage.setItem(ADMIN_PASSWORD_KEY, password);
 
             // Fetch campaigns
             const campaignsRes = await fetch('/api/admin-api?action=campaigns', {
-                headers: { 'Authorization': `Bearer ${ADMIN_PASSWORD}` }
+                headers: { 'Authorization': `Bearer ${password}` }
             });
 
             if (!campaignsRes.ok) {
@@ -93,7 +104,7 @@ const AdminPage: React.FC = () => {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    Authorization: `Bearer ${ADMIN_PASSWORD}`
+                    Authorization: `Bearer ${password}`
                 },
                 body: JSON.stringify({ fbId: user.fbId })
             });
@@ -112,13 +123,25 @@ const AdminPage: React.FC = () => {
         }
     };
 
-    useEffect(() => {
+    const handleLogin = (e: React.FormEvent) => {
+        e.preventDefault();
+        setAuthError('');
         fetchData();
+    };
+
+    useEffect(() => {
+        if (password) {
+            fetchData();
+        } else {
+            setLoading(false);
+        }
     }, []);
 
     const handleLogout = () => {
-        localStorage.removeItem('ar_admin');
-        navigate('/login');
+        setAuthed(false);
+        setPassword('');
+        localStorage.removeItem(ADMIN_PASSWORD_KEY);
+        navigate('/');
     };
 
     // Stats
@@ -129,6 +152,47 @@ const AdminPage: React.FC = () => {
         const today = new Date();
         return lastActive.toDateString() === today.toDateString();
     }).length;
+
+    if (!authed) {
+        return (
+            <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
+                <div className="max-w-md w-full bg-slate-800 rounded-2xl border border-slate-700 shadow-2xl p-8 animate-fade-in-up">
+                    <div className="flex items-center gap-3 mb-8">
+                        <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center text-white font-bold">
+                            <ShieldCheck size={24} />
+                        </div>
+                        <div>
+                            <h1 className="text-xl font-bold text-white leading-none">Admin Access</h1>
+                            <p className="text-slate-400 text-xs mt-1">Authorized personnel only</p>
+                        </div>
+                    </div>
+
+                    <form onSubmit={handleLogin} className="space-y-6">
+                        <div>
+                            <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Security Key</label>
+                            <input
+                                type="password"
+                                value={password}
+                                onChange={e => setPassword(e.target.value)}
+                                placeholder="Enter admin password"
+                                className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3.5 text-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all placeholder:text-slate-600"
+                                autoFocus
+                            />
+                            {authError && <p className="text-red-400 text-xs mt-2 font-medium flex items-center gap-1"><AlertTriangle size={12} /> {authError}</p>}
+                        </div>
+
+                        <button
+                            type="submit"
+                            disabled={loading}
+                            className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-indigo-500/20 active:scale-[0.98] disabled:opacity-50"
+                        >
+                            {loading ? <Loader2 size={20} className="animate-spin" /> : "Access Dashboard"}
+                        </button>
+                    </form>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen bg-slate-50">
