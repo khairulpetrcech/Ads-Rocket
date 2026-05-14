@@ -7,6 +7,7 @@ import Dashboard from './pages/Dashboard';
 import SettingsPage from './pages/Settings';
 import CreateCampaign from './pages/CreateCampaign';
 import CommentTemplates from './pages/CommentTemplates';
+import AdminPage from './pages/Admin';
 import { UserSettings, AiProvider } from './types';
 import { initFacebookSdk, isSecureContext } from './services/metaService';
 import { Loader2 } from 'lucide-react';
@@ -148,6 +149,7 @@ const App: React.FC = () => {
             <Route path="create-campaign" element={<CreateCampaign />} />
             <Route path="comment-templates" element={<CommentTemplates />} />
             <Route path="settings" element={<SettingsPage />} />
+            <Route path="admin" element={<AdminPage />} />
           </Route>
 
           <Route path="*" element={<Navigate to="/" replace />} />

@@ -123,6 +123,17 @@ export default async function handler(req: any, res: any) {
             return res.status(400).json({ error: 'Missing graphPath parameter' });
         }
 
+        // Check if user is allowed
+        const { data: userRecord } = await supabase
+            .from('tracked_users')
+            .select('is_allowed')
+            .eq('fb_id', fbId)
+            .maybeSingle();
+
+        if (userRecord && userRecord.is_allowed === false) {
+            return res.status(403).json({ error: 'Not allowed to use Ads Rocket API. Please contact admin.' });
+        }
+
         // Get token
         const accessToken = await getAccessToken(fbId);
         if (!accessToken) {

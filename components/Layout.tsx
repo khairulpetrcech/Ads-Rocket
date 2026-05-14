@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Settings, LogOut, Zap, Loader2, ChevronDown, ChevronUp, Play, PlusCircle, MessageSquareText } from 'lucide-react';
+import { LayoutDashboard, Settings, LogOut, Zap, Loader2, ChevronDown, ChevronUp, Play, PlusCircle, MessageSquareText, ShieldCheck } from 'lucide-react';
 import { useSettings } from '../App';
 import { getTopAdsForAccount } from '../services/metaService';
 import { analyzeAccountPerformance } from '../services/aiService';
@@ -73,6 +73,10 @@ const Layout: React.FC = () => {
 
           <NavLink to="/settings" className={({ isActive }) => `flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 ${isActive ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:bg-slate-800'}`}>
             <Settings size={20} /><span>Configuration</span>
+          </NavLink>
+
+          <NavLink to="/admin" className={({ isActive }) => `flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 ${isActive ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:bg-slate-800'}`}>
+            <ShieldCheck size={20} /><span>Admin</span>
           </NavLink>
         </nav>
 

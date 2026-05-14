@@ -9,6 +9,8 @@
  * GET /api/admin-api?action=comment-history&fbId=xxx
  * GET /api/admin-api?action=telegram-jobs&fbId=xxx
  * POST /api/admin-api?action=comment-history-save (body: {fbId, adId?, history?})
+ * POST /api/admin-api?action=allow-user (body: {fbId}) — requires admin auth
+ * POST /api/admin-api?action=disallow-user (body: {fbId}) — requires admin auth
  */
 
 import { createClient } from '@supabase/supabase-js';
@@ -30,6 +32,23 @@ export default async function handler(req: any, res: any) {
     }
 
     const { action } = req.query;
+
+    // Allow/disallow user — requires admin auth, supports POST
+    if (action === 'allow-user' || action === 'disallow-user') {
+        const authHeader = req.headers.authorization;
+        if (!authHeader || authHeader !== `Bearer ${ADMIN_PASSWORD}`) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+        if (req.method !== 'POST') {
+            return res.status(405).json({ error: 'Method not allowed. Use POST.' });
+        }
+        try {
+            return handleSetUserAllowed(req, res, action === 'allow-user');
+        } catch (error: any) {
+            console.error('[Admin API] Allow/Disallow Error:', error);
+            return res.status(500).json({ error: error.message || 'Internal server error' });
+        }
+    }
 
     // Comment history & Telegram Jobs actions don't require admin auth
     if (action === 'comment-history' || action === 'comment-history-save' || action === 'telegram-jobs') {
@@ -115,7 +134,8 @@ async function handleGetUsers(req: any, res: any) {
         adAccountId: u.ad_account_id || '',
         adAccountName: u.ad_account_name || '',
         lastActive: u.last_active || u.created_at || new Date().toISOString(),
-        campaignCount: campaignCounts[u.fb_id] || 0
+        campaignCount: campaignCounts[u.fb_id] || 0,
+        isAllowed: u.is_allowed !== false // default true if null/undefined
     }));
 
     return res.status(200).json({ users: formattedUsers, total: formattedUsers.length });
@@ -314,6 +334,28 @@ async function handleSaveCommentHistory(req: any, res: any) {
         console.error('Save Comment History Error:', error);
         return res.status(500).json({ error: error.message || 'Unknown error' });
     }
+}
+
+// Allow or disallow a user from accessing the API
+async function handleSetUserAllowed(req: any, res: any, allowed: boolean) {
+    const { fbId } = req.body;
+
+    if (!fbId) {
+        return res.status(400).json({ error: 'Missing fbId in request body' });
+    }
+
+    const { error } = await supabase
+        .from('tracked_users')
+        .update({ is_allowed: allowed })
+        .eq('fb_id', fbId);
+
+    if (error) {
+        console.error(`Supabase error setting is_allowed=${allowed} for ${fbId}:`, error);
+        return res.status(500).json({ error: error.message });
+    }
+
+    console.log(`[Admin API] User ${fbId} is_allowed set to ${allowed}`);
+    return res.status(200).json({ success: true, fbId, is_allowed: allowed });
 }
 
 // Get telegram campaign jobs for a user
