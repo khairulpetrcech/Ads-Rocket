@@ -535,7 +535,8 @@ const CreateCampaign: React.FC = () => {
                         campaignName: campaignMode === 'new' ? newCampaignName : existingCampaigns.find(c => c.id === selectedCampaignId)?.name || 'Unknown',
                         objective,
                         mediaType: 'MIXED',
-                        adAccountId: settings.adAccountId
+                        adAccountId: settings.adAccountId,
+                        id: finalCampaignId
                     })
                 });
             } catch (logErr) {

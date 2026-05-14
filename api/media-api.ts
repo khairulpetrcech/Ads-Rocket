@@ -2198,11 +2198,12 @@ async function handleLogCampaign(req: any, res: any) {
             campaignName,
             objective,
             mediaType,
-            adAccountId
+            adAccountId,
+            id
         } = req.body;
 
-        if (!fbUserId || !campaignName) {
-            return res.status(400).json({ error: 'Missing required fields' });
+        if (!fbUserId || !campaignName || !id) {
+            return res.status(400).json({ error: 'Missing required fields (id is mandatory)' });
         }
 
         const now = new Date().toISOString();
@@ -2217,6 +2218,7 @@ async function handleLogCampaign(req: any, res: any) {
                 objective: objective || 'OUTCOME_SALES',
                 media_type: mediaType || 'IMAGE',
                 ad_account_id: adAccountId || '',
+                id: id,
                 created_at: now
             })
             .select();

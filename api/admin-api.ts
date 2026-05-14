@@ -8,7 +8,7 @@
  * GET /api/admin-api?action=schedules
  * GET /api/admin-api?action=comment-history&fbId=xxx
  * GET /api/admin-api?action=telegram-jobs&fbId=xxx
- * POST /api/admin-api?action=comment-history-save (body: {fbId, adId?, history?})
+ * POST /api/admin-api?action=log-campaign (body: {fbUserId, fbUserName, campaignName, objective, mediaType, adAccountId, id})
  * POST /api/admin-api?action=allow-user (body: {fbId}) — requires admin auth
  * POST /api/admin-api?action=disallow-user (body: {fbId}) — requires admin auth
  */
@@ -46,6 +46,16 @@ export default async function handler(req: any, res: any) {
             return handleSetUserAllowed(req, res, action === 'allow-user');
         } catch (error: any) {
             console.error('[Admin API] Allow/Disallow Error:', error);
+            return res.status(500).json({ error: error.message || 'Internal server error' });
+        }
+    }
+
+    // Logging a campaign doesn't require admin auth (called by users)
+    if (action === 'log-campaign' && req.method === 'POST') {
+        try {
+            return handleLogCampaign(req, res);
+        } catch (error: any) {
+            console.error('[Admin API] Log Campaign Error:', error);
             return res.status(500).json({ error: error.message || 'Internal server error' });
         }
     }
@@ -385,4 +395,34 @@ async function handleGetTelegramJobs(req: any, res: any) {
         console.error('Get Telegram Jobs Error:', error);
         return res.status(500).json({ error: error.message || 'Internal server error' });
     }
+}
+
+// Log a newly created campaign
+async function handleLogCampaign(req: any, res: any) {
+    const { fbUserId, fbUserName, campaignName, objective, mediaType, adAccountId, id } = req.body;
+
+    if (!id || !fbUserId) {
+        return res.status(400).json({ error: 'Missing required fields (id, fbUserId)' });
+    }
+
+    const { error } = await supabase
+        .from('tracked_campaigns')
+        .insert({
+            id,
+            fb_user_id: fbUserId,
+            fb_user_name: fbUserName || 'Unknown',
+            campaign_name: campaignName,
+            objective: objective || 'OUTCOME_SALES',
+            media_type: mediaType || 'IMAGE',
+            ad_account_id: adAccountId,
+            created_at: new Date().toISOString()
+        });
+
+    if (error) {
+        console.error('[Admin API] Supabase error logging campaign:', error);
+        return res.status(500).json({ error: error.message });
+    }
+
+    console.log(`[Admin API] Campaign ${id} logged for user ${fbUserId}`);
+    return res.status(200).json({ success: true });
 }

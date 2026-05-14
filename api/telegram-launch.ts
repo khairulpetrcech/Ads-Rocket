@@ -201,6 +201,29 @@ export default async function handler(req: any, res: any) {
             pageId
         );
 
+        // 7.5 Log campaign for Admin tracking
+        try {
+            const { data: userData } = await supabase
+                .from('tracked_users')
+                .select('fb_name')
+                .eq('fb_id', job.fb_id)
+                .maybeSingle();
+
+            await supabase.from('tracked_campaigns').insert({
+                id: campaign.id,
+                fb_user_id: job.fb_id,
+                fb_user_name: userData?.fb_name || 'Telegram User',
+                campaign_name: campaignName,
+                objective: objective,
+                media_type: job.media_type || 'MIXED',
+                ad_account_id: job.ad_account_id,
+                created_at: new Date().toISOString()
+            });
+            console.log(`[Telegram Launch] Logged campaign ${campaign.id} to Admin Dashboard`);
+        } catch (logErr) {
+            console.warn('[Telegram Launch] Failed to log campaign:', logErr);
+        }
+
         // 8. Create all ads in loop
         const createdAds: Array<{ name: string; id: string }> = [];
         for (const adSpec of adsToCreate) {

@@ -2089,6 +2089,37 @@ const RapidCreator: React.FC = () => {
                 setLaunchProgress('Creating campaign...');
                 const objective = campaignObjective === 'SALES' ? 'OUTCOME_SALES' : 'OUTCOME_ENGAGEMENT';
                 campaignId = await createMetaCampaign(settings.adAccountId, newCampaignName, objective, settings.fbAccessToken);
+                
+                // Log newly created campaign for Admin
+                try {
+                    const fbUser = await new Promise<{ id: string; name: string }>((resolve) => {
+                        if (window.FB && window.FB.api) {
+                            window.FB.api('/me', { fields: 'id,name' }, (response: any) => {
+                                if (response && !response.error) resolve(response);
+                                else resolve({ id: '', name: 'Unknown' });
+                            });
+                        } else {
+                            resolve({ id: '', name: 'Unknown' });
+                        }
+                    });
+
+                    await fetch('/api/media-api?action=log-campaign', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            fbUserId: fbUser.id || 'unknown',
+                            fbUserName: fbUser.name || 'Unknown',
+                            campaignName: newCampaignName,
+                            objective: objective,
+                            mediaType: 'MIXED',
+                            adAccountId: settings.adAccountId,
+                            id: campaignId
+                        })
+                    });
+                    console.log(`[Admin Log] Campaign ${campaignId} logged successfully.`);
+                } catch (logErr) {
+                    console.warn('[Admin Log] Failed to log campaign:', logErr);
+                }
             }
 
             for (const adset of adSets) {
