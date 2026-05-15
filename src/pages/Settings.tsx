@@ -289,12 +289,8 @@ const Settings: React.FC = () => {
           
           <div className="bg-indigo-50/50 border border-indigo-100 p-4 rounded-lg mb-4 flex items-start gap-3 relative z-10">
             <Info className="text-indigo-600 flex-shrink-0 mt-0.5" size={18} />
-            <div className="text-sm text-indigo-900">
-              <p className="font-medium mb-1">Connect your custom AI Agent (like Hermes/ChatGPT)</p>
-              <p className="text-indigo-700/80">
-                Your AI agent needs this **Facebook ID** to securely interact with the Ads Rocket Proxy. 
-                Do not give your raw Access Token to the AI.
-              </p>
+            <div className="text-sm text-indigo-900 flex items-center h-full">
+              <p className="font-medium">Connect your custom AI Agent (like Hermes/ChatGPT/Openclaw)</p>
             </div>
           </div>
 
