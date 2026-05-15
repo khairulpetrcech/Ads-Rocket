@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useSettings } from '../App';
 import { useToast } from '../contexts/ToastContext';
 import { AiProvider } from '../types';
-import { Save, Key, Shield, Info, RefreshCw, Server, Eye, EyeOff, Download, Upload, FileJson, Send, Copy, Check, Bot } from 'lucide-react';
+import { Save, Key, Shield, Info, RefreshCw, Server, Eye, EyeOff, Download, Upload, FileJson, Send, Copy, Check, Bot, ChevronDown, ChevronUp } from 'lucide-react';
 import { getAvailableModels } from '../services/aiService';
 import { getPages, getPixels } from '../services/metaService';
 
@@ -21,6 +21,7 @@ const Settings: React.FC = () => {
   const [fbPixels, setFbPixels] = useState<{ id: string; name: string }[]>([]);
   const [loadingPixels, setLoadingPixels] = useState(false);
   const [copiedFbId, setCopiedFbId] = useState(false);
+  const [showApiDocs, setShowApiDocs] = useState(false);
 
   useEffect(() => {
     const fetchModels = async () => {
@@ -283,7 +284,7 @@ const Settings: React.FC = () => {
           <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-50 rounded-full blur-3xl -mr-10 -mt-10 opacity-60"></div>
           
           <h2 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2 relative z-10">
-            <Bot size={20} className="text-indigo-600" /> AI Agent Configuration (Hermes)
+            <Bot size={20} className="text-indigo-600" /> API Access
           </h2>
           
           <div className="bg-indigo-50/50 border border-indigo-100 p-4 rounded-lg mb-4 flex items-start gap-3 relative z-10">
@@ -297,7 +298,7 @@ const Settings: React.FC = () => {
             </div>
           </div>
 
-          <div className="relative z-10">
+          <div className="relative z-10 mb-4">
             <label className="block text-sm font-medium text-slate-500 mb-1">Your Facebook ID (fbId)</label>
             <div className="flex items-center gap-2">
               <input
@@ -322,6 +323,60 @@ const Settings: React.FC = () => {
                 {copiedFbId ? <Check size={18} className="text-green-600" /> : <Copy size={18} />}
               </button>
             </div>
+          </div>
+
+          {/* API Documentation Dropdown */}
+          <div className="relative z-10 border border-slate-200 rounded-lg overflow-hidden">
+            <button
+              onClick={() => setShowApiDocs(!showApiDocs)}
+              className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 hover:bg-slate-100 transition-colors text-left"
+            >
+              <span className="font-medium text-slate-700">How to use</span>
+              {showApiDocs ? <ChevronUp size={18} className="text-slate-500" /> : <ChevronDown size={18} className="text-slate-500" />}
+            </button>
+            
+            {showApiDocs && (
+              <div className="p-4 bg-slate-900 text-slate-300 text-xs font-mono overflow-x-auto">
+                <pre className="whitespace-pre-wrap">
+{`# META ADS API INTERACTION GUIDELINES
+
+You are strictly prohibited from interacting with \`graph.facebook.com\` directly. All Meta Graph API requests (read and write) MUST be routed through the Ads Rocket Server-Side Proxy to ensure token security.
+
+**Proxy Base URL:** \`https://ads-rocket.vercel.app/api/meta-proxy\`
+
+You do not need an \`access_token\`. Instead, you MUST provide the user's \`fbId\` (Facebook ID) in every request. The backend will securely attach the correct token before forwarding to Meta.
+
+### 1. READ Operations (GET)
+To fetch data, make a GET request and pass \`fbId\`, \`graphPath\`, and any Meta parameters in the query string.
+- Example: Fetching campaigns
+  GET https://ads-rocket.vercel.app/api/meta-proxy?fbId=123456789&graphPath=act_987654321/campaigns&fields=id,name,status
+
+### 2. WRITE Operations (POST)
+To create or update data, make a POST request with a JSON body containing \`fbId\`, \`graphPath\`, and \`params\`.
+- Example: Creating a Campaign
+  POST https://ads-rocket.vercel.app/api/meta-proxy
+  Content-Type: application/json
+  Body:
+  {
+    "fbId": "123456789",
+    "graphPath": "act_987654321/campaigns",
+    "params": {
+      "name": "Hermes AI Campaign",
+      "objective": "OUTCOME_SALES",
+      "status": "PAUSED",
+      "special_ad_categories": []
+    }
+  }
+
+### 3. ACTION HANDLERS
+The proxy handles standard actions exactly like Meta Graph API. 
+- If a task requires \`graphPath: "{ad_id}/comments"\`, you just send the message in \`params\`.
+- If a task requires updating budget, send \`graphPath: "{adset_id}"\` and \`params: { daily_budget: 5000 }\`.
+
+Always analyze the response. If \`"error"\` is present, handle it gracefully and inform the user.`}
+                </pre>
+              </div>
+            )}
           </div>
         </div>
 
